@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI CLI Switch standalone</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        color: #10212f;
+        background:
+          radial-gradient(circle at top left, rgba(255, 187, 92, 0.45), transparent 30%),
+          radial-gradient(circle at top right, rgba(56, 189, 248, 0.2), transparent 28%),
+          linear-gradient(180deg, #f7f2ea 0%, #eef4f7 100%);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      main {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 48px 24px 64px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2.5rem, 6vw, 5rem);
+        line-height: 0.95;
+      }
+
+      .eyebrow {
+        margin: 0 0 12px;
+        color: #b45309;
+        font-size: 0.9rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .hero-copy {
+        max-width: 760px;
+        margin: 16px 0 28px;
+        color: #385266;
+      }
+
+      .metrics-grid,
+      .content-grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .metrics-grid {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        margin-bottom: 16px;
+      }
+
+      .content-grid {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+
+      .metric-card,
+      .panel {
+        border: 1px solid rgba(16, 33, 47, 0.08);
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.72);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 18px 40px rgba(16, 33, 47, 0.06);
+      }
+
+      .metric-card {
+        padding: 20px;
+      }
+
+      .metric-card span,
+      .metric-card small {
+        display: block;
+      }
+
+      .metric-card strong {
+        display: block;
+        margin: 10px 0 6px;
+        font-size: 2rem;
+      }
+
+      .panel {
+        padding: 22px;
+      }
+
+      .list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .list-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: flex-start;
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: rgba(238, 244, 247, 0.72);
+      }
+
+      .list-row p {
+        margin: 4px 0 0;
+        color: #5b7181;
+        word-break: break-word;
+      }
+
+      .row-meta {
+        text-align: right;
+      }
+
+      code {
+        font-family: "IBM Plex Mono", monospace;
+        color: #6b21a8;
+        word-break: break-all;
+      }
+
+      @media (max-width: 720px) {
+        main {
+          padding: 28px 16px 40px;
+        }
+
+        .list-row {
+          flex-direction: column;
+        }
+
+        .row-meta {
+          text-align: left;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <div style="display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;">
+          <p class="eyebrow" id="eyebrow">Linux Headless Control Plane</p>
+          <label style="display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.72);border:1px solid rgba(16,33,47,.08);">
+            <span id="languageLabel">语言</span>
+            <select id="localeSelect">
+              <option value="zh-CN">中文</option>
+              <option value="en-US">English</option>
+            </select>
+          </label>
+        </div>
+        <h1 id="title">AI CLI Switch</h1>
+        <p class="hero-copy" id="description">
+          零依赖原型运行面。用于在无法安装外部依赖时，仍然把控制台与 API 骨架跑起来。
+        </p>
+        <p style="margin:0;color:#6b7280;" id="hint">
+          从现在开始，所有功能默认按中英双语和开源仓库标准设计。
+        </p>
+      </section>
+      <section class="metrics-grid" id="metrics"></section>
+      <section class="content-grid">
+        <article class="panel">
+          <h2 id="providersTitle">Provider</h2>
+          <div class="list" id="providers"></div>
+        </article>
+        <article class="panel">
+          <h2 id="bindingsTitle">应用绑定</h2>
+          <div class="list" id="bindings"></div>
+        </article>
+        <article class="panel">
+          <h2 id="discoveriesTitle">宿主机 CLI 探测</h2>
+          <div class="list" id="discoveries"></div>
+        </article>
+        <article class="panel">
+          <h2 id="metadataTitle">产品元数据</h2>
+          <div class="list" id="metadata"></div>
+        </article>
+      </section>
+    </main>
+    <script>
+      const dictionaries = {
+        "zh-CN": {
+          languageLabel: "语言",
+          eyebrow: "Linux 无头控制面",
+          title: "AI CLI Switch",
+          description: "零依赖原型运行面。用于在无法安装外部依赖时，仍然把控制台与 API 骨架跑起来。",
+          hint: "从现在开始，所有功能默认按中英双语和开源仓库标准设计。",
+          metrics: {
+            status: "服务状态",
+            providers: "Provider 数量",
+            bindings: "应用绑定",
+            discovery: "宿主机探测",
+            providerHint: "当前为演示数据",
+            bindingHint: "支持 observe / managed",
+            discoveryHint: "基于 PATH 的可执行探测结果"
+          },
+          panels: {
+            providers: "Provider",
+            bindings: "应用绑定",
+            discoveries: "宿主机 CLI 探测",
+            metadata: "产品元数据"
+          },
+          enabled: "已启用",
+          disabled: "已停用",
+          found: "已发现",
+          missing: "未发现",
+          notFound: "未发现",
+          localeSummary: "支持语言"
+        },
+        "en-US": {
+          languageLabel: "Language",
+          eyebrow: "Linux Headless Control Plane",
+          title: "AI CLI Switch",
+          description: "A zero-dependency runtime surface that keeps the console and API prototype available even when packages cannot be installed.",
+          hint: "From now on, every feature is designed for bilingual delivery and open-source readiness.",
+          metrics: {
+            status: "Service Status",
+            providers: "Providers",
+            bindings: "Bindings",
+            discovery: "Host Discovery",
+            providerHint: "Using demo data",
+            bindingHint: "Supports observe / managed",
+            discoveryHint: "Executable discovery based on PATH"
+          },
+          panels: {
+            providers: "Providers",
+            bindings: "App Bindings",
+            discoveries: "Host CLI Discovery",
+            metadata: "Product Metadata"
+          },
+          enabled: "Enabled",
+          disabled: "Disabled",
+          found: "Discovered",
+          missing: "Missing",
+          notFound: "Not Found",
+          localeSummary: "Supported Locales"
+        }
+      };
+
+      const storageKey = "ai-cli-switch.standalone.locale";
+      const getLocale = () => {
+        const stored = localStorage.getItem(storageKey);
+        if (stored === "zh-CN" || stored === "en-US") {
+          return stored;
+        }
+        return (navigator.language || "").toLowerCase().startsWith("zh") ? "zh-CN" : "en-US";
+      };
+      let activeLocale = getLocale();
+
+      const readJson = async (path) => {
+        const response = await fetch(path);
+        if (!response.ok) {
+          throw new Error(`Request failed: ${response.status}`);
+        }
+        return response.json();
+      };
+
+      const renderMetricCard = (label, value, description) => `
+        <article class="metric-card">
+          <span>${label}</span>
+          <strong>${value}</strong>
+          <small>${description}</small>
+        </article>
+      `;
+
+      const renderListRow = (title, subtitle, rightTop, rightBottom) => `
+        <div class="list-row">
+          <div>
+            <strong>${title}</strong>
+            <p>${subtitle}</p>
+          </div>
+          <div class="row-meta">
+            <span>${rightTop}</span>
+            <code>${rightBottom}</code>
+          </div>
+        </div>
+      `;
+
+      const applyStaticText = () => {
+        const dict = dictionaries[activeLocale];
+        document.documentElement.lang = activeLocale;
+        document.getElementById("languageLabel").textContent = dict.languageLabel;
+        document.getElementById("eyebrow").textContent = dict.eyebrow;
+        document.getElementById("title").textContent = dict.title;
+        document.getElementById("description").textContent = dict.description;
+        document.getElementById("hint").textContent = dict.hint;
+        document.getElementById("providersTitle").textContent = dict.panels.providers;
+        document.getElementById("bindingsTitle").textContent = dict.panels.bindings;
+        document.getElementById("discoveriesTitle").textContent = dict.panels.discoveries;
+        document.getElementById("metadataTitle").textContent = dict.panels.metadata;
+        document.getElementById("localeSelect").value = activeLocale;
+      };
+
+      const renderDashboard = ([health, providersResult, bindingsResult, discoveriesResult, metadata]) => {
+        const dict = dictionaries[activeLocale];
+        const providers = providersResult.items;
+        const bindings = bindingsResult.items;
+        const discoveries = discoveriesResult.items;
+
+        document.getElementById("metrics").innerHTML = [
+          renderMetricCard(dict.metrics.status, health.status, health.service),
+          renderMetricCard(dict.metrics.providers, providers.length, dict.metrics.providerHint),
+          renderMetricCard(dict.metrics.bindings, bindings.length, dict.metrics.bindingHint),
+          renderMetricCard(
+            dict.metrics.discovery,
+            discoveries.filter((item) => item.discovered).length,
+            dict.metrics.discoveryHint
+          )
+        ].join("");
+
+        document.getElementById("providers").innerHTML = providers
+          .map((item) =>
+            renderListRow(item.name, item.providerType, item.enabled ? dict.enabled : dict.disabled, item.apiKeyMasked)
+          )
+          .join("");
+
+        document.getElementById("bindings").innerHTML = bindings
+          .map((item) => renderListRow(item.appCode, item.providerId, item.mode, item.updatedAt))
+          .join("");
+
+        document.getElementById("discoveries").innerHTML = discoveries
+          .map((item) =>
+            renderListRow(item.appCode, item.status, item.discovered ? dict.found : dict.missing, item.executablePath ?? dict.notFound)
+          )
+          .join("");
+
+        document.getElementById("metadata").innerHTML = [
+          renderListRow("releaseStage", metadata.releaseStage, "repositoryMode", metadata.repositoryMode),
+          renderListRow("deliveryTargets", metadata.deliveryTargets.join(", "), dict.localeSummary, metadata.supportedLocales.join(" / "))
+        ].join("");
+      };
+
+      document.getElementById("localeSelect").addEventListener("change", (event) => {
+        activeLocale = event.target.value;
+        localStorage.setItem(storageKey, activeLocale);
+        applyStaticText();
+        boot();
+      });
+
+      const boot = () =>
+      Promise.all([
+        readJson("/health"),
+        readJson("/api/v1/providers"),
+        readJson("/api/v1/app-bindings"),
+        readJson("/api/v1/host-discovery"),
+        readJson("/api/v1/system/metadata")
+      ]).then(renderDashboard);
+
+      applyStaticText();
+      boot();
+    </script>
+  </body>
+</html>

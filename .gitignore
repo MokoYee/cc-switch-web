@@ -1,0 +1,15 @@
+node_modules
+dist
+.DS_Store
+coverage
+*.log
+apps/web/dist
+apps/server/dist
+packages/shared/dist
+.agent-context/
+AGENTS.md
+CLAUDE.md
+CODEX.md
+GEMINI.md
+.cursor/
+.windsurf/

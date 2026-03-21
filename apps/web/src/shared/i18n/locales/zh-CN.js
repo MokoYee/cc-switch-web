@@ -1,0 +1,96 @@
+export const zhCNMessages = {
+    common: {
+        loading: "加载中",
+        notFound: "未发现",
+        enabled: "已启用",
+        disabled: "已停用",
+        managed: "接管模式",
+        observe: "观察模式",
+        save: "保存",
+        refresh: "刷新",
+        delete: "删除",
+        import: "导入",
+        export: "导出",
+        restore: "恢复"
+    },
+    app: {
+        eyebrow: "Linux 无头控制面",
+        title: "AI CLI Switch",
+        description: "面向 Codex、Claude Code、Gemini 等 CLI 的配置与代理控制台。",
+        languageLabel: "语言",
+        openSourceHint: "从现在开始，所有功能默认按中英双语和开源仓库标准设计。",
+        localeSummary: "支持语言"
+    },
+    dashboard: {
+        backendErrorTitle: "后端连接失败",
+        loadingTitle: "正在加载",
+        loadingDescription: "控制台正在等待后端返回最小运行态数据。",
+        runtimeTitle: "运行时信息",
+        controlTokenTitle: "控制令牌",
+        controlTokenDescription: "当前 daemon 已开启控制台认证。请输入控制令牌后重新加载数据。",
+        controlTokenPlaceholder: "输入 AICLI_SWITCH_CONTROL_TOKEN",
+        controlTokenSave: "保存令牌",
+        metrics: {
+            serviceStatus: "服务状态",
+            providerCount: "Provider 数量",
+            bindingCount: "应用绑定",
+            discoveryCount: "宿主机探测",
+            proxyRequestCount: "代理请求数",
+            providerHint: "当前骨架内置演示数据",
+            bindingHint: "支持 observe / managed",
+            discoveryHint: "基于 PATH 的可执行探测结果",
+            proxyRequestHint: "最近代理请求日志累计条数"
+        },
+        panels: {
+            providers: "Provider",
+            bindings: "应用绑定",
+            failoverChains: "故障转移链",
+            discoveries: "宿主机 CLI 探测",
+            proxyRuntime: "代理运行态",
+            requestLogs: "最近代理请求",
+            productMeta: "产品元数据",
+            recovery: "导入导出与恢复",
+            actions: "配置写入"
+        },
+        runtime: {
+            proxyReloadedAt: "最近装载时间",
+            credentialReady: "凭证已就绪",
+            credentialMissing: "缺少凭证",
+            proxySnapshot: "代理快照版本",
+            noProxyTraffic: "暂无代理流量",
+            noProxyTrafficHint: "当 CLI 请求命中 /proxy/:appCode/* 时，这里会展示最近转发记录。"
+        },
+        forms: {
+            providerTitle: "新增或更新 Provider",
+            bindingTitle: "新增或更新应用绑定",
+            failoverTitle: "新增或更新故障转移链",
+            proxyTitle: "更新代理策略",
+            id: "ID",
+            name: "名称",
+            providerType: "类型",
+            baseUrl: "Base URL",
+            apiKey: "真实密钥",
+            timeoutMs: "超时毫秒",
+            appCode: "应用",
+            providerId: "Provider ID",
+            failoverProviderIds: "候选 Provider IDs，逗号分隔",
+            mode: "模式",
+            cooldownSeconds: "熔断冷却秒数",
+            maxAttempts: "最大尝试次数",
+            listenHost: "监听地址",
+            listenPort: "监听端口",
+            requestTimeoutMs: "请求超时",
+            failureThreshold: "失败阈值",
+            saveSuccess: "保存成功，已写入 SQLite 并生成新快照。",
+            deleteSuccess: "删除成功，已生成新快照。",
+            exportTitle: "导出当前配置",
+            exportSuccess: "已生成最新配置导出包。",
+            importTitle: "导入配置包",
+            importPlaceholder: "粘贴从 AI CLI Switch 导出的 JSON 配置包",
+            importSuccess: "导入成功，SQLite 与快照已更新。",
+            restoreSuccess: "已从最近快照恢复配置。",
+            restoreHint: "恢复会覆盖当前 SQLite 中的 Provider、Binding 与代理策略。"
+        }
+    }
+};
+//# sourceMappingURL=zh-CN.js.map

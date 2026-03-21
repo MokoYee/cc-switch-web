@@ -1,0 +1,2 @@
+export { deleteBinding, deleteFailoverChain, deleteProvider, exportCurrentConfig, importConfigPackage, loadDashboardSnapshot, restoreLatestSnapshot, saveBinding, saveFailoverChain, saveProvider, saveProxyPolicy } from "../../../shared/lib/api.js";
+//# sourceMappingURL=load-dashboard-snapshot.js.map

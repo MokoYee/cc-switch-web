@@ -1,0 +1,23 @@
+{
+  "name": "@ai-cli-switch/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "ai-cli-switch": "dist/index.js",
+    "aicli-switch": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@ai-cli-switch/shared": "file:../../packages/shared",
+    "better-sqlite3": "^11.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "tsx": "^4.7.2",
+    "typescript": "^5.4.5"
+  }
+}
