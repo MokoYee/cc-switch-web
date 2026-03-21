@@ -13,3 +13,4 @@ CODEX.md
 GEMINI.md
 .cursor/
 .windsurf/
+*.tsbuildinfo
