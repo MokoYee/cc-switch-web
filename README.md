@@ -135,13 +135,13 @@ node apps/cli/dist/index.js web
 
 ```bash
 AICLI_SWITCH_CONTROL_TOKEN=your-token
-ALLOWED_ORIGINS=http://localhost:8788,http://101.22.30.15:8788,*
-AICLI_SWITCH_DAEMON_HOST=0.0.0.0
-AICLI_SWITCH_DAEMON_PORT=8787
+AICLI_SWITCH_ALLOWED_ORIGINS=http://localhost:<web-port>,http://<host>:<web-port>
+AICLI_SWITCH_DAEMON_HOST=<daemon-host>
+AICLI_SWITCH_DAEMON_PORT=<daemon-port>
 AICLI_SWITCH_WEB_HOST=127.0.0.1
-AICLI_SWITCH_WEB_PORT=8788
+AICLI_SWITCH_WEB_PORT=<web-port>
 AICLI_SWITCH_DATA_DIR=~/.ai-cli-switch
-AICLI_SWITCH_DB_PATH=~/.llm-lane/ai-cli-switch.sqlite
+AICLI_SWITCH_DB_PATH=~/.ai-cli-switch/ai-cli-switch.sqlite
 ```
 
 ## systemd 用户态服务
@@ -163,7 +163,6 @@ node apps/cli/dist/index.js daemon service status
 
 ```text
 .
-├── AGENTS.md
 ├── apps
 │   ├── cli
 │   ├── daemon
@@ -176,13 +175,3 @@ node apps/cli/dist/index.js daemon service status
 ├── package.json
 └── tsconfig.base.json
 ```
-
-## 当前阶段结论
-
-- 这个项目的价值重点应该是“AI CLI 用户的统一入口与切换方案”
-- README 首页应该优先服务用户理解、转化和开源传播，而不是先讲工程结构
-- 当前对外名称固定为 `AI CLI Switch`
-
-## 文档入口
-
-- 设计总览：`docs/linux-web-console-design.md`
