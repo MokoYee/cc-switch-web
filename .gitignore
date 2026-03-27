@@ -4,6 +4,7 @@ dist
 coverage
 *.log
 apps/web/dist
+apps/web/dist-types
 apps/server/dist
 packages/shared/dist
 .agent-context/
@@ -13,4 +14,5 @@ CODEX.md
 GEMINI.md
 .cursor/
 .windsurf/
+.history/
 *.tsbuildinfo

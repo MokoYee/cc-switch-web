@@ -1,6 +1,7 @@
-# AI CLI Switch
+# CC Switch Web
 
-`AI CLI Switch` 是本项目最终采用的产品名与对外名称，仓库与工程名统一为 `ai-cli-switch`。
+`CC Switch Web` 是当前采用的对外名称，仓库名统一为 `cc-switch-web`。
+它参考 `cc-switch` 的能力模型，但交付形态是面向 Linux 宿主机的 `daemon-first + web console`。
 
 这是一个面向 `Codex`、`Claude Code`、`Gemini CLI` 等 AI 编码工具用户的本机控制面与代理入口。  
 目标不是再做一个“技术演示面板”，而是帮助用户在一台 Linux 宿主机上，把多种 AI CLI 的接入、切换、观察和后续代理能力统一起来。
@@ -19,14 +20,14 @@
 
 ## 核心方案
 
-`AI CLI Switch` 采用的是“宿主机单端口 daemon + 内置控制台 + 本地持久化”的方案：
+`CC Switch Web` 采用的是“宿主机单端口 daemon + 内置控制台 + 本地持久化”的方案：
 
 - 默认在宿主机本机启动一个 daemon
 - 同一个端口同时承载管理 API 和内置 Control UI
 - 控制令牌持久化保存在本地 SQLite
 - Provider、应用绑定、代理策略写入 SQLite 后自动生成配置快照
 - 可以导出配置包、重新导入、恢复最近快照
-- `ai-cli-switch web` 仍然保留，但只作为调试/旁路控制台模式
+- `ccsw web` 仍然保留，但只作为调试/旁路控制台模式
 
 这意味着它天然更适合：
 
@@ -34,44 +35,52 @@
 - 和 `Codex` / `Claude Code` / `Gemini CLI` 同机部署
 - 本地优先、低依赖、可恢复的控制面产品形态
 
-## 当前能做什么
+## 现在最核心的使用路径
 
-当前仓库已经不是纯骨架，已经具备一版可运行产品雏形：
+当前产品优先解决的是这条最短主流程：
+
+1. 启动 daemon
+2. 生成或确认控制令牌
+3. 接管本机 AI CLI
+4. 让 CLI 请求走到本地代理
+5. 验证请求是否真的已经打进来
+
+换句话说，当前首先要做好的是“能装、能接管、能跑、能回滚”，而不是先把所有治理面板铺开。
+
+当前已经具备的主流程能力：
 
 - 单端口 daemon
-- 内置登录页和控制台
+- 内置 `/ui` 控制台
 - 本地持久化控制令牌
-- Provider 管理
-- App Binding 管理
-- Proxy Policy 持久化
-- Failover Chain 持久化与最小自动切换
-- 配置快照自动生成
-- 配置包导出 / 导入
-- 最近快照恢复
-- 宿主机 CLI 扫描骨架
-- 中英双语基础设施
 - `systemd --user` 用户态服务辅助命令
-- OpenAI-compatible 最小代理直通
-- Anthropic `messages` 到 OpenAI Chat Completions 的最小桥接
-- Anthropic 文本流 / 工具调用 / 工具流的最小桥接
-- 最小图片请求兼容与 thinking block 安全降级
+- 宿主机 CLI 扫描
+- `codex` 接管 / 回滚
+- `claude-code` 接管 / 回滚
+- `gemini-cli` / `opencode` / MCP 配置导入与同步能力矩阵
+- Prompt Host Sync 与宿主机 Prompt 投放 / 回滚
+- Prompt Host Sync 整批预览 / 整批执行
+- Skill 交付能力矩阵与代理侧注入路径说明
+- 宿主机接管预检与回滚备份
+- OpenAI-compatible 直通、Anthropic 非流式 / 流式桥接
+- 请求日志、审计事件、usage 统计、应用级日配额治理
+- 工作区 / 会话有效上下文解析与请求级覆盖协议
 
 ## 当前还没做完的部分
 
-当前重点已经从“演示页面”转到了“代理产品化”，但还没有完成这些能力：
+当前重点已经从“演示页面”转到了“治理产品化”，还剩这些尾项没有完全收口：
 
-- 更完整的 Anthropic / OpenAI 协议边界兼容
-- 主动健康检查、半开恢复与更强的 failover 韧性
-- 更细粒度的快照版本浏览与按版本恢复
-- 请求日志、审计日志、指标体系
-- 真实 CLI 接管与回滚闭环
-- 更完整的自动化测试
+- 更复杂的协议边界兼容，例如多工具并发流、图片返回内容桥接、thinking 能力协商
+- 更完整的宿主机生态覆盖，尤其是 MCP 批量治理与更多 CLI 接管策略
+- Skill 宿主机原生文件投放与更深的批量工作流
+- 工作区 / 会话自动建档后的宿主机接管建议、团队共享与更细的审计闭环
+- 趋势图、治理报表、批量操作等产品化体验增强
+- 对外发布前的运行手册、指标体系和更多自动化验证
 
 所以它现在适合：
 
-- 作为产品雏形试跑
-- 作为开源方向验证
-- 作为后续真实代理网关的控制面基础
+- 作为可试跑的 Linux 宿主机 AI CLI 中台
+- 作为开源方向验证与能力沉淀基线
+- 作为后续真实代理网关控制面与宿主机治理面的基础
 
 ## 适合谁
 
@@ -81,6 +90,13 @@
 - 准备把 AI CLI 使用场景产品化、团队化的人
 
 ## 快速启动
+
+默认 CLI 命令：
+
+- 推荐短命令：`ccsw`
+- 兼容别名：`cc-switch-web`、`ai-cli-switch`、`aicli-switch`
+- 当前环境变量与 systemd 单元名仍沿用兼容前缀：`AICLI_SWITCH_*`、`ai-cli-switch.service`
+- 本次归档后，CLI 进入维护态；后续新增治理能力默认只在 Web 控制台交付，CLI 只保留 `daemon` / `daemon service` / `web` 等运行入口与兼容命令。
 
 开发模式：
 
@@ -95,6 +111,8 @@ npm run dev:web
 ```bash
 npm run build
 node apps/cli/dist/index.js daemon start
+# 或在安装到 PATH 后使用
+ccsw daemon start
 ```
 
 启动后访问：
@@ -107,12 +125,53 @@ node apps/cli/dist/index.js daemon start
 ```bash
 node apps/cli/dist/index.js auth print-token
 node apps/cli/dist/index.js auth rotate-token
+# 或
+ccsw auth print-token
 ```
 
 按需打开独立调试控制台：
 
 ```bash
 node apps/cli/dist/index.js web
+# 或
+ccsw web
+```
+
+## 宿主机主流程示例
+
+最短路径可以按这个顺序：
+
+```bash
+npm install
+npm run build
+node apps/cli/dist/index.js daemon start
+node apps/cli/dist/index.js auth print-token
+node apps/cli/dist/index.js host setup codex
+```
+
+如果你想进一步压成一条主命令：
+
+```bash
+node apps/cli/dist/index.js quickstart codex
+```
+
+如果你要先看预检再决定是否接管：
+
+```bash
+node apps/cli/dist/index.js host preview codex
+node apps/cli/dist/index.js host apply codex
+```
+
+如果需要回滚：
+
+```bash
+node apps/cli/dist/index.js host rollback codex
+```
+
+`claude-code` 同理：
+
+```bash
+node apps/cli/dist/index.js host setup claude-code
 ```
 
 ## Linux 宿主机运行模型
@@ -149,15 +208,15 @@ AICLI_SWITCH_DB_PATH=~/.ai-cli-switch/ai-cli-switch.sqlite
 在 Linux 宿主机上可以直接生成用户态服务配置：
 
 ```bash
-node apps/cli/dist/index.js daemon service print
-node apps/cli/dist/index.js daemon service install
-node apps/cli/dist/index.js daemon service status
+ccsw daemon service print
+ccsw daemon service install
+ccsw daemon service status
 ```
 
 默认会写入：
 
 - unit：`~/.config/systemd/user/ai-cli-switch.service`
-- env：`~/.config/llm-lane/daemon.env`
+- env：`~/.config/ai-cli-switch/daemon.env`
 
 ## 仓库结构
 

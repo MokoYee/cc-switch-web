@@ -1,5 +1,5 @@
 {
-  "name": "ai-cli-switch",
+  "name": "cc-switch-web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,10 +11,10 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "npm run build --workspace @ai-cli-switch/shared && npm run build --workspace @ai-cli-switch/daemon && npm run build --workspace @ai-cli-switch/web && npm run build --workspace @ai-cli-switch/cli",
-    "dev:daemon": "npm run build --workspace @ai-cli-switch/shared && npm run dev --workspace @ai-cli-switch/daemon",
-    "dev:web": "npm run build --workspace @ai-cli-switch/shared && npm run dev --workspace @ai-cli-switch/web",
+    "build": "npm run build --workspace @cc-switch-web/shared && npm run build --workspace @cc-switch-web/daemon && npm run build --workspace @cc-switch-web/web && npm run build --workspace @cc-switch-web/cli",
+    "dev:daemon": "npm run build --workspace @cc-switch-web/shared && npm run dev --workspace @cc-switch-web/daemon",
+    "dev:web": "npm run build --workspace @cc-switch-web/shared && npm run dev --workspace @cc-switch-web/web",
     "start:standalone": "node tools/standalone/server.mjs",
-    "typecheck": "npm run build --workspace @ai-cli-switch/shared && npm run typecheck --workspace @ai-cli-switch/daemon && npm run typecheck --workspace @ai-cli-switch/web && npm run typecheck --workspace @ai-cli-switch/cli"
+    "typecheck": "npm run build --workspace @cc-switch-web/shared && npm run typecheck --workspace @cc-switch-web/daemon && npm run typecheck --workspace @cc-switch-web/web && npm run typecheck --workspace @cc-switch-web/cli"
   }
 }

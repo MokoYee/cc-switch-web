@@ -1,437 +1,368 @@
-# Linux Web 控制台版总体设计说明
-
-## 1. 项目背景
-
-本项目源自 GitHub 社区项目 `farion1231/cc-switch`。原项目已经验证了几个核心价值：
-
-- 统一管理 Codex、Claude Code、Gemini CLI、OpenCode、OpenClaw 的 API 配置。
-- 支持多渠道配置与快速切换，减少手工编辑配置文件。
-- 通过本地代理实现热切换，切换渠道后无需重启原始 CLI。
-- 在代理模式下支持自动故障转移。
-- 支持 Anthropic 与 OpenAI 兼容格式之间的请求转换。
-
-问题在于，原项目的交付形态是 Tauri 桌面应用，适合 macOS、Windows、Linux 桌面环境，不适合纯 Linux 服务器、云主机、ARM 开发板、无图形环境的长期运行场景。
-
-## 2. 新工程目标
-
-建设一个全新的 Linux 优先工程，暂定名 `AI CLI Switch`，目标如下：
-
-- 在无头 Linux 环境中运行，不依赖桌面环境。
-- 通过浏览器访问 Web 控制台完成配置和管理。
-- 保留原项目的核心能力：代理热切换、自动故障转移、协议转换。
-- 兼容原项目配置导入导出，降低迁移成本。
-- 支持主流 Linux 发行版与 `amd64`、`arm64` 架构。
-
-## 3. 设计原则
-
-### 3.1 数据与契约优先
-
-必须先定义稳定的数据模型和导入导出契约，再实现业务逻辑。后续版本演进通过版本号控制兼容性，禁止直接依赖松散 JSON 结构做内部传递。
-
-### 3.2 控制面与数据面分离
-
-Web 控制台属于控制面，代理转发属于数据面。前者变更频率低，后者请求量高，必须解耦，避免请求链路因为页面逻辑或数据库慢查询受到影响。
-
-### 3.3 无状态与可恢复
-
-代理请求处理尽量无状态。运行中的配置通过内存快照承载，持久化存储负责恢复与审计。任何配置写入失败，不得破坏上一份可用配置。
-
-### 3.4 可观测性内建
-
-系统必须自带审计日志、请求日志、故障转移记录、健康检查和 Prometheus 指标，便于服务器长期运行维护。
-
-## 4. 总体架构
-
-建议采用单仓库三层结构：
-
-### 4.1 后端服务层
-
-推荐技术栈：
-
-- Node.js 20+
-- TypeScript
-- Fastify
-- SQLite
-
-职责：
-
-- 提供管理 API 给内置 Control UI、CLI 和调试旁路控制台。
-- 托管本地代理服务与运行态配置。
-- 负责 Provider 管理、故障转移、配置导入导出、审计日志。
-- 提供鉴权、健康检查、指标暴露。
-
-### 4.2 Web 控制台层
-
-推荐技术栈：
-
-- React
-- TypeScript
-- Vite
-- TanStack Query
-- Zod
-
-职责：
-
-- 浏览器访问的配置界面，默认由 daemon 同端口挂载。
-- 管理 Provider、应用绑定、故障转移链、代理开关。
-- 展示当前激活渠道、最近失败记录、请求健康状态。
-
-### 4.2.1 当前已确认的入口策略
-
-- 默认产品入口是单端口 daemon。
-- daemon 默认监听 `127.0.0.1`，同端口同时承载管理 API 和 Control UI。
-- Control UI 默认挂载在 `/ui/`。
-- 独立 `ai-cli-switch web` 模式保留，但只作为调试/旁路控制台，不作为主入口。
-- Control UI 默认通过控制令牌进入，避免本地端口一旦暴露就直接裸奔。
-
-### 4.3 代理引擎层
-
-代理引擎必须从控制层中独立出来，内部建议拆成以下模块：
-
-- `gateway-core`：请求路由与转发。
-- `gateway-transform`：Anthropic/OpenAI 协议转换。
-- `gateway-failover`：故障识别、切换、熔断。
-- `gateway-config`：内存快照、配置热更新。
-
-## 5. 核心数据模型
-
-建议定义以下核心实体：
-
-- `Provider`：渠道定义，包含 `providerType`、`baseUrl`、`apiKeyRef`、模型映射、超时、重试配置。
-- `AppBinding`：应用与当前 Provider 的绑定关系，例如 `codex -> provider-1`。
-- `ProxyPolicy`：代理监听地址、启停状态、接管应用、请求超时、失败阈值。
-- `FailoverChain`：某个应用的候选渠道顺序。
-- `TransformRule`：协议转换方向与转换开关。
-- `ImportExportPackage`：与原项目兼容的导入导出 JSON 契约。
-- `AuditEvent`：配置变更、切换、导入导出、代理启停的审计记录。
-
-## 6. 核心功能设计
-
-### 6.1 Provider 管理
-
-- 支持新增、编辑、删除、启停 Provider。
-- 支持为不同 CLI 维护独立当前渠道。
-- 支持按模型维度覆盖默认渠道。
-- 敏感字段必须脱敏展示。
-
-### 6.2 本地配置同步
-
-- 读取 Codex、Claude Code、Gemini、OpenCode、OpenClaw 的本地配置。
-- 将系统当前选择同步回对应配置文件。
-- 支持“仅读取不接管”和“自动写回接管”两种模式。
-
-### 6.3 代理热切换
-
-- 后端提供本地监听地址，例如 `127.0.0.1:18080`。
-- CLI 将请求发到该代理地址。
-- 后台切换当前渠道后，新请求立即路由到新 Provider。
-- 切换不依赖 CLI 重启，这是核心卖点之一。
-
-### 6.4 自动故障转移
-
-- 每个应用可配置多个候选渠道。
-- 根据超时、连接失败、5xx、限流等错误触发切换。
-- 引入熔断与恢复窗口，避免故障节点频繁抖动。
-- 切换动作要去重，避免高并发场景下重复切换。
-
-### 6.5 协议转换
-
-重点保留原项目已验证的格式桥接能力：
-
-- Anthropic Messages API 转 OpenAI Chat Completions。
-- OpenAI Chat Completions 转 Anthropic 兼容格式。
-- 支持流式响应、工具调用、系统提示词、多模态字段的最小可用兼容。
-
-### 6.6 导入导出
-
-- 支持导出平台自身 JSON。
-- 支持导入原项目导出的配置。
-- 导入前必须做 schema 校验与版本识别。
-- 导出默认脱敏，敏感数据导出需显式确认。
-
-## 7. 存储与配置
-
-单机部署优先选 SQLite，原因是部署成本低、备份方便、无外部依赖。
-
-建议表结构：
-
-- `providers`
-- `app_bindings`
-- `proxy_policies`
-- `failover_chains`
-- `transform_rules`
-- `audit_events`
-- `system_settings`
-
-配置读取建议采用“数据库 + 内存快照”模式：
-
-- 控制面修改数据库。
-- 后端生成新版本配置快照。
-- 代理层原子替换当前快照。
-
-## 8. 交付与部署策略
-
-结论：主交付方式采用宿主机原生运行，优先支持 `npm` / `npx`，不以 Docker 作为主形态。
-
-推荐的用户使用方式：
-
-```bash
-npx AI CLI Switch
-```
-
-或：
-
-```bash
-npm install -g AI CLI Switch
-AI CLI Switch start
-```
-
-原因如下：
-
-- 目标用户本来就在宿主机使用 Codex、Claude Code、Gemini 等 CLI。
-- 本系统需要直接读取和写回宿主机上的配置文件。
-- 本系统需要扫描宿主机上的 CLI 安装位置、用户目录、环境变量和认证文件。
-- 代理服务需要与宿主机 CLI 直接协作，宿主机原生运行路径最短。
-
-Docker 仅作为补充形态，而不是主推荐形态。原因是容器默认无法自然感知宿主机上的 CLI 安装路径、`$HOME` 配置目录和运行时环境变量，做文件挂载与路径映射会显著增加复杂度。
-
-这里的“宿主机”明确指运行 Codex、Claude Code、Gemini 等 CLI 的服务器本机，而不是容器，也不是沙箱环境。
-
-## 9. 宿主机集成设计
-
-### 9.1 CLI 发现机制
-
-系统启动后应主动扫描宿主机环境，识别以下信息：
-
-- CLI 可执行文件位置
-- 常见配置目录位置
-- 当前用户目录
-- 可能存在的环境变量覆盖
-
-建议扫描方式：
-
-- 优先读取环境变量。
-- 其次扫描 `PATH`。
-- 再根据常见默认目录进行兜底探测。
-
-扫描结果应缓存到本地状态中，并在 Web 控制台展示“已发现 / 未发现 / 路径异常”的状态。
-
-### 9.2 配置文件发现
-
-需要支持发现并管理这些宿主机资源：
-
-- CLI 配置文件
-- 认证信息文件
-- 本地代理相关环境变量
-- 工作目录下的代理说明文件或 Agent 文件
-
-设计原则：
-
-- 默认只读扫描。
-- 用户明确授权后才执行写回。
-- 每次写回前生成备份。
-
-### 9.3 代理接管模式
-
-建议支持两种接管方式：
-
-- 配置文件写回模式：直接更新 CLI 配置中的 `baseUrl`、密钥或相关字段。
-- 环境变量接管模式：通过启动脚本或导出环境变量方式接管代理地址。
-
-这样可以兼容不同 CLI 的接入习惯。
-
-## 10. 入口形态设计
-
-本系统最终应支持两个入口，但优先级不同：
-
-- 第一入口：daemon 同端口内置 Control UI
-- 第二入口：CLI 模式
-- 调试旁路入口：独立 `ai-cli-switch web`
-
-两者不是冲突关系，而是同一套核心服务能力的不同操作入口。核心服务层负责 Provider 管理、代理转发、故障转移、协议转换、配置导入导出、宿主机扫描；Web 和 CLI 都只是对这些能力的调用方式。
-
-当前阶段建议优先建设内置 Control UI，因为：
-
-- 浏览器可视化更适合完成首次配置与复杂维护。
-- 用户可以直观看到当前激活渠道、健康状态、错误日志和故障转移记录。
-- 单端口模式更接近最终产品体验。
-
-CLI 模式保留为第二阶段建设项，主要面向以下场景：
-
-- SSH 远程运维
-- 自动化脚本
-- CI/CD 场景
-- 快速执行单条切换或导入导出命令
-
-典型 CLI 目标命令可设计为：
-
-```bash
-ai-cli-switch daemon start
-ai-cli-switch status
-ai-cli-switch web
-ai-cli-switch provider list
-ai-cli-switch provider switch codex provider-a
-ai-cli-switch import config.json
-```
-
-设计约束：
-
-- CLI 不应独立实现业务逻辑。
-- CLI 应直接复用核心服务或内部 API。
-- Web 与 CLI 的配置状态必须保持同一份单一事实来源。
-
-### 10.1 当前阶段归档
-
-截至当前阶段，以下结论已经确认，不应在后续新会话中反复回退讨论：
-
-- 主入口是单端口 daemon + `/ui/` 内置控制台。
-- `ai-cli-switch web` 不是主入口，只是调试/旁路控制台模式。
-- 默认 daemon 端口为 `8787`。
-- 默认独立 Web 调试端口为 `8788`，并可通过环境变量覆盖。
-- `ALLOWED_ORIGINS` 用于独立 Web 调试模式或未来远程控制面放行，不改变默认本地优先策略。
-- 当前阶段的“宿主机 CLI 扫描”明确指扫描服务器本机上的 Codex / Claude Code / Gemini 等 CLI 环境。
-
-## 11. 安全设计
-
-- 首次启动必须初始化管理员凭证或访问令牌。
-- 所有写操作接口都需要鉴权。
-- API Key 不允许明文打印到日志。
-- Web 控制台至少校验 `Origin`、会话令牌、请求来源。
-- 导入文件前必须校验大小、结构和版本，避免恶意载荷。
-- 扫描宿主机配置时禁止越权递归读取无关目录，路径范围必须受控。
-
-## 12. 可观测性设计
-
-必须内建以下能力：
-
-- `traceId` 贯穿请求链路。
-- 审计日志记录配置变更与切换动作。
-- 指标暴露：QPS、RT、错误率、故障转移次数、当前激活 Provider。
-- 健康检查：数据库、代理服务、配置快照版本。
-
-## 13. 部署形态
-
-目标平台：
-
-- Ubuntu 22.04+
-- Debian 12+
-- `amd64`
-- `arm64`
-
-建议交付：
-
-- `npm` 包
-- `npx` 直接运行
-- 可选 `tar.gz`
-- 可选 `.deb`
-- `systemd` 服务文件
-
-运行建议：
-
-- 后端监听 `127.0.0.1:19090`
-- Web 静态页面由后端直接托管
-- 代理服务监听 `127.0.0.1:18080`
-
-不建议将 Docker 作为主推荐交付方式，只保留为高级用户的补充方案。
-
-## 14. 分阶段建设计划
-
-### Phase 1：最小可用版本
-
-- Provider 管理
-- 当前渠道切换
-- 代理启停
-- OpenAI/Anthropic 基础转换
-- JSON 导入导出
-- CLI 扫描与配置发现
-- Linux 单机部署
-
-### Phase 2：增强版
-
-- 自动故障转移
-- 请求日志与审计日志
-- 多应用独立接管
-- 健康检查与指标
-- Web 登录鉴权
-- 环境变量接管模式
-- CLI 模式
-
-### Phase 3：成熟版
-
-- 配置备份与恢复
-- 多节点同步
-- 插件式协议转换
-- 可选容器化增强
-
-## 15. 结论
-
-这个新工程的正确定位不是“桌面版改成网页”，而是“面向 Linux 无头环境的 AI CLI 配置与代理中台”。原项目值得复用的是它的代理思想、故障转移机制、协议转换经验和配置模型，而不是 Tauri 桌面壳本身。
-
-如果继续推进，下一步建议直接落地 `Phase 1` 的工程骨架，优先打通以下闭环：
-
-1. 浏览器登录。
-2. 新增 Provider。
-3. 配置 Codex/Claude Code 当前渠道。
-4. 启动本地代理。
-5. 通过代理成功转发请求。
-6. 完成与原项目配置的 JSON 导入导出互通。
-
-## 16. 是否应基于原项目继续开发
-
-结论：不建议在当前 Tauri 工程上直接继续演进 Linux 无头版，新建项目更合适。
-
-原因如下：
-
-- 原项目是桌面应用，运行前提是窗口、WebView、托盘、桌面对话框等 GUI 能力存在。
-- 新需求是无头 Linux 常驻服务，核心交互入口是浏览器和 API，而不是本地窗口。
-- 两者的运行模型、部署模型、发布模型完全不同，已经不是简单的界面替换。
-
-从工程角度看，这次需求更接近“新产品形态”，而不是“现有产品追加一个页面”。如果继续在原项目中硬改，会同时背负桌面兼容、无头服务、双交互入口、双发布链路等复杂度，后期维护成本会迅速上升。
-
-## 17. 关联性评估
-
-业务关联性很高，但工程关联性中等。
-
-### 14.1 可以复用或重点参考的部分
-
-- Provider 配置模型
-- 代理转发逻辑
-- 自动故障转移机制
-- Anthropic/OpenAI 协议转换逻辑
-- 配置导入导出与兼容思路
-
-这些能力已经在原项目中被真实验证，适合拿来作为新工程的设计输入和实现参考。
-
-### 14.2 不建议继承的部分
-
-- Tauri 桌面壳
-- 托盘菜单与桌面事件
-- 桌面对话框与本地窗口生命周期管理
-- 面向桌面平台的打包与发布流程
-
-这些内容与 Linux 无头 Web 管理场景的目标不一致，强行继承只会增加技术债务。
-
-## 18. 最终建议
-
-建议采用“两仓策略”：
-
-- 当前仓库保留，作为上游参考仓库和源码学习样本。
-- 新建独立工程，专门承载 Linux Web 控制台版。
-
-这样做的收益如下：
-
-- 保留上游历史与实现细节，便于持续研究作者后续演进。
-- 新工程可以从第一天开始就按无头服务架构设计，不被桌面工程结构拖累。
-- 后续若要同步上游新能力，可以按模块选择性吸收，而不是被动跟随整个桌面工程迁移。
-
-一句话总结：
-
-- 需求与原项目高度相关。
-- 实现形态与原项目显著不同。
-- 最合理路径不是“继续改原项目”，而是“参考原项目，重建新工程”。
-
-补充结论：
-
-- 产品主交付方式应为宿主机 `npm` / `npx` 安装运行。
-- Docker 不适合作为默认推荐方案。
-- 技术选型应围绕 Node.js/TypeScript 展开，以匹配分发方式和用户使用习惯。
+# CC Switch Web Linux 单端口控制台设计
+
+## 1. 产品目标
+
+`CC Switch Web` 面向 Linux 宿主机场景，提供 AI CLI 工具的代理中台、供应商配置中台和按需控制台能力。
+它参考 `cc-switch` 的能力模型，但不是桌面壳延伸，而是面向宿主机的 Web / daemon 形态。
+
+当前主形态不是桌面端，也不是容器优先，而是：
+
+- 宿主机原生运行
+- `daemon-first`
+- 单端口承载代理面与控制面
+- 控制台默认内嵌在 daemon 的 `/ui`
+- 默认只监听 `127.0.0.1`
+- 所有新增用户可见能力默认按中英双语设计
+
+## 2. 当前运行模型
+
+### 2.1 单端口模型
+
+- daemon 默认承载 API、代理入口和 `/ui` 控制台。
+- Web 控制台不是独立长期必开的第二端口，而是内嵌静态资源。
+- 控制面通过 token 或 UI 会话鉴权保护。
+- 代理主链路和控制台展示逻辑仍保持模块隔离，避免控制面侵入代理链路。
+
+### 2.2 启动方式
+
+- 本地前台：`ccsw daemon start`
+- Linux 用户服务：`ccsw daemon service install`
+- 调试旁路控制台：`ccsw web`
+
+其中：
+
+- `daemon service` 以 `systemd --user` 为主。
+- `web` 命令目前保留为调试/旁路控制台模式，不是主交付形态。
+- 当前默认 CLI 短命令为 `ccsw`，旧命令别名仍可兼容。
+- 本次归档后，CLI 进入维护态；后续新增治理能力默认只在 Web 控制台交付，CLI 只保留 `daemon` / `daemon service` / `web` 等运行入口与兼容命令。
+
+### 2.3 默认安全边界
+
+- 默认地址：`127.0.0.1:8787`
+- 控制台与受保护 API 需要控制 token 或已登录 UI 会话
+- 允许跨域来源可通过环境变量配置
+- 监听地址和端口均可通过环境变量覆盖
+- 环境变量与 `systemd` 单元名当前仍保留兼容前缀：`AICLI_SWITCH_*`、`ai-cli-switch.service`
+
+### 2.4 请求级上下文协议
+
+- 代理入口已支持按请求显式指定上下文，而不只依赖全局激活状态。
+- 当前最小协议头：
+  - `x-ai-cli-switch-workspace: <workspaceId>`
+  - `x-ai-cli-switch-session: <sessionId>`
+  - `x-ai-cli-switch-cwd: <currentWorkingDirectory>`
+- 优先级：
+  - 请求级 `session`
+  - 请求级 `workspace`
+  - 请求级 `cwd` 自动关联出的 `session`
+  - 请求级 `cwd` 自动关联出的 `workspace`
+  - 全局 active session
+  - 全局 active workspace
+  - app binding 默认绑定
+- `cwd` 自动关联规则：
+  - 优先命中当前 `appCode` 下最深层匹配的 `session.cwd`
+  - 其次命中当前 `appCode` 下最深层匹配的 `workspace.rootPath`
+  - 都没命中时才回退到全局 active context / app binding
+- 当显式指定的 `session/workspace` 与当前请求的 `appCode` 不匹配时，代理会直接返回 `409`，避免静默错用上下文。
+- 代理转发时会去掉用户传入的内部控制头，并重写为解析后的只读上下文头，供上游或调试链路观察。
+
+## 3. 已落地能力
+
+### 3.1 配置与持久化
+
+- SQLite 持久化
+- Provider / Binding / Proxy Policy / Failover Chain 数据模型
+- 配置导入导出
+- 配置快照
+- 最近快照恢复
+- 控制 token 持久化
+- `auth print-token / rotate-token`
+
+### 3.2 代理与故障转移
+
+- OpenAI-compatible 最小直通
+- Anthropic 非流式桥接
+- Anthropic SSE 流式桥接
+- Anthropic 工具调用结构桥接
+- 基于绑定与策略的转发
+- Active Context 驱动的 Provider 优先路由
+- Active Context 驱动的 Prompt / Skill 请求注入
+- 请求级显式 Workspace / Session 覆盖
+- Failover Chain 切换
+- 熔断冷却
+- Provider 健康探活
+- 自动恢复与事件记录
+
+### 3.3 宿主机 CLI 接管
+
+- Host discovery 扫描
+- Host capability registry
+- 支持矩阵 API / CLI
+- `codex` 真实 apply / rollback
+- `claude-code` 真实 apply / rollback
+- 事件持久化
+- Prompt Host Sync 能力矩阵
+- Skill Delivery 能力矩阵
+- `codex` 宿主机 Prompt 文件 apply / rollback
+- `claude-code` 宿主机 Prompt 文件 apply / rollback
+- Prompt Host Sync 整批预览 / 整批 apply
+- Active Context 优先、单候选 Prompt 回退、歧义阻断
+- Prompt Host Sync 沿用备份 / 状态文件 / 回滚模型
+- Prompt / Skill 当前仍分层处理：Prompt 可投放宿主机，Skill 继续保持代理侧注入
+- `codex` / `claude-code` / `gemini-cli` 当前标记为 `proxy-only`
+- `opencode` / `openclaw` 当前标记为 `planned`
+
+当前宿主机支持矩阵原则：
+
+- `managed`：已具备受管接管能力
+- `inspect-only`：只识别本机状态，不猜测接管方式
+- `planned`：已进入产品模型，但未承诺立即接管
+
+### 3.4 可观测性
+
+- 请求日志持久化
+- 请求日志筛选与分页查询
+- Usage 记录持久化
+- Usage 汇总与按应用 / Provider / 模型聚合
+- 统一审计事件流
+- Host integration / provider health / proxy request 聚合审计
+- CLI 查询入口
+- 基础运行时状态查询
+
+### 3.5 MCP 基础模块
+
+- MCP Server 数据模型
+- App 与 MCP Server 绑定模型
+- SQLite 持久化
+- 配置快照、导入导出集成
+- MCP Host Sync 能力矩阵
+- 从 `codex` / `claude-code` 现有配置导入 MCP
+- 从 `gemini-cli` / `opencode` 现有配置导入 MCP
+- `codex` MCP 配置同步与回滚
+- `claude-code` MCP 配置同步与回滚
+- `gemini-cli` MCP 配置同步与回滚
+- `opencode` MCP 配置同步与回滚
+- MCP CLI 查询、导入、Host Sync 命令
+- 控制台 MCP 面板、基础表单与编辑回填
+- 导入预览支持字段级前后值对比
+- MCP 审计时间线视图
+- MCP 审计事件已纳入统一事件流
+
+### 3.6 控制台基础设施
+
+- `/ui` 登录页与控制台壳
+- Dashboard 基础页面
+- 中英双语基础设施
+- 前端目录标准化：`app` / `features` / `shared`
+
+### 3.7 工作区自动发现
+
+- 支持扫描宿主机项目目录生成 workspace 候选
+- 支持识别 `.git`、`package.json`、`pyproject.toml`、`Cargo.toml`、`go.mod`、`pom.xml` 等常见工程标记
+- 支持识别 `.codex`、`.claude`、`.gemini`、`.opencode`、`AGENTS.md`、`CLAUDE.md` 等 AI CLI 线索并推断 `appCode`
+- 支持将已有 session `cwd` 与已有 workspace `rootPath` 一并纳入候选去重
+- 支持把嵌套 session `cwd` 自动折叠到最近项目根，避免把子目录误建成独立 workspace
+- 支持一键导入候选为正式 workspace
+- 支持整批导入候选为正式 workspace，并自动挂回历史 session
+- 支持基于请求 `cwd` 自动归并到最近的 session / workspace
+- 支持在“同 workspace 仅存在一个活跃 session”时自动复用该 session，避免请求流量持续膨胀出重复 session
+- CLI：
+  - `ccsw workspace discover [--roots <a,b>] [--depth <n>]`
+  - `ccsw workspace import --root <path> ...`
+  - `ccsw workspace import-auto [--roots <a,b>] [--depth <n>]`
+- Active Context 解析：
+  - `ccsw active-context resolve <appCode> [--cwd <path>]`
+- API：
+  - `GET /api/v1/workspace-discovery`
+  - `POST /api/v1/workspace-discovery/import`
+  - `POST /api/v1/workspace-discovery/import-batch`
+  - `GET /api/v1/active-context/effective/:appCode?cwd=...`
+
+## 4. 当前与 cc-switch 的差距
+
+如果按 `cc-switch` 常见产品模块来对比，当前状态可以分成三层。
+
+### 4.1 已基本到位
+
+- 供应商管理
+- 代理与故障转移
+
+说明：
+
+- 数据模型、CRUD、持久化、运行时热重载已经具备基础产品形态。
+- 与 `cc-switch` 的差距更多在控制台完整度、细节体验和更丰富的协议生态，而不是主链路缺失。
+
+### 4.2 有基础闭环，但还没产品化完成
+
+- MCP
+- 用量追踪
+- 配额治理
+
+说明：
+
+- MCP 已具备服务端数据模型、宿主机同步和导入导出闭环。
+- 控制台编辑体验、字段级冲突预览和审计时间线已经补齐到可用形态。
+- 仍未做的是更深的批量编辑、`openclaw` 适配和更完整的宿主机生态扩展。
+- 当前协议桥接层已把非流式与流式 `usage` 数据接入持久化。
+- 控制台、API 与 CLI 已具备用量明细、聚合统计、时间趋势查询能力。
+- 已补齐“按应用日配额”最小闭环，并接入控制台状态联动、CLI 管理与 quota 审计事件。
+- 成本追踪当前不在范围内，但“用量统计 + 配额治理”已进入可用雏形。
+
+### 4.3 有最小闭环，但仍需产品化增强
+
+- 会话管理器与工作区
+
+说明：
+
+- Workspace / Session 已补齐最小数据模型、SQLite 持久化、快照/导入导出、API、CLI 与控制台基础管理。
+- 已新增“有效上下文解析”，可以看到工作区或会话最终落到哪个 Provider / Prompt / Skill，以及来源与缺失告警。
+- 已新增“激活上下文 -> 真实运行策略”链路，激活的 Workspace / Session 已可影响代理默认 Provider 选路，并将 Prompt / Skill 以系统指令形式注入请求。
+- 已提供 `GET /api/v1/active-context/effective/:appCode` 与 `ccsw active-context resolve <appCode>` 便于排查某个 CLI 当前真实生效的上下文。
+- 上述解析接口已支持 `workspaceId/sessionId` 显式覆盖参数，可与代理请求头协议保持一致。
+- 已补齐工作区候选整批归档、嵌套 session 根折叠与单活跃 session 自动归并，主链路的自动建档闭环已经成型。
+- 当前还没有做的是宿主机工作区接管、更深的探测回填和更完整的团队协作能力。
+
+## 5. 剩余重点功能清单
+
+### 5.1 P0：MCP 管理与同步增强
+
+目标：
+
+- 在现有 MCP 基础闭环上继续补齐产品化能力
+- 扩展更多宿主机 AI CLI 的 MCP 配置同步
+- 增加导入、自发现、审计与控制台管理
+
+建议最小闭环：
+
+- MCP 控制台管理页
+- 宿主机现有 MCP 配置导入
+- 批量编辑、批量启停与更完整的冲突提示
+- 更多宿主机 AI CLI 的 MCP 能力矩阵扩展
+
+### 5.2 P0：用量追踪
+
+目标：
+
+- 对请求级 usage 做真实持久化
+- 支持按时间、应用、供应商、模型聚合
+- 为后续配额、限流、报表提供基础
+
+建议最小闭环：
+
+- `usage_records` 表
+- 非流式响应 usage 归一化入库
+- Usage 查询 API
+- Usage CLI 查询入口
+- 控制台总览卡片、聚合列表与明细列表
+
+当前剩余：
+
+- 趋势图与时间维度可视化增强
+- 更细的模型族归类
+- 后续如需可再叠加成本估算，但当前不做
+
+### 5.3 P0：配额治理
+
+目标：
+
+- 基于已落地的 usage 数据，提供最小可用的应用级治理能力
+- 在代理入口做前置拦截，避免失控流量持续透传
+- 让 CLI、API、控制台三端都具备一致的治理操作入口
+
+当前已完成：
+
+- `app_quotas` 持久化
+- 日配额判断与代理前置 `429` 拦截
+- `GET /api/v1/app-quotas/statuses`
+- `ccsw quota list|set|delete`
+- 控制台显示当前消耗、剩余额度、配额状态
+- quota 拒绝事件进入统一审计流
+
+当前剩余：
+
+- 更细粒度的周期类型与模型级配额
+- 配额命中后的更丰富降级策略
+- 更完整的治理报表与批量操作体验
+
+### 5.4 P1：Prompts 与 Skills
+
+目标：
+
+- 统一管理提示词模板与技能元数据
+- 面向不同 AI CLI 的导出或同步能力预留接口
+- 双语文案和公开仓库结构提前规范
+
+当前已完成：
+
+- Prompt 模板实体
+- Skill 清单实体
+- 标签、启用状态、应用作用域、语言维度
+- 导入导出与快照恢复
+- Prompt / Skill 版本化历史、差异预览与版本恢复
+- Prompt / Skill 资产治理队列
+- Prompt Host Sync 单应用与整批宿主机下发预览 / 执行
+- Skill Delivery CLI / API / 控制台能力矩阵
+- 保守型资产治理批量修复
+  - 自动重新启用“仍被引用但已停用”的 Prompt
+  - 自动重新启用“仍被工作区/会话引用但已停用”的 Skill
+  - 自动重新启用被 Skill 依赖但已停用的 Prompt
+  - 对缺失 Prompt 这类高风险场景只做告警，不做危险自动改写
+- `ccsw assets governance preview|repair [--app <appCode>]`
+- API / CLI / 控制台基础管理
+
+当前剩余：
+
+- 更完整的批量编辑与冲突比较
+- Skill 宿主机原生文件投放与不同 CLI 的更深适配
+- 更贴近工作流的执行/编排能力
+
+### 5.5 P1：会话管理器与工作区
+
+目标：
+
+- 管理不同 CLI 的工作区绑定、会话入口、默认配置集
+- 为后续“项目级切换”和“团队工作台”预留基础
+
+当前已完成：
+
+- Workspace 实体
+- Workspace 与 Provider / Prompt / Skill 关联
+- Session 元数据索引
+- 工作区候选整批归档
+- 嵌套 session `cwd` 自动折叠到最近项目根
+- 单工作区单活跃 session 自动归并
+- 工作区与会话有效上下文解析
+- 激活上下文驱动的默认 Provider 选路
+- 激活上下文驱动的 Prompt / Skill 系统指令注入
+- Active Context 生效结果 API / CLI
+- API / CLI / 控制台基础管理
+
+当前剩余：
+
+- 把宿主机 CLI 探测结果进一步接入 workspace / session 自动建档与接管建议
+- 工作区级版本快照与差异比较
+- 团队级共享与更完整的操作审计
+
+## 6. 当前不优先的内容
+
+- 成本追踪与计费
+- 容器优先部署编排
+- 未经验证的第三方 CLI 强接管
+- 重前端工作台化而轻代理主链路
+- 继续扩展 CLI 治理面与命令覆盖率
+
+## 7. 推荐的后续优先级
+
+建议顺序：
+
+1. Web 控制台治理闭环与交互收敛
+2. MCP 批量治理与宿主机生态扩展
+3. 宿主机工作区接管与探测回填增强
+4. 更完整的审计与团队协作治理
+
+原因：
+
+- 当前控制台已经承接了主要治理模型，后续更值得继续把关键操作、状态解释和批量治理收敛到 Web，而不是继续摊薄到 CLI。
+- MCP 仍然是 AI CLI 中台的生态核心，需要继续补宿主机覆盖面和批量治理。
+- 宿主机探测结果与 workspace/session 模型还有继续打通的空间，适合在自动建档闭环稳定后继续加深。
+- 审计与团队协作属于治理放大器，适合在运行链路稳定后继续扩展。

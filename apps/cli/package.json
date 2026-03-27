@@ -1,8 +1,10 @@
 {
-  "name": "@ai-cli-switch/cli",
+  "name": "@cc-switch-web/cli",
   "version": "0.1.0",
   "type": "module",
   "bin": {
+    "ccsw": "dist/index.js",
+    "cc-switch-web": "dist/index.js",
     "ai-cli-switch": "dist/index.js",
     "aicli-switch": "dist/index.js"
   },
@@ -12,7 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@ai-cli-switch/shared": "file:../../packages/shared",
+    "@cc-switch-web/shared": "file:../../packages/shared",
     "better-sqlite3": "^11.10.0"
   },
   "devDependencies": {

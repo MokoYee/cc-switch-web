@@ -120,7 +120,7 @@ const proxyPolicy = {
 };
 
 const systemMetadata = {
-  projectName: "AI CLI Switch",
+  projectName: "CC Switch Web",
   releaseStage: "bootstrap",
   repositoryMode: "open-source-ready",
   deliveryTargets: ["host-native", "docker-secondary"],
@@ -137,7 +137,7 @@ const systemMetadata = {
   },
   webConsole: {
     enabledOnDemand: true,
-    recommendedCommand: "ai-cli-switch web",
+    recommendedCommand: "ccsw web",
     defaultPort: 8788,
     integratedIntoDaemon: true,
     mountPath: "/ui",
@@ -196,7 +196,7 @@ export const server = createServer(async (request, response) => {
   if (url === "/health") {
     sendJson(response, {
       status: "ok",
-      service: "AI CLI Switch-standalone",
+      service: "CC Switch Web-standalone",
       time: new Date().toISOString()
     });
     return;
@@ -241,9 +241,9 @@ export const server = createServer(async (request, response) => {
 });
 
 if (process.env.AICLI_SWITCH_DRY_RUN === "1") {
-  console.log("AI CLI Switch standalone dry-run ready");
+  console.log("CC Switch Web standalone dry-run ready");
 } else {
   server.listen(port, host, () => {
-    console.log(`AI CLI Switch standalone listening on http://${host}:${port}`);
+    console.log(`CC Switch Web standalone listening on http://${host}:${port}`);
   });
 }

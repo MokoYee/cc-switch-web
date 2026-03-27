@@ -6,12 +6,14 @@ const bootstrap = async (): Promise<void> => {
   const env = resolveDaemonEnv();
   const runtime = initializeRuntime(env);
   const app = await buildDaemon(runtime);
+  runtime.providerHealthProbeService.setLogger(app.log);
 
   try {
     await app.listen({
       host: env.host,
       port: env.port
     });
+    runtime.providerHealthProbeService.start();
     app.log.info(
       {
         controlUiMountPath: env.controlUiMountPath,
@@ -28,6 +30,7 @@ const bootstrap = async (): Promise<void> => {
       );
     }
   } catch (error) {
+    runtime.providerHealthProbeService.stop();
     app.log.error(error);
     process.exit(1);
   }

@@ -1,4 +1,4 @@
-import { nowIso, type AppBinding, type AppBindingUpsert } from "@ai-cli-switch/shared";
+import { nowIso, type AppBinding, type AppBindingUpsert } from "@cc-switch-web/shared";
 
 import type { SqliteDatabase } from "../../db/database.js";
 
@@ -8,7 +8,7 @@ export class BindingRepository {
   list(): AppBinding[] {
     const rows = this.database
       .prepare(`
-        SELECT id, app_code, provider_id, mode, updated_at
+        SELECT id, app_code, provider_id, mode, prompt_template_id, skill_id, updated_at
         FROM app_bindings
         ORDER BY app_code ASC
       `)
@@ -17,6 +17,8 @@ export class BindingRepository {
       app_code: AppBinding["appCode"];
       provider_id: string;
       mode: AppBinding["mode"];
+      prompt_template_id?: string | null;
+      skill_id?: string | null;
       updated_at: string;
     }>;
 
@@ -25,6 +27,8 @@ export class BindingRepository {
       appCode: row.app_code,
       providerId: row.provider_id,
       mode: row.mode,
+      promptTemplateId: row.prompt_template_id ?? null,
+      skillId: row.skill_id ?? null,
       updatedAt: row.updated_at
     }));
   }
@@ -34,16 +38,24 @@ export class BindingRepository {
 
     this.database
       .prepare(`
-        INSERT INTO app_bindings (id, app_code, provider_id, mode, updated_at)
-        VALUES (@id, @appCode, @providerId, @mode, @updatedAt)
+        INSERT INTO app_bindings (
+          id, app_code, provider_id, mode, prompt_template_id, skill_id, updated_at
+        )
+        VALUES (
+          @id, @appCode, @providerId, @mode, @promptTemplateId, @skillId, @updatedAt
+        )
         ON CONFLICT(id) DO UPDATE SET
           app_code = excluded.app_code,
           provider_id = excluded.provider_id,
           mode = excluded.mode,
+          prompt_template_id = excluded.prompt_template_id,
+          skill_id = excluded.skill_id,
           updated_at = excluded.updated_at
       `)
       .run({
         ...input,
+        promptTemplateId: input.promptTemplateId ?? null,
+        skillId: input.skillId ?? null,
         updatedAt: timestamp
       });
 
@@ -75,12 +87,20 @@ export class BindingRepository {
     this.database.prepare("DELETE FROM app_bindings").run();
 
     const insertBinding = this.database.prepare(`
-      INSERT INTO app_bindings (id, app_code, provider_id, mode, updated_at)
-      VALUES (@id, @appCode, @providerId, @mode, @updatedAt)
+      INSERT INTO app_bindings (
+        id, app_code, provider_id, mode, prompt_template_id, skill_id, updated_at
+      )
+      VALUES (
+        @id, @appCode, @providerId, @mode, @promptTemplateId, @skillId, @updatedAt
+      )
     `);
 
     for (const item of items) {
-      insertBinding.run(item);
+      insertBinding.run({
+        ...item,
+        promptTemplateId: item.promptTemplateId ?? null,
+        skillId: item.skillId ?? null
+      });
     }
   }
 }

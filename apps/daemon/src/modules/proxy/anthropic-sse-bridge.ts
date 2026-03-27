@@ -3,6 +3,11 @@ import { Transform, type TransformCallback } from "node:stream";
 interface OpenAiStreamChunk {
   readonly id?: string;
   readonly model?: string;
+  readonly usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
   readonly choices?: Array<{
     index?: number;
     delta?: {
@@ -19,6 +24,12 @@ interface OpenAiStreamChunk {
     };
     finish_reason?: string | null;
   }>;
+}
+
+export interface BridgedStreamUsageSnapshot {
+  readonly model: string | null;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
 }
 
 const toSseEvent = (event: string, data: unknown): string =>
@@ -48,6 +59,9 @@ export const convertOpenAiChunkToAnthropicEvents = (
     contentType: "text" | "tool_use" | null;
     currentIndex: number;
     stopped: boolean;
+    model: string | null;
+    inputTokens: number;
+    outputTokens: number;
     toolStates: Map<number, { id: string; name: string }>;
   }
 ): string[] => {
@@ -87,6 +101,13 @@ export const convertOpenAiChunkToAnthropicEvents = (
   }
 
   const chunk = JSON.parse(payload) as OpenAiStreamChunk;
+  if (typeof chunk.model === "string" && chunk.model.length > 0) {
+    state.model = chunk.model;
+  }
+  if (chunk.usage !== undefined) {
+    state.inputTokens = Math.max(0, Math.trunc(chunk.usage.prompt_tokens ?? state.inputTokens));
+    state.outputTokens = Math.max(0, Math.trunc(chunk.usage.completion_tokens ?? state.outputTokens));
+  }
   const choice = chunk.choices?.[0];
   const events: string[] = [];
 
@@ -218,7 +239,7 @@ export const convertOpenAiChunkToAnthropicEvents = (
           stop_sequence: null
         },
         usage: {
-          output_tokens: 0
+          output_tokens: state.outputTokens
         }
       })
     );
@@ -237,6 +258,9 @@ export class AnthropicSseBridgeTransform extends Transform {
     contentType: null as "text" | "tool_use" | null,
     currentIndex: 0,
     stopped: false,
+    model: null as string | null,
+    inputTokens: 0,
+    outputTokens: 0,
     toolStates: new Map<number, { id: string; name: string }>()
   };
 
@@ -294,5 +318,17 @@ export class AnthropicSseBridgeTransform extends Transform {
     }
 
     callback();
+  }
+
+  getUsageSnapshot(): BridgedStreamUsageSnapshot | null {
+    if (this.state.inputTokens === 0 && this.state.outputTokens === 0) {
+      return null;
+    }
+
+    return {
+      model: this.state.model,
+      inputTokens: this.state.inputTokens,
+      outputTokens: this.state.outputTokens
+    };
   }
 }

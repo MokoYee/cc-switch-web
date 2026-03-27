@@ -1,0 +1,627 @@
+import { useEffect, useState } from "react";
+
+import type {
+  AppBinding,
+  AuditEventPage,
+  ConfigDeletePreview,
+  ConfigImportPreview,
+  McpImportPreview,
+  McpImportOptions,
+  ProviderDiagnosticDetail,
+  ProxyRequestLogPage,
+  UsageRecordPage,
+  UsageSummary,
+  UsageTimeseries
+} from "@cc-switch-web/shared";
+
+import {
+  DASHBOARD_AUDIT_PREVIEW_LIMIT,
+  DASHBOARD_REQUEST_LOG_PREVIEW_LIMIT,
+  DASHBOARD_USAGE_PREVIEW_LIMIT,
+  deleteAppMcpBinding,
+  deleteAppQuota,
+  deleteBinding,
+  deleteFailoverChain,
+  deleteMcpServer,
+  deletePromptTemplate,
+  deleteProvider,
+  deleteSessionRecord,
+  deleteSkill,
+  deleteWorkspace,
+  loadAuditEvents,
+  loadDashboardSnapshot,
+  loadProviderDiagnosticDetail,
+  loadProxyRequestLogs,
+  loadSessionRuntimeDetail,
+  loadUsageRecords,
+  loadUsageSummary,
+  loadUsageTimeseries,
+  loadWorkspaceRuntimeDetail,
+  previewDeleteAppMcpBinding,
+  previewDeleteAppQuota,
+  previewDeleteBinding,
+  previewDeleteFailoverChain,
+  previewDeleteMcpServer,
+  previewDeletePromptTemplate,
+  previewDeleteProvider,
+  previewDeleteSessionRecord,
+  previewDeleteSkill,
+  previewDeleteWorkspace,
+  previewImportConfigPackage,
+  previewMcpImportFromHost,
+  type DashboardSnapshot,
+  type SessionRuntimeDetail,
+  type WorkspaceRuntimeDetail
+} from "../api/load-dashboard-snapshot.js";
+import {
+  UnauthorizedApiError
+} from "../../../shared/lib/api.js";
+
+const toIsoDateTime = (value: string): string | undefined =>
+  value.trim().length === 0 ? undefined : new Date(value).toISOString();
+
+type RequestLogFilters = {
+  readonly appCode: string;
+  readonly providerId: string;
+  readonly workspaceId: string;
+  readonly sessionId: string;
+  readonly outcome: string;
+  readonly method: string;
+  readonly limit: number;
+  readonly offset: number;
+};
+
+type AuditFilters = {
+  readonly source: string;
+  readonly appCode: string;
+  readonly providerId: string;
+  readonly level: string;
+  readonly limit: number;
+  readonly offset: number;
+};
+
+type UsageFilters = {
+  readonly appCode: string;
+  readonly providerId: string;
+  readonly model: string;
+  readonly startAt: string;
+  readonly endAt: string;
+  readonly bucket: "hour" | "day";
+  readonly limit: number;
+  readonly offset: number;
+};
+
+type PendingDeleteReview = {
+  readonly kind: ConfigDeletePreview["targetType"];
+  readonly id: string;
+  readonly preview: ConfigDeletePreview;
+};
+
+type UseDashboardDataRuntimeParams = {
+  readonly setErrorMessage: (message: string | null) => void;
+  readonly setNoticeMessage: (message: string | null) => void;
+  readonly importText: string;
+  readonly mcpImportOptions: McpImportOptions;
+  readonly setBindingForm: React.Dispatch<React.SetStateAction<{
+    id: string;
+    appCode: AppBinding["appCode"];
+    providerId: string;
+    mode: "managed" | "observe";
+  }>>;
+  readonly setMcpBindingForm: React.Dispatch<React.SetStateAction<{
+    id: string;
+    appCode: AppBinding["appCode"];
+    serverId: string;
+    enabled: boolean;
+  }>>;
+  readonly setFailoverForm: React.Dispatch<React.SetStateAction<{
+    id: string;
+    appCode: AppBinding["appCode"];
+    enabled: boolean;
+    providerIds: string[];
+    cooldownSeconds: number;
+    maxAttempts: number;
+  }>>;
+  readonly setProxyForm: React.Dispatch<React.SetStateAction<{
+    listenHost: string;
+    listenPort: number;
+    enabled: boolean;
+    requestTimeoutMs: number;
+    failureThreshold: number;
+  }>>;
+};
+
+const currentProxyFallback = (snapshot: DashboardSnapshot) => ({
+  listenHost: snapshot.latestSnapshot?.payload.proxyPolicy.listenHost ?? "127.0.0.1",
+  listenPort: snapshot.latestSnapshot?.payload.proxyPolicy.listenPort ?? 8788,
+  enabled: snapshot.latestSnapshot?.payload.proxyPolicy.enabled ?? false,
+  requestTimeoutMs: snapshot.latestSnapshot?.payload.proxyPolicy.requestTimeoutMs ?? 60000,
+  failureThreshold: snapshot.latestSnapshot?.payload.proxyPolicy.failureThreshold ?? 3
+});
+
+export const useDashboardDataRuntime = ({
+  setErrorMessage,
+  setNoticeMessage,
+  importText,
+  mcpImportOptions,
+  setBindingForm,
+  setMcpBindingForm,
+  setFailoverForm,
+  setProxyForm
+}: UseDashboardDataRuntimeParams) => {
+  const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
+  const [needsToken, setNeedsToken] = useState(false);
+  const [isWorking, setIsWorking] = useState(false);
+  const [hasBootstrappedPreviewPages, setHasBootstrappedPreviewPages] = useState(false);
+  const [requestLogPage, setRequestLogPage] = useState<ProxyRequestLogPage | null>(null);
+  const [auditEventPage, setAuditEventPage] = useState<AuditEventPage | null>(null);
+  const [usageRecordPage, setUsageRecordPage] = useState<UsageRecordPage | null>(null);
+  const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
+  const [usageTimeseries, setUsageTimeseries] = useState<UsageTimeseries | null>(null);
+  const [selectedWorkspaceRuntimeDetail, setSelectedWorkspaceRuntimeDetail] =
+    useState<WorkspaceRuntimeDetail | null>(null);
+  const [selectedSessionRuntimeDetail, setSelectedSessionRuntimeDetail] =
+    useState<SessionRuntimeDetail | null>(null);
+  const [selectedProviderDiagnosticId, setSelectedProviderDiagnosticId] = useState<string | null>(null);
+  const [selectedProviderDiagnosticDetail, setSelectedProviderDiagnosticDetail] =
+    useState<ProviderDiagnosticDetail | null>(null);
+  const [selectedSnapshotVersion, setSelectedSnapshotVersion] = useState<number | null>(null);
+  const [requestLogFilters, setRequestLogFilters] = useState<RequestLogFilters>({
+    appCode: "",
+    providerId: "",
+    workspaceId: "",
+    sessionId: "",
+    outcome: "",
+    method: "",
+    limit: DASHBOARD_REQUEST_LOG_PREVIEW_LIMIT,
+    offset: 0
+  });
+  const [auditFilters, setAuditFilters] = useState<AuditFilters>({
+    source: "",
+    appCode: "",
+    providerId: "",
+    level: "",
+    limit: DASHBOARD_AUDIT_PREVIEW_LIMIT,
+    offset: 0
+  });
+  const [usageFilters, setUsageFilters] = useState<UsageFilters>({
+    appCode: "",
+    providerId: "",
+    model: "",
+    startAt: "",
+    endAt: "",
+    bucket: "day",
+    limit: DASHBOARD_USAGE_PREVIEW_LIMIT,
+    offset: 0
+  });
+  const [importPreview, setImportPreview] = useState<ConfigImportPreview | null>(null);
+  const [importPreviewSourceText, setImportPreviewSourceText] = useState("");
+  const [pendingDeleteReview, setPendingDeleteReview] = useState<PendingDeleteReview | null>(null);
+  const [mcpImportPreview, setMcpImportPreview] = useState<Record<string, McpImportPreview | null>>({});
+
+  const refreshSnapshot = (): void => {
+    setNoticeMessage(null);
+
+    void loadDashboardSnapshot()
+      .then((result) => {
+        setNeedsToken(false);
+        setErrorMessage(null);
+        setSnapshot(result);
+        setSelectedProviderDiagnosticId((current) =>
+          current !== null && result.providerDiagnostics.some((item) => item.providerId === current)
+            ? current
+            : null
+        );
+        setSelectedProviderDiagnosticDetail((current) =>
+          current !== null &&
+          result.providerDiagnostics.some((item) => item.providerId === current.diagnostic.providerId)
+            ? current
+            : null
+        );
+        setSelectedSnapshotVersion((current) =>
+          current !== null && result.recentSnapshots.some((item) => item.version === current)
+            ? current
+            : null
+        );
+        setSelectedWorkspaceRuntimeDetail((current) =>
+          current !== null &&
+          result.runtimeContexts.workspaces.some((item) => item.workspaceId === current.summary.workspaceId)
+            ? current
+            : null
+        );
+        setSelectedSessionRuntimeDetail((current) =>
+          current !== null &&
+          result.runtimeContexts.sessions.some((item) => item.sessionId === current.summary.sessionId)
+            ? current
+            : null
+        );
+        setBindingForm((current) => ({
+          ...current,
+          providerId: result.providers[0]?.id ?? ""
+        }));
+        setMcpBindingForm((current) => ({
+          ...current,
+          serverId: result.mcpServers[0]?.id ?? current.serverId
+        }));
+        setFailoverForm((current) => ({
+          ...current,
+          providerIds: current.providerIds.filter((providerId) =>
+            result.providers.some((provider) => provider.id === providerId)
+          )
+        }));
+        setProxyForm(currentProxyFallback(result));
+      })
+      .catch((error: unknown) => {
+        if (error instanceof UnauthorizedApiError) {
+          setNeedsToken(true);
+          setErrorMessage(null);
+          return;
+        }
+
+        setErrorMessage(error instanceof Error ? error.message : "unknown error");
+      });
+  };
+
+  const refreshProviderDiagnosticDetail = (providerId: string): void => {
+    void loadProviderDiagnosticDetail(providerId)
+      .then((result) => {
+        setSelectedProviderDiagnosticId(providerId);
+        setSelectedProviderDiagnosticDetail(result);
+      })
+      .catch((error: unknown) => {
+        setErrorMessage(error instanceof Error ? error.message : "unknown error");
+      });
+  };
+
+  const refreshWorkspaceRuntimeDetail = (workspaceId: string): void => {
+    void loadWorkspaceRuntimeDetail(workspaceId)
+      .then((result) => {
+        setSelectedWorkspaceRuntimeDetail(result);
+      })
+      .catch((error: unknown) => {
+        setErrorMessage(error instanceof Error ? error.message : "unknown error");
+      });
+  };
+
+  const refreshSessionRuntimeDetail = (sessionId: string): void => {
+    void loadSessionRuntimeDetail(sessionId)
+      .then((result) => {
+        setSelectedSessionRuntimeDetail(result);
+      })
+      .catch((error: unknown) => {
+        setErrorMessage(error instanceof Error ? error.message : "unknown error");
+      });
+  };
+
+  const refreshRequestLogs = (filters = requestLogFilters): void => {
+    void loadProxyRequestLogs({
+      appCode: filters.appCode.length > 0 ? (filters.appCode as AppBinding["appCode"]) : undefined,
+      providerId: filters.providerId || undefined,
+      workspaceId: filters.workspaceId || undefined,
+      sessionId: filters.sessionId || undefined,
+      outcome:
+        filters.outcome.length > 0
+          ? (filters.outcome as "success" | "error" | "rejected" | "failover")
+          : undefined,
+      method: filters.method || undefined,
+      limit: filters.limit,
+      offset: filters.offset
+    })
+      .then((result) => {
+        setRequestLogPage(result);
+      })
+      .catch((error: unknown) => {
+        setErrorMessage(error instanceof Error ? error.message : "unknown error");
+      });
+  };
+
+  const focusProviderFailureLogs = (providerId: string): void => {
+    const nextFilters = {
+      ...requestLogFilters,
+      providerId,
+      workspaceId: "",
+      sessionId: "",
+      outcome: "error",
+      offset: 0
+    };
+    setRequestLogFilters(nextFilters);
+    refreshRequestLogs(nextFilters);
+  };
+
+  const focusWorkspaceLogs = (workspaceId: string): void => {
+    const nextFilters = {
+      ...requestLogFilters,
+      workspaceId,
+      sessionId: "",
+      offset: 0
+    };
+    setRequestLogFilters(nextFilters);
+    refreshRequestLogs(nextFilters);
+  };
+
+  const focusSessionLogs = (sessionId: string): void => {
+    const nextFilters = {
+      ...requestLogFilters,
+      workspaceId: "",
+      sessionId,
+      offset: 0
+    };
+    setRequestLogFilters(nextFilters);
+    refreshRequestLogs(nextFilters);
+  };
+
+  const refreshAuditEvents = (filters = auditFilters): void => {
+    void loadAuditEvents({
+      source:
+        filters.source.length > 0
+          ? (filters.source as
+              | "host-integration"
+              | "provider-health"
+              | "proxy-request"
+              | "mcp"
+              | "quota"
+              | "config-snapshot"
+              | "system-service")
+          : undefined,
+      appCode: filters.appCode.length > 0 ? (filters.appCode as AppBinding["appCode"]) : undefined,
+      providerId: filters.providerId || undefined,
+      level: filters.level.length > 0 ? (filters.level as "info" | "warn" | "error") : undefined,
+      limit: filters.limit,
+      offset: filters.offset
+    })
+      .then((result) => {
+        setAuditEventPage(result);
+      })
+      .catch((error: unknown) => {
+        setErrorMessage(error instanceof Error ? error.message : "unknown error");
+      });
+  };
+
+  const refreshUsage = (filters = usageFilters): void => {
+    void Promise.all([
+      loadUsageRecords({
+        appCode: filters.appCode.length > 0 ? (filters.appCode as AppBinding["appCode"]) : undefined,
+        providerId: filters.providerId || undefined,
+        model: filters.model || undefined,
+        startAt: toIsoDateTime(filters.startAt),
+        endAt: toIsoDateTime(filters.endAt),
+        limit: filters.limit,
+        offset: filters.offset
+      }),
+      loadUsageSummary({
+        appCode: filters.appCode.length > 0 ? (filters.appCode as AppBinding["appCode"]) : undefined,
+        providerId: filters.providerId || undefined,
+        model: filters.model || undefined,
+        startAt: toIsoDateTime(filters.startAt),
+        endAt: toIsoDateTime(filters.endAt)
+      }),
+      loadUsageTimeseries({
+        appCode: filters.appCode.length > 0 ? (filters.appCode as AppBinding["appCode"]) : undefined,
+        providerId: filters.providerId || undefined,
+        model: filters.model || undefined,
+        startAt: toIsoDateTime(filters.startAt),
+        endAt: toIsoDateTime(filters.endAt),
+        bucket: filters.bucket
+      })
+    ])
+      .then(([records, summary, timeseries]) => {
+        setUsageRecordPage(records);
+        setUsageSummary(summary);
+        setUsageTimeseries(timeseries);
+      })
+      .catch((error: unknown) => {
+        setErrorMessage(error instanceof Error ? error.message : "unknown error");
+      });
+  };
+
+  const runAction = (task: () => Promise<void>, successMessage: string): void => {
+    setIsWorking(true);
+    setNoticeMessage(null);
+    setErrorMessage(null);
+
+    void Promise.resolve()
+      .then(task)
+      .then(() => {
+        setNoticeMessage(successMessage);
+        refreshSnapshot();
+      })
+      .catch((error: unknown) => {
+        setErrorMessage(error instanceof Error ? error.message : "unknown error");
+      })
+      .finally(() => {
+        setIsWorking(false);
+      });
+  };
+
+  const loadImportPreview = (selectedVersionNotice: string): void => {
+    setErrorMessage(null);
+    try {
+      const parsed = JSON.parse(importText) as unknown;
+      void previewImportConfigPackage(parsed)
+        .then((result) => {
+          setImportPreview(result);
+          setImportPreviewSourceText(importText);
+          setNoticeMessage(selectedVersionNotice);
+        })
+        .catch((error: unknown) => {
+          setImportPreview(null);
+          setImportPreviewSourceText("");
+          setErrorMessage(error instanceof Error ? error.message : "unknown error");
+        });
+    } catch (error) {
+      setImportPreview(null);
+      setImportPreviewSourceText("");
+      setErrorMessage(error instanceof Error ? error.message : "unknown error");
+    }
+  };
+
+  const loadDeleteReview = (kind: ConfigDeletePreview["targetType"], id: string): void => {
+    setIsWorking(true);
+    setErrorMessage(null);
+    setNoticeMessage(null);
+
+    let task: Promise<ConfigDeletePreview>;
+    switch (kind) {
+      case "provider":
+        task = previewDeleteProvider(id);
+        break;
+      case "binding":
+        task = previewDeleteBinding(id);
+        break;
+      case "app-quota":
+        task = previewDeleteAppQuota(id);
+        break;
+      case "failover-chain":
+        task = previewDeleteFailoverChain(id);
+        break;
+      case "prompt-template":
+        task = previewDeletePromptTemplate(id);
+        break;
+      case "skill":
+        task = previewDeleteSkill(id);
+        break;
+      case "workspace":
+        task = previewDeleteWorkspace(id);
+        break;
+      case "session":
+        task = previewDeleteSessionRecord(id);
+        break;
+      case "mcp-server":
+        task = previewDeleteMcpServer(id);
+        break;
+      case "mcp-app-binding":
+        task = previewDeleteAppMcpBinding(id);
+        break;
+    }
+
+    void task
+      .then((preview) => {
+        setPendingDeleteReview({
+          kind,
+          id,
+          preview
+        });
+      })
+      .catch((error: unknown) => {
+        setPendingDeleteReview(null);
+        setErrorMessage(error instanceof Error ? error.message : "unknown error");
+      })
+      .finally(() => {
+        setIsWorking(false);
+      });
+  };
+
+  const executeDelete = (kind: ConfigDeletePreview["targetType"], id: string): Promise<void> => {
+    switch (kind) {
+      case "provider":
+        return deleteProvider(id);
+      case "binding":
+        return deleteBinding(id);
+      case "app-quota":
+        return deleteAppQuota(id);
+      case "failover-chain":
+        return deleteFailoverChain(id);
+      case "prompt-template":
+        return deletePromptTemplate(id);
+      case "skill":
+        return deleteSkill(id);
+      case "workspace":
+        return deleteWorkspace(id);
+      case "session":
+        return deleteSessionRecord(id);
+      case "mcp-server":
+        return deleteMcpServer(id);
+      case "mcp-app-binding":
+        return deleteAppMcpBinding(id);
+    }
+  };
+
+  const loadMcpImportPreview = (appCode: AppBinding["appCode"]): void => {
+    void previewMcpImportFromHost(appCode, mcpImportOptions)
+      .then((preview) => {
+        setMcpImportPreview((current) => ({
+          ...current,
+          [appCode]: preview
+        }));
+      })
+      .catch((error: unknown) => {
+        setErrorMessage(error instanceof Error ? error.message : "unknown error");
+      });
+  };
+
+  useEffect(() => {
+    refreshSnapshot();
+  }, []);
+
+  useEffect(() => {
+    if (snapshot === null || hasBootstrappedPreviewPages) {
+      return;
+    }
+
+    setRequestLogPage(snapshot.initialRequestLogPage);
+    setAuditEventPage(snapshot.initialAuditEventPage);
+    setUsageRecordPage(snapshot.initialUsageRecordPage);
+    setUsageSummary(snapshot.initialUsageSummary);
+    setUsageTimeseries(snapshot.initialUsageTimeseries);
+    setHasBootstrappedPreviewPages(true);
+  }, [snapshot, hasBootstrappedPreviewPages]);
+
+  useEffect(() => {
+    if (snapshot === null || !hasBootstrappedPreviewPages) {
+      return;
+    }
+
+    refreshRequestLogs();
+    refreshAuditEvents();
+    refreshUsage();
+  }, [snapshot]);
+
+  return {
+    snapshot,
+    needsToken,
+    isWorking,
+    requestLogPage,
+    auditEventPage,
+    usageRecordPage,
+    usageSummary,
+    usageTimeseries,
+    selectedWorkspaceRuntimeDetail,
+    selectedSessionRuntimeDetail,
+    selectedProviderDiagnosticId,
+    selectedProviderDiagnosticDetail,
+    selectedSnapshotVersion,
+    requestLogFilters,
+    auditFilters,
+    usageFilters,
+    importPreview,
+    importPreviewSourceText,
+    pendingDeleteReview,
+    mcpImportPreview,
+    setSelectedWorkspaceRuntimeDetail,
+    setSelectedSessionRuntimeDetail,
+    setSelectedProviderDiagnosticId,
+    setSelectedProviderDiagnosticDetail,
+    setSelectedSnapshotVersion,
+    setRequestLogFilters,
+    setAuditFilters,
+    setUsageFilters,
+    setImportPreview,
+    setImportPreviewSourceText,
+    setPendingDeleteReview,
+    refreshSnapshot,
+    refreshProviderDiagnosticDetail,
+    refreshWorkspaceRuntimeDetail,
+    refreshSessionRuntimeDetail,
+    refreshRequestLogs,
+    focusProviderFailureLogs,
+    focusWorkspaceLogs,
+    focusSessionLogs,
+    refreshAuditEvents,
+    refreshUsage,
+    runAction,
+    loadImportPreview,
+    loadDeleteReview,
+    executeDelete,
+    loadMcpImportPreview
+  };
+};

@@ -1,4 +1,4 @@
-import type { LocaleCode } from "@ai-cli-switch/shared";
+import type { LocaleCode } from "@cc-switch-web/shared";
 
 import { useI18n } from "../i18n/I18nProvider.js";
 

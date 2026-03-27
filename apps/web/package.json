@@ -1,5 +1,5 @@
 {
-  "name": "@ai-cli-switch/web",
+  "name": "@cc-switch-web/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@ai-cli-switch/shared": "file:../../packages/shared",
+    "@cc-switch-web/shared": "file:../../packages/shared",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

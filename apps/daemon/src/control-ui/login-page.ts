@@ -3,7 +3,7 @@ export const renderControlLoginPage = (mountPath: string): string => `<!doctype 
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI CLI Switch Control UI</title>
+    <title>CC Switch Web Control UI</title>
     <style>
       :root {
         font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
@@ -45,7 +45,7 @@ export const renderControlLoginPage = (mountPath: string): string => `<!doctype 
   <body>
     <main>
       <p>Local Protected Control Plane</p>
-      <h1>AI CLI Switch</h1>
+      <h1>CC Switch Web</h1>
       <p>控制台默认只建议本地访问。Local access is recommended. 请输入控制令牌后进入管理界面。</p>
       <form id="loginForm">
         <input id="tokenInput" type="password" placeholder="输入 / Enter AICLI_SWITCH_CONTROL_TOKEN" />

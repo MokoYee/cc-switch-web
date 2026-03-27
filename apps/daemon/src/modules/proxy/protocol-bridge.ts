@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import type { FastifyRequest } from "fastify";
 
+import type { EffectiveAppContext } from "@cc-switch-web/shared";
+
 import type { RuntimeTarget } from "./proxy-runtime-service.js";
 
 export class UnsupportedBridgeFeatureError extends Error {}
@@ -76,6 +78,9 @@ interface OpenAiChatRequestBody {
   readonly top_p?: number;
   readonly stop?: string[];
   readonly stream?: boolean;
+  readonly stream_options?: {
+    readonly include_usage?: boolean;
+  };
   readonly tools?: Array<Record<string, unknown>>;
   readonly tool_choice?: string | Record<string, unknown>;
 }
@@ -110,6 +115,9 @@ export interface BridgedRequest {
   readonly responseProtocol: "openai" | "anthropic";
   readonly streamMode: "none" | "anthropic-sse";
 }
+
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0;
 
 const isJsonRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -320,6 +328,92 @@ const extractAnthropicModel = (requestBody: AnthropicRequestBody): string =>
     ? requestBody.model
     : "claude-compat";
 
+const appendInstruction = (existing: string | undefined, injected: string | null): string | undefined => {
+  if (!isNonEmptyString(injected)) {
+    return existing;
+  }
+
+  if (!isNonEmptyString(existing)) {
+    return injected;
+  }
+
+  return `${injected}\n\n${existing}`;
+};
+
+const injectAnthropicInstruction = (
+  body: AnthropicRequestBody,
+  context: EffectiveAppContext | null
+): AnthropicRequestBody => {
+  if (!isNonEmptyString(context?.systemInstruction)) {
+    return body;
+  }
+
+  if (Array.isArray(body.system)) {
+    return {
+      ...body,
+      system: [
+        { type: "text", text: context.systemInstruction },
+        ...body.system
+      ]
+    };
+  }
+
+  const nextSystem = appendInstruction(body.system, context.systemInstruction);
+  return {
+    ...body,
+    ...(nextSystem !== undefined ? { system: nextSystem } : {})
+  };
+};
+
+const injectOpenAiChatInstruction = (
+  body: Record<string, unknown>,
+  context: EffectiveAppContext | null
+): Record<string, unknown> => {
+  if (!isNonEmptyString(context?.systemInstruction)) {
+    return body;
+  }
+
+  const messages = Array.isArray(body.messages) ? [...body.messages] : [];
+  const first = messages[0];
+  if (
+    isJsonRecord(first) &&
+    (first.role === "system" || first.role === "developer") &&
+    isNonEmptyString(first.content)
+  ) {
+    messages[0] = {
+      ...first,
+      content: appendInstruction(first.content, context.systemInstruction) ?? first.content
+    };
+  } else {
+    messages.unshift({
+      role: "system",
+      content: context.systemInstruction
+    });
+  }
+
+  return {
+    ...body,
+    messages
+  };
+};
+
+const injectResponsesInstruction = (
+  body: Record<string, unknown>,
+  context: EffectiveAppContext | null
+): Record<string, unknown> => {
+  if (!isNonEmptyString(context?.systemInstruction)) {
+    return body;
+  }
+
+  return {
+    ...body,
+    instructions: appendInstruction(
+      isNonEmptyString(body.instructions) ? body.instructions : undefined,
+      context.systemInstruction
+    )
+  };
+};
+
 const toAnthropicResponse = (
   upstream: OpenAiChatResponse,
   requestBody: AnthropicRequestBody
@@ -378,7 +472,8 @@ const toAnthropicResponse = (
 export const buildBridgedRequest = (
   request: FastifyRequest,
   target: RuntimeTarget,
-  pathSuffix: string
+  pathSuffix: string,
+  context: EffectiveAppContext | null = null
 ): BridgedRequest => {
   const body = request.body;
   if (!isJsonRecord(body)) {
@@ -395,15 +490,30 @@ export const buildBridgedRequest = (
     (pathSuffix === "/v1/messages" || pathSuffix === "/messages");
 
   if (!shouldBridgeAnthropicToOpenAi) {
+    let nextBody = body;
+    if (pathSuffix === "/v1/chat/completions" || pathSuffix === "/chat/completions") {
+      nextBody = injectOpenAiChatInstruction(body, context);
+    } else if (pathSuffix === "/v1/responses" || pathSuffix === "/responses") {
+      nextBody = injectResponsesInstruction(body, context);
+    } else if (
+      target.providerType === "anthropic" &&
+      (pathSuffix === "/v1/messages" || pathSuffix === "/messages")
+    ) {
+      nextBody = injectAnthropicInstruction(
+        body as unknown as AnthropicRequestBody,
+        context
+      ) as unknown as Record<string, unknown>;
+    }
+
     return {
       upstreamPath: pathSuffix,
-      upstreamBody: JSON.stringify(body),
+      upstreamBody: JSON.stringify(nextBody),
       responseProtocol: "openai",
       streamMode: "none"
     };
   }
 
-  const anthropicBody = body as unknown as AnthropicRequestBody;
+  const anthropicBody = injectAnthropicInstruction(body as unknown as AnthropicRequestBody, context);
 
   const tools = toOpenAiTools(anthropicBody);
   const toolChoice = toOpenAiToolChoice(anthropicBody);
@@ -414,6 +524,7 @@ export const buildBridgedRequest = (
   };
   const upstreamBody = {
     ...upstreamBodyBase,
+    ...(anthropicBody.stream === true ? { stream_options: { include_usage: true } } : {}),
     ...(anthropicBody.max_tokens !== undefined ? { max_tokens: anthropicBody.max_tokens } : {}),
     ...(anthropicBody.temperature !== undefined ? { temperature: anthropicBody.temperature } : {}),
     ...(anthropicBody.top_p !== undefined ? { top_p: anthropicBody.top_p } : {}),

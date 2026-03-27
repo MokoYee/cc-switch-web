@@ -1,5 +1,5 @@
 {
-  "name": "@ai-cli-switch/daemon",
+  "name": "@cc-switch-web/daemon",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
@@ -7,13 +7,13 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "test": "tsx --test src/modules/proxy/protocol-bridge.test.ts src/modules/proxy/anthropic-sse-bridge.test.ts",
+    "test": "npm run build --workspace @cc-switch-web/shared && tsx --test src/modules/proxy/protocol-bridge.test.ts src/modules/proxy/anthropic-sse-bridge.test.ts src/modules/proxy/provider-health-probe-service.test.ts src/modules/proxy/proxy-http-handler.test.ts src/modules/proxy/proxy-runtime-service.test.ts src/modules/proxy/usage-tracking.test.ts src/modules/audit/audit-event-service.test.ts src/modules/assets/asset-repositories.test.ts src/modules/assets/asset-version-service.test.ts src/modules/assets/skill-delivery-service.test.ts src/modules/dashboard/dashboard-bootstrap-service.test.ts src/modules/governance/config-governance-service.test.ts src/modules/host-discovery/host-discovery-service.test.ts src/modules/mcp/mcp-host-sync-service.test.ts src/modules/mcp/mcp-service.test.ts src/modules/quotas/app-quota-service.test.ts src/modules/routing/routing-governance-service.test.ts src/modules/routing/context-routing-explanation-service.test.ts src/modules/snapshots/snapshot-service.test.ts src/modules/workspaces/workspace-repositories.test.ts src/modules/workspaces/workspace-context-service.test.ts src/modules/workspaces/active-context-policy-service.test.ts src/modules/workspaces/workspace-discovery-service.test.ts src/modules/workspaces/session-governance-service.test.ts src/modules/workspaces/session-lifecycle-service.test.ts src/modules/workspaces/runtime-context-observability-service.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@fastify/cookie": "^9.4.0",
     "@fastify/cors": "^9.0.1",
-    "@ai-cli-switch/shared": "file:../../packages/shared",
+    "@cc-switch-web/shared": "file:../../packages/shared",
     "better-sqlite3": "^12.8.0",
     "fastify": "^4.28.1"
   },

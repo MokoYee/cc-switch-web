@@ -3,6 +3,12 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "baseUrl": ".",
+    "paths": {
+      "@cc-switch-web/shared": [
+        "packages/shared/src/index.ts"
+      ]
+    },
     "strict": true,
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,

@@ -1,4 +1,4 @@
-import { nowIso, type ProxyPolicy } from "@ai-cli-switch/shared";
+import { nowIso, type ProxyPolicy } from "@cc-switch-web/shared";
 
 import type { SqliteDatabase } from "../../db/database.js";
 

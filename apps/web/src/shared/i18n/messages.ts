@@ -1,4 +1,4 @@
-import type { LocaleCode } from "@ai-cli-switch/shared";
+import type { LocaleCode } from "@cc-switch-web/shared";
 
 import { enUSMessages } from "./locales/en-US.js";
 import { zhCNMessages } from "./locales/zh-CN.js";

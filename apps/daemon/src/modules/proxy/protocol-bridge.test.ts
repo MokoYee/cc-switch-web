@@ -54,6 +54,87 @@ test("bridges anthropic messages request into openai chat completions payload", 
   ]);
 });
 
+test("injects active context instruction into openai chat completions requests", () => {
+  const request = {
+    body: {
+      model: "gpt-4.1",
+      messages: [{ role: "user", content: "Review this patch" }]
+    }
+  } as Parameters<typeof buildBridgedRequest>[0];
+
+  const result = buildBridgedRequest(
+    request,
+    createTarget("openai-compatible"),
+    "/v1/chat/completions",
+    {
+      appCode: "claude-code",
+      source: "active-session",
+      activeWorkspaceId: "workspace-api",
+      activeSessionId: "session-review",
+      provider: {
+        id: "provider-1",
+        name: "Provider 1",
+        bindingMode: "managed",
+        source: "session-override",
+        missing: false
+      },
+      promptTemplate: {
+        id: "prompt-review",
+        name: "Review Prompt",
+        locale: "zh-CN",
+        source: "workspace-default",
+        missing: false,
+        content: "请按审查格式输出。",
+        enabled: true
+      },
+      skill: {
+        id: "skill-boundary",
+        name: "Boundary Checklist",
+        source: "workspace-default",
+        missing: false,
+        promptTemplateId: "prompt-review",
+        content: "重点检查边界条件。",
+        enabled: true
+      },
+      systemInstruction: "Prompt Template (zh-CN):\n请按审查格式输出。\n\nSkill:\n重点检查边界条件。",
+      warnings: []
+    }
+  );
+
+  const parsed = JSON.parse(result.upstreamBody ?? "{}") as {
+    messages: Array<{ role: string; content: string }>;
+  };
+  assert.equal(parsed.messages[0]?.role, "system");
+  assert.match(parsed.messages[0]?.content ?? "", /Prompt Template/);
+  assert.equal(parsed.messages[1]?.role, "user");
+});
+
+test("requests upstream stream usage when bridging anthropic streaming", () => {
+  const request = {
+    body: {
+      model: "claude-3-7-sonnet",
+      stream: true,
+      messages: [
+        {
+          role: "user",
+          content: [{ type: "text", text: "Hello stream" }]
+        }
+      ]
+    }
+  } as Parameters<typeof buildBridgedRequest>[0];
+
+  const result = buildBridgedRequest(request, createTarget(), "/v1/messages");
+  const parsed = JSON.parse(result.upstreamBody ?? "{}") as {
+    stream: boolean;
+    stream_options?: {
+      include_usage?: boolean;
+    };
+  };
+
+  assert.equal(parsed.stream, true);
+  assert.equal(parsed.stream_options?.include_usage, true);
+});
+
 test("bridges anthropic tool_use and tool_result into openai tool call messages", () => {
   const request = {
     body: {
