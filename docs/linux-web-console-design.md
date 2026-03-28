@@ -40,6 +40,7 @@
 
 - 默认地址：`127.0.0.1:8787`
 - 控制台与受保护 API 需要控制 token 或已登录 UI 会话
+- `/metrics` 当前不走控制台登录态，默认依赖本机监听边界或反向代理 ACL 做额外保护
 - 允许跨域来源可通过环境变量配置
 - 监听地址和端口均可通过环境变量覆盖
 - 环境变量与 `systemd` 单元名当前仍保留兼容前缀：`AICLI_SWITCH_*`、`ai-cli-switch.service`
@@ -100,6 +101,10 @@
 - 支持矩阵 API / CLI
 - `codex` 真实 apply / rollback
 - `claude-code` 真实 apply / rollback
+- 前台临时接管生命周期
+  - daemon 正常退出时自动回滚 `foreground-session` 宿主机接管
+  - daemon 下次启动时自动恢复上次异常退出残留的临时接管
+  - Dashboard bootstrap 暴露启动自动恢复摘要，控制台可直接跟进宿主机审计
 - 事件持久化
 - Prompt Host Sync 能力矩阵
 - Skill Delivery 能力矩阵
@@ -126,6 +131,11 @@
 - Usage 汇总与按应用 / Provider / 模型聚合
 - 统一审计事件流
 - Host integration / provider health / proxy request 聚合审计
+- Prometheus `/metrics` 导出
+  - daemon 运行态、Proxy runtime、Provider 诊断、MCP 漂移、Snapshot 版本等基础 gauge
+- Service Doctor
+  - `systemd --user`、unit、env、runtime 偏差检查
+  - 控制台运行治理面直接暴露校验清单与恢复步骤
 - CLI 查询入口
 - 基础运行时状态查询
 
@@ -145,6 +155,8 @@
 - MCP CLI 查询、导入、Host Sync 命令
 - 控制台 MCP 面板、基础表单与编辑回填
 - 导入预览支持字段级前后值对比
+- MCP Runtime 治理预览 / 修复
+- MCP 基线校验历史 API 与控制台跟进视图
 - MCP 审计时间线视图
 - MCP 审计事件已纳入统一事件流
 
@@ -152,6 +164,9 @@
 
 - `/ui` 登录页与控制台壳
 - Dashboard 基础页面
+- QuickStart 项目接入工作台
+- Runtime Governance / Service Doctor / Startup Recovery 跟进卡
+- MCP 校验历史与治理跟进行动入口
 - 中英双语基础设施
 - 前端目录标准化：`app` / `features` / `shared`
 
@@ -201,7 +216,7 @@
 说明：
 
 - MCP 已具备服务端数据模型、宿主机同步和导入导出闭环。
-- 控制台编辑体验、字段级冲突预览和审计时间线已经补齐到可用形态。
+- 控制台编辑体验、字段级冲突预览、治理修复与校验历史已经补齐到可用形态。
 - 仍未做的是更深的批量编辑、`openclaw` 适配和更完整的宿主机生态扩展。
 - 当前协议桥接层已把非流式与流式 `usage` 数据接入持久化。
 - 控制台、API 与 CLI 已具备用量明细、聚合统计、时间趋势查询能力。
@@ -232,12 +247,18 @@
 - 扩展更多宿主机 AI CLI 的 MCP 配置同步
 - 增加导入、自发现、审计与控制台管理
 
-建议最小闭环：
+当前已完成：
 
-- MCP 控制台管理页
-- 宿主机现有 MCP 配置导入
-- 批量编辑、批量启停与更完整的冲突提示
+- MCP 控制台管理页与运行态治理
+- 宿主机现有 MCP 配置导入与字段级差异预览
+- Governance repair 单应用 / 整批预览与执行
+- MCP 基线校验历史与控制台跟进视图
+
+当前剩余：
+
+- 更深的批量编辑、批量启停与跨应用治理编排
 - 更多宿主机 AI CLI 的 MCP 能力矩阵扩展
+- 更强的回归验证自动化与交付 runbook
 
 ### 5.2 P0：用量追踪
 
@@ -334,12 +355,17 @@
 - 工作区与会话有效上下文解析
 - 激活上下文驱动的默认 Provider 选路
 - 激活上下文驱动的 Prompt / Skill 系统指令注入
+- QuickStart 项目接入工作台
+  - 工作区候选归档
+  - 一键建并激活会话
+  - 陈旧会话清理
+  - 跳转上下文资源面板
 - Active Context 生效结果 API / CLI
 - API / CLI / 控制台基础管理
 
 当前剩余：
 
-- 把宿主机 CLI 探测结果进一步接入 workspace / session 自动建档与接管建议
+- 继续把宿主机 CLI 探测结果更深接入 workspace / session 自动建档与接管建议
 - 工作区级版本快照与差异比较
 - 团队级共享与更完整的操作审计
 
@@ -355,14 +381,14 @@
 
 建议顺序：
 
-1. Web 控制台治理闭环与交互收敛
+1. 发布与运维交付文档收口
 2. MCP 批量治理与宿主机生态扩展
 3. 宿主机工作区接管与探测回填增强
 4. 更完整的审计与团队协作治理
 
 原因：
 
-- 当前控制台已经承接了主要治理模型，后续更值得继续把关键操作、状态解释和批量治理收敛到 Web，而不是继续摊薄到 CLI。
+- 当前代码主链路已经基本闭合，最先缺的是 README、设计文档、Prometheus 抓取示例、告警模板这类对外可交付材料。
 - MCP 仍然是 AI CLI 中台的生态核心，需要继续补宿主机覆盖面和批量治理。
 - 宿主机探测结果与 workspace/session 模型还有继续打通的空间，适合在自动建档闭环稳定后继续加深。
 - 审计与团队协作属于治理放大器，适合在运行链路稳定后继续扩展。

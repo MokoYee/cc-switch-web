@@ -60,6 +60,10 @@
 - Prompt Host Sync 与宿主机 Prompt 投放 / 回滚
 - Prompt Host Sync 整批预览 / 整批执行
 - Skill 交付能力矩阵与代理侧注入路径说明
+- QuickStart 项目接入工作台与工作区候选 / 会话治理收敛入口
+- 前台临时接管自动回滚与异常退出后的下次启动自动恢复
+- MCP Runtime 治理预检 / 修复与基线校验历史
+- Service Doctor、运行治理面板与 Prometheus `/metrics` 导出
 - 宿主机接管预检与回滚备份
 - OpenAI-compatible 直通、Anthropic 非流式 / 流式桥接
 - 请求日志、审计事件、usage 统计、应用级日配额治理
@@ -74,7 +78,7 @@
 - Skill 宿主机原生文件投放与更深的批量工作流
 - 工作区 / 会话自动建档后的宿主机接管建议、团队共享与更细的审计闭环
 - 趋势图、治理报表、批量操作等产品化体验增强
-- 对外发布前的运行手册、指标体系和更多自动化验证
+- 对外发布前的运行手册、Prometheus 抓取示例、告警模板和更多自动化验证
 
 所以它现在适合：
 
@@ -119,6 +123,7 @@ ccsw daemon start
 
 - 登录页：`http://127.0.0.1:8787/`
 - 内置控制台：`http://127.0.0.1:8787/ui/`
+- Prometheus 指标：`http://127.0.0.1:8787/metrics`
 
 查看或轮换本地控制令牌：
 
@@ -188,6 +193,7 @@ node apps/cli/dist/index.js host setup claude-code
 - 控制台默认要求控制令牌登录
 - 登录后使用 cookie 访问同端口 UI 和 API
 - 控制令牌默认持久化到本地 SQLite
+- `/metrics` 当前不走控制台登录态，建议放在可信网络或反向代理 ACL 后
 - 允许来源可通过 `ALLOWED_ORIGINS` 覆盖
 
 环境变量示例：
