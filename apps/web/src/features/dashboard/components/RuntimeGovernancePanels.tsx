@@ -12,6 +12,7 @@ import type {
 
 import { ProgressiveList } from "../../../shared/components/ProgressiveList.js";
 import { useI18n } from "../../../shared/i18n/I18nProvider.js";
+import { buildDaemonAbsoluteUrl } from "../../../shared/lib/api.js";
 import type { DashboardSnapshot } from "../api/load-dashboard-snapshot.js";
 import { buildHostTakeoverPreviewNotice } from "../lib/buildHostTakeoverPreview.js";
 import { buildRequestPrimaryCause } from "../lib/buildRoutingPrimaryCause.js";
@@ -721,6 +722,10 @@ export const RuntimeGovernancePanels = ({
   const foregroundManagedDiscoveries = snapshot.discoveries.filter(
     (item) => item.integrationState === "managed" && item.lifecycleMode === "foreground-session"
   );
+  const metricsUrl = buildDaemonAbsoluteUrl("/metrics");
+  const startupRecovery = snapshot.hostStartupRecovery;
+  const startupRecoveryLevel: "medium" | "high" =
+    startupRecovery !== null && startupRecovery.failedApps.length > 0 ? "high" : "medium";
 
   const renderTakeoverActionLabel = (action: TrafficTakeoverActionKind): string => {
     switch (action) {
@@ -2174,6 +2179,139 @@ export const RuntimeGovernancePanels = ({
             suggestions: snapshot.serviceDoctor.checks.recommendedActions
           }}
         />
+
+        {startupRecovery !== null ? (
+          <div className={`governance-notice governance-${startupRecoveryLevel}`}>
+            <div className="governance-notice-header">
+              <strong>{localize(locale, "启动自动恢复", "Startup Auto-Recovery")}</strong>
+              <span className="governance-notice-badge">
+                {startupRecovery.failedApps.length === 0
+                  ? localize(locale, "已恢复", "Recovered")
+                  : localize(locale, "需人工复核", "Manual Review Needed")}
+              </span>
+            </div>
+            <p>
+              {startupRecovery.failedApps.length === 0
+                ? localize(
+                    locale,
+                    `daemon 本次启动时已经自动回滚上次异常退出残留的临时宿主机接管：${startupRecovery.rolledBackApps.join(", ")}。`,
+                    `During this startup, the daemon automatically rolled back stale temporary host takeovers left by the previous abnormal exit: ${startupRecovery.rolledBackApps.join(", ")}.`
+                  )
+                : localize(
+                    locale,
+                    `daemon 本次启动时已自动回滚 ${startupRecovery.rolledBackApps.length} 个残留临时接管，但 ${startupRecovery.failedApps.join(", ")} 仍需要人工检查宿主机配置与备份。`,
+                    `During this startup, the daemon auto-rolled back ${startupRecovery.rolledBackApps.length} stale temporary takeover(s), but ${startupRecovery.failedApps.join(", ")} still requires manual host-config and backup review.`
+                  )}
+            </p>
+            <ul className="governance-suggestion-list">
+              <li>
+                {localize(locale, "执行时间", "Executed At")}:{" "}
+                <code>{startupRecovery.executedAt.replace("T", " ").replace(".000Z", "Z")}</code>
+              </li>
+              <li>
+                {localize(locale, "已恢复应用", "Recovered Apps")}:{" "}
+                <code>{startupRecovery.rolledBackApps.join(", ") || "none"}</code>
+              </li>
+              <li>
+                {startupRecovery.failedApps.length === 0
+                  ? localize(
+                      locale,
+                      "下一步只需要做一次真实 CLI 请求，确认临时接管已经彻底退出，流量回到当前期望链路。",
+                      "Next, trigger one real CLI request to confirm the temporary takeover has fully exited and traffic is back on the intended path."
+                    )
+                  : localize(
+                      locale,
+                      "先打开宿主机审计，再逐个核查失败应用的配置文件、备份文件和 shell 环境残留。",
+                      "Open host audit first, then inspect each failed app for config files, backup files, and shell-level residue."
+                    )}
+              </li>
+            </ul>
+            <div className="quick-action-row">
+              <button
+                className="inline-action"
+                type="button"
+                disabled={isWorking}
+                onClick={() =>
+                  applyAuditFilter({
+                    source: "host-integration",
+                    appCode: "",
+                    providerId: "",
+                    level: ""
+                  })
+                }
+              >
+                {localize(locale, "查看宿主机审计", "Open Host Audit")}
+              </button>
+              {startupRecovery.rolledBackApps.length === 1 ? (
+                <button
+                  className="inline-action"
+                  type="button"
+                  disabled={isWorking}
+                  onClick={() => onOpenAppTraffic(startupRecovery.rolledBackApps[0]!)}
+                >
+                  {localize(locale, "查看该应用流量", "Open App Traffic")}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="note-block">
+          <strong>{localize(locale, "Prometheus 导出", "Prometheus Export")}</strong>
+          <p>
+            {localize(
+              locale,
+              "daemon 已暴露 Prometheus 文本格式指标，可直接交给本机或旁路采集器抓取。",
+              "The daemon now exposes Prometheus text-format metrics, ready for local or sidecar scraping."
+            )}
+          </p>
+          <p>
+            <code>{metricsUrl}</code>
+          </p>
+          <ul className="governance-suggestion-list">
+            <li>
+              {localize(
+                locale,
+                "接入前先确认抓取端看到的是 daemon 实际地址，而不是前端开发服务器地址。",
+                "Before scraping, confirm the collector reaches the real daemon address instead of a frontend dev server."
+              )}
+            </li>
+            <li>
+              {localize(
+                locale,
+                "当前 /metrics 不走控制台登录态，生产交付时应放在可信网络或反向代理 ACL 后面。",
+                "The current /metrics endpoint is not protected by console login state, so production delivery should keep it inside a trusted network boundary or behind reverse-proxy ACLs."
+              )}
+            </li>
+            <li>
+              {localize(
+                locale,
+                "建议把 proxy runtime、provider diagnosis、MCP drift 和 latest snapshot version 作为首批告警指标。",
+                "A practical first alert set is proxy runtime, provider diagnosis, MCP drift, and latest snapshot version."
+              )}
+            </li>
+          </ul>
+          <div className="quick-action-row">
+            <a className="inline-action" href={metricsUrl} target="_blank" rel="noreferrer">
+              {localize(locale, "打开 /metrics", "Open /metrics")}
+            </a>
+            <button
+              className="inline-action"
+              type="button"
+              disabled={isWorking}
+              onClick={() =>
+                applyAuditFilter({
+                  source: "system-service",
+                  appCode: "",
+                  providerId: "",
+                  level: ""
+                })
+              }
+            >
+              {localize(locale, "查看服务审计", "Open Service Audit")}
+            </button>
+          </div>
+        </div>
 
         {takeoverEntries.length > 0 ? (
           <div className="note-block">

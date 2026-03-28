@@ -631,6 +631,9 @@ code {
 }
 
 .inline-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-top: 10px;
   border: 1px solid rgba(16, 33, 47, 0.12);
   border-radius: 12px;
@@ -639,6 +642,7 @@ code {
   color: #10212f;
   font: inherit;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .inline-action.danger {

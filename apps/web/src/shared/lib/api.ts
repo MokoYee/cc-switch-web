@@ -154,8 +154,19 @@ declare global {
 
 const CONTROL_TOKEN_STORAGE_KEY = "ai-cli-switch.control-token";
 
-const resolveApiBaseUrl = (): string =>
+export const resolveApiBaseUrl = (): string =>
   window.AICLI_SWITCH_API_BASE_URL ?? import.meta.env.VITE_AICLI_SWITCH_API_BASE_URL ?? "http://127.0.0.1:8787";
+
+export const buildDaemonAbsoluteUrl = (path: string): string => {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const apiBaseUrl = resolveApiBaseUrl();
+
+  if (apiBaseUrl.startsWith("http://") || apiBaseUrl.startsWith("https://")) {
+    return new URL(normalizedPath, apiBaseUrl).toString();
+  }
+
+  return new URL(normalizedPath, window.location.origin).toString();
+};
 
 export class UnauthorizedApiError extends Error {
   constructor() {
