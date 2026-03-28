@@ -56,10 +56,17 @@ export const buildDaemon = async (runtime: DaemonRuntime): Promise<FastifyInstan
     controlUiMountPath: env.controlUiMountPath
   }));
 
+  app.get("/metrics", async (_request, reply) => {
+    reply
+      .type("text/plain; version=0.0.4; charset=utf-8")
+      .send(runtime.metricsService.renderPrometheusText());
+  });
+
   app.addHook("onRequest", async (request, reply) => {
     const pathname = request.url.split("?")[0] ?? "/";
     const isPublicRoute =
       pathname === "/health" ||
+      pathname === "/metrics" ||
       pathname === "/api/v1/auth/session" ||
       pathname === "/api/v1/auth/state" ||
       pathname === "/" ||

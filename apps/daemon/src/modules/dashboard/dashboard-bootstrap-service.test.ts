@@ -9,6 +9,7 @@ import {
   type ControlAuthRuntimeView,
   type EffectiveAppContext,
   type HostCliDiscovery,
+  type HostCliStartupRecovery,
   type McpAppRuntimeView,
   type SessionGovernanceStatus,
   type SystemServiceDoctor,
@@ -104,6 +105,7 @@ const createHostDiscovery = (appCode: AppCode, marker: string): HostCliDiscovery
   currentTarget: marker,
   desiredTarget: `http://127.0.0.1:8787/proxy/${appCode}`,
   managedTarget: null,
+  lifecycleMode: null,
   managedFeatures: [],
   envConflicts: [],
   backupAvailable: false,
@@ -127,6 +129,7 @@ const createRuntime = (dependencies: {
   readonly listWorkspaceDiscovery: () => WorkspaceDiscoveryItem[];
   readonly scanHostDiscovery: () => HostCliDiscovery[];
   readonly getServiceDoctor: () => Promise<SystemServiceDoctor>;
+  readonly getStartupRecovery?: () => HostCliStartupRecovery | null;
 }): DaemonRuntime =>
   ({
     env: {
@@ -265,6 +268,7 @@ const createRuntime = (dependencies: {
     },
     hostDiscoveryService: {
       scan: dependencies.scanHostDiscovery,
+      getStartupRecovery: dependencies.getStartupRecovery ?? (() => null),
       listRecentEvents: () => []
     },
     promptHostSyncService: {
@@ -297,6 +301,9 @@ const createRuntime = (dependencies: {
         dbPath: "/tmp/data/ai-cli-switch.sqlite",
         latestSnapshotVersion: null
       })
+    },
+    metricsService: {
+      renderPrometheusText: () => ""
     },
     systemServiceEventRepository: {},
     providerHealthProbeService: {},
@@ -346,6 +353,7 @@ test("reuses cached heavy dashboard sections until TTL expires", async () => {
   assert.equal(serviceDoctorCalls, 1);
   assert.equal(first.workspaceDiscovery[0]?.rootPath, "/tmp/workspace-1");
   assert.equal(second.discoveries[0]?.currentTarget, "host-1");
+  assert.equal(first.hostStartupRecovery, null);
   assert.equal(first.skillDeliveryCapabilities[0]?.appCode, "codex");
 
   now = 6_000;
@@ -393,4 +401,39 @@ test("invalidate clears cached dashboard sections immediately", async () => {
   assert.equal(serviceDoctorCalls, 2);
   assert.equal(refreshed.workspaceDiscovery[0]?.rootPath, "/tmp/reload-2");
   assert.equal(refreshed.discoveries[0]?.currentTarget, "host-2");
+});
+
+test("includes startup host recovery summary in dashboard bootstrap", async () => {
+  const service = new DashboardBootstrapService(
+    createRuntime({
+      listWorkspaceDiscovery: () => [],
+      scanHostDiscovery: () => [createHostDiscovery("codex", "host-1")],
+      getServiceDoctor: async () => createServiceDoctor(),
+      getStartupRecovery: () => ({
+        trigger: "startup-auto-rollback",
+        executedAt: "2026-03-28T10:00:00.000Z",
+        totalApps: 1,
+        rolledBackApps: ["codex"],
+        failedApps: [],
+        items: [
+          {
+            appCode: "codex",
+            action: "rollback",
+            configPath: "/tmp/codex.json",
+            backupPath: "/tmp/codex.bak",
+            integrationState: "unmanaged",
+            lifecycleMode: "foreground-session",
+            message: "Managed config rolled back for codex"
+          }
+        ],
+        failures: [],
+        message: "Auto-recovered 1 stale foreground-session host takeover(s) during daemon startup"
+      })
+    })
+  );
+
+  const snapshot = await service.load();
+
+  assert.equal(snapshot.hostStartupRecovery?.trigger, "startup-auto-rollback");
+  assert.deepEqual(snapshot.hostStartupRecovery?.rolledBackApps, ["codex"]);
 });

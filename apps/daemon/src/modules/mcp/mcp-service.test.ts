@@ -193,6 +193,66 @@ test("builds MCP runtime view and save previews", () => {
   rmSync(rootDir, { recursive: true, force: true });
 });
 
+test("does not mark MCP env or headers as changed when only JSON key order differs", () => {
+  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-preview-stable-records-"));
+  const homeDir = join(rootDir, "home");
+  const dataDir = join(rootDir, "data");
+  mkdirSync(dataDir, { recursive: true });
+  const database = openDatabase(join(dataDir, "test.sqlite"));
+  const serverRepository = new McpServerRepository(database);
+
+  serverRepository.replaceAll([
+    {
+      id: "filesystem",
+      name: "Filesystem",
+      transport: "http",
+      command: null,
+      args: [],
+      url: "https://mcp.example.com",
+      env: {
+        A_KEY: "a",
+        B_KEY: "b"
+      },
+      headers: {
+        Authorization: "Bearer token",
+        "X-Test": "ok"
+      },
+      enabled: true,
+      createdAt: nowIso(),
+      updatedAt: nowIso()
+    }
+  ]);
+
+  const service = new McpService(
+    serverRepository,
+    new AppMcpBindingRepository(database),
+    new McpEventRepository(database),
+    { homeDir }
+  );
+
+  const preview = service.previewServerUpsert({
+    id: "filesystem",
+    name: "Filesystem",
+    transport: "http",
+    command: null,
+    args: [],
+    url: "https://mcp.example.com",
+    env: {
+      B_KEY: "b",
+      A_KEY: "a"
+    },
+    headers: {
+      "X-Test": "ok",
+      Authorization: "Bearer token"
+    },
+    enabled: true
+  });
+
+  assert.deepEqual(preview.changedFields, []);
+
+  rmSync(rootDir, { recursive: true, force: true });
+});
+
 test("previews MCP import conflicts from codex config", () => {
   const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-preview-codex-"));
   const homeDir = join(rootDir, "home");

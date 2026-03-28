@@ -20,6 +20,7 @@ import { McpEventRepository } from "../modules/mcp/mcp-event-repository.js";
 import { McpHostSyncService } from "../modules/mcp/mcp-host-sync-service.js";
 import { McpServerRepository } from "../modules/mcp/mcp-server-repository.js";
 import { McpService } from "../modules/mcp/mcp-service.js";
+import { McpVerificationHistoryService } from "../modules/mcp/mcp-verification-history-service.js";
 import { ProviderRepository } from "../modules/providers/provider-repository.js";
 import { ProxyRuntimeService } from "../modules/proxy/proxy-runtime-service.js";
 import { ProxyService } from "../modules/proxy/proxy-service.js";
@@ -32,6 +33,7 @@ import { QuickContextAssetService } from "../modules/onboarding/quick-context-as
 import { QuickOnboardingService } from "../modules/onboarding/quick-onboarding-service.js";
 import { RoutingGovernanceService } from "../modules/routing/routing-governance-service.js";
 import { ContextRoutingExplanationService } from "../modules/routing/context-routing-explanation-service.js";
+import { MetricsService } from "../modules/system/metrics-service.js";
 import { SettingsRepository, type ControlTokenRecord } from "../modules/settings/settings-repository.js";
 import { SnapshotService } from "../modules/snapshots/snapshot-service.js";
 import { SystemService } from "../modules/system/system-service.js";
@@ -79,6 +81,7 @@ export interface DaemonRuntime {
   readonly mcpEventRepository: McpEventRepository;
   readonly mcpHostSyncService: McpHostSyncService;
   readonly mcpService: McpService;
+  readonly mcpVerificationHistoryService: McpVerificationHistoryService;
   readonly hostDiscoveryService: HostDiscoveryService;
   readonly quickOnboardingService: QuickOnboardingService;
   readonly quickContextAssetService: QuickContextAssetService;
@@ -86,6 +89,7 @@ export interface DaemonRuntime {
   readonly settingsRepository: SettingsRepository;
   readonly snapshotService: SnapshotService;
   readonly systemService: SystemService;
+  readonly metricsService: MetricsService;
   readonly systemServiceEventRepository: SystemServiceEventRepository;
   readonly providerHealthProbeService: ProviderHealthProbeService;
   readonly appQuotaService: AppQuotaService;
@@ -247,12 +251,21 @@ export const initializeRuntime = (env: DaemonEnv): DaemonRuntime => {
   const mcpService = new McpService(mcpServerRepository, appMcpBindingRepository, mcpEventRepository, {
     listHostSyncStates: () => mcpHostSyncService.listSyncStates()
   });
+  const mcpVerificationHistoryService = new McpVerificationHistoryService(
+    database,
+    appMcpBindingRepository,
+    mcpServerRepository,
+    mcpHostSyncService,
+    mcpService
+  );
   const hostDiscoveryService = new HostDiscoveryService({
+    runMode: env.runMode,
     daemonHost: env.host,
     daemonPort: env.port,
     dataDir: storagePaths.dataDir,
     database
   });
+  hostDiscoveryService.recoverForegroundSessionConfigsOnStartup();
   const quickOnboardingService = new QuickOnboardingService(
     providerRepository,
     bindingRepository,
@@ -287,6 +300,20 @@ export const initializeRuntime = (env: DaemonEnv): DaemonRuntime => {
     settingsRepository,
     systemServiceEventRepository
   );
+  const metricsService = new MetricsService({
+    systemService,
+    proxyRuntimeService,
+    providerRepository,
+    bindingRepository,
+    failoverChainRepository,
+    workspaceRepository,
+    sessionRecordRepository,
+    appQuotaRepository,
+    appQuotaService,
+    mcpServerRepository,
+    appMcpBindingRepository,
+    mcpService
+  });
   const providerHealthProbeService = new ProviderHealthProbeService(
     proxyRuntimeService,
     fetch,
@@ -361,6 +388,7 @@ export const initializeRuntime = (env: DaemonEnv): DaemonRuntime => {
     mcpEventRepository,
     mcpHostSyncService,
     mcpService,
+    mcpVerificationHistoryService,
     hostDiscoveryService,
     quickOnboardingService,
     quickContextAssetService,
@@ -368,6 +396,7 @@ export const initializeRuntime = (env: DaemonEnv): DaemonRuntime => {
     settingsRepository,
     snapshotService,
     systemService,
+    metricsService,
     systemServiceEventRepository,
     providerHealthProbeService,
     appQuotaService,

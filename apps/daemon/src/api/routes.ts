@@ -8,6 +8,7 @@ import {
   appMcpBindingUpsertSchema,
   failoverChainUpsertSchema,
   mcpImportOptionsSchema,
+  mcpVerificationHistoryQuerySchema,
   mcpServerUpsertSchema,
   promptTemplateUpsertSchema,
   providerUpsertSchema,
@@ -69,6 +70,7 @@ export const registerRoutes = async (
     mcpEventRepository,
     mcpHostSyncService,
     mcpService,
+    mcpVerificationHistoryService,
     hostDiscoveryService,
     quickOnboardingService,
     quickContextAssetService,
@@ -748,6 +750,16 @@ export const registerRoutes = async (
     };
   });
 
+  app.get("/api/v1/mcp/verification-history/:appCode", async (request) => {
+    const { appCode } = request.params as {
+      appCode: Parameters<typeof mcpVerificationHistoryService.list>[0];
+    };
+    return mcpVerificationHistoryService.list(
+      appCode,
+      mcpVerificationHistoryQuerySchema.parse(request.query ?? {})
+    );
+  });
+
   app.get("/api/v1/mcp/governance/:appCode/preview", async (request) => {
     const { appCode } = request.params as {
       appCode: Parameters<typeof mcpService.previewGovernanceRepair>[0];
@@ -795,13 +807,14 @@ export const registerRoutes = async (
 
   app.delete("/api/v1/mcp/app-bindings/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const existing = appMcpBindingRepository.list().find((item) => item.id === id) ?? null;
     const deleted = appMcpBindingRepository.delete(id);
     if (!deleted) {
       return sendNotFound(reply, `MCP app binding not found: ${id}`);
     }
 
     mcpEventRepository.append({
-      appCode: null,
+      appCode: existing?.appCode ?? null,
       action: "binding-delete",
       targetType: "binding",
       targetId: id,
@@ -831,10 +844,14 @@ export const registerRoutes = async (
   }));
 
   app.post("/api/v1/mcp/host-sync/apply-all", async () => ({
-    item: mcpHostSyncService.applyAll(
-      appMcpBindingRepository.list(),
-      mcpServerRepository.list()
-    )
+    item: (() => {
+      const item = mcpHostSyncService.applyAll(
+        appMcpBindingRepository.list(),
+        mcpServerRepository.list()
+      );
+      invalidateDashboardBootstrap();
+      return item;
+    })()
   }));
 
   app.get("/api/v1/mcp/host-sync/:appCode/preview-apply", async (request) => {
@@ -855,12 +872,14 @@ export const registerRoutes = async (
       appMcpBindingRepository.list(),
       mcpServerRepository.list()
     );
+    invalidateDashboardBootstrap();
     return { item };
   });
 
   app.post("/api/v1/mcp/host-sync/:appCode/rollback", async (request) => {
     const { appCode } = request.params as { appCode: Parameters<typeof mcpHostSyncService.rollback>[0] };
     const item = mcpHostSyncService.rollback(appCode);
+    invalidateDashboardBootstrap();
     return { item };
   });
 
@@ -1151,6 +1170,12 @@ export const registerRoutes = async (
   app.post("/api/v1/host-discovery/:appCode/rollback", async (request) => {
     const { appCode } = request.params as { appCode: Parameters<typeof hostDiscoveryService.rollbackManagedConfig>[0] };
     const result = hostDiscoveryService.rollbackManagedConfig(appCode);
+    invalidateDashboardBootstrap();
+    return { item: result };
+  });
+
+  app.post("/api/v1/host-discovery/rollback-foreground", async () => {
+    const result = hostDiscoveryService.rollbackForegroundSessionConfigs();
     invalidateDashboardBootstrap();
     return { item: result };
   });

@@ -274,6 +274,11 @@ const parseOpenCodeMcpServers = (content: string): Array<Omit<McpServerUpsert, "
   return results;
 };
 
+const sortRecordEntries = (value: Record<string, string>): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(value).sort(([left], [right]) => left.localeCompare(right))
+  );
+
 const stringifyPreviewValue = (value: boolean | string | string[] | Record<string, string> | null): string | null => {
   if (value === null) {
     return null;
@@ -287,7 +292,7 @@ const stringifyPreviewValue = (value: boolean | string | string[] | Record<strin
     return value;
   }
 
-  return JSON.stringify(value);
+  return JSON.stringify(Array.isArray(value) ? value : sortRecordEntries(value));
 };
 
 const buildFieldDiffs = (

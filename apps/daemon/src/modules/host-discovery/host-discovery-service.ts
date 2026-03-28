@@ -8,7 +8,10 @@ import {
   type HostCliApplyPreview,
   type HostCliCapability,
   type HostCliDiscovery,
+  type HostCliLifecycleMode,
   type HostCliMutationResult,
+  type HostCliRollbackBatchResult,
+  type HostCliStartupRecovery,
   type HostIntegrationEvent
 } from "@cc-switch-web/shared";
 
@@ -25,6 +28,7 @@ interface HostIntegrationStateRecord {
   readonly appCode: AppCode;
   readonly configPath: string;
   readonly backupPath: string | null;
+  readonly lifecycleMode: HostCliLifecycleMode;
   readonly rollbackAction: "restore" | "delete";
   readonly supplementalFiles: Array<{
     readonly path: string;
@@ -77,9 +81,11 @@ export class HostDiscoveryService {
   private readonly adapters: HostCliAdapter[];
   private readonly backupsDir: string;
   private readonly stateDir: string;
+  private startupRecovery: HostCliStartupRecovery | null = null;
 
   constructor(
     private readonly options: {
+      readonly runMode?: "foreground" | "systemd-user";
       readonly daemonHost: string;
       readonly daemonPort: number;
       readonly dataDir: string;
@@ -116,6 +122,8 @@ export class HostDiscoveryService {
         isManagedHostCliAdapter(adapter)
           ? adapter.buildManagedTarget(this.buildProxyBaseUrl(adapter.appCode))
           : null;
+      const lifecycleMode =
+        integrationState === "managed" ? (state?.lifecycleMode ?? null) : null;
 
       return {
         appCode: adapter.appCode,
@@ -133,6 +141,7 @@ export class HostDiscoveryService {
         integrationState,
         currentTarget,
         desiredTarget,
+        lifecycleMode,
         managedTarget:
           isManagedHostCliAdapter(adapter) &&
           integrationState === "managed" &&
@@ -205,6 +214,7 @@ export class HostDiscoveryService {
     const adapter = this.getManagedAdapter(appCode);
     const home = this.options.homeDir ?? homedir();
     const configPath = adapter.resolveConfigPath(home);
+    const lifecycleMode = this.resolveLifecycleMode();
 
     if (configPath === null) {
       throw new Error(`Config path is not defined for app: ${appCode}`);
@@ -238,6 +248,7 @@ export class HostDiscoveryService {
       appCode,
       configPath,
       backupPath,
+      lifecycleMode,
       rollbackAction: existingContent === null ? "delete" : "restore",
       supplementalFiles,
       lastAppliedAt: appliedAt
@@ -249,7 +260,8 @@ export class HostDiscoveryService {
       configPath,
       backupPath,
       integrationState: "managed",
-      message: this.buildMutationMessage(appCode, "apply", supplementalFiles)
+      lifecycleMode,
+      message: this.buildMutationMessage(appCode, "apply", supplementalFiles, lifecycleMode)
     };
     this.appendEvent(result);
     return result;
@@ -368,6 +380,18 @@ export class HostDiscoveryService {
       );
     }
 
+    if (this.resolveLifecycleMode() === "foreground-session") {
+      summary.push(
+        "Current daemon runs in foreground mode; host takeover will be treated as temporary and rolled back automatically when the daemon exits cleanly."
+      );
+      validationChecklist.push(
+        "If you need takeover to survive reboot or logout, install the daemon as a systemd user service instead of relying on foreground mode."
+      );
+      runbook.push(
+        "Use foreground takeover only for temporary sessions; stop the daemon normally so CC Switch Web can restore the original host config."
+      );
+    }
+
     if (managedFeaturesToEnable.includes("claude-onboarding-bypassed")) {
       summary.push("Claude onboarding bypass will be enabled as part of the managed takeover.");
       validationChecklist.push("Verify Claude Code no longer prompts for the first-run onboarding confirmation.");
@@ -386,6 +410,11 @@ export class HostDiscoveryService {
         `${envConflicts.length} environment override(s) were detected for ${appCode}; unmanaged shell or environment files may still bypass the managed proxy target.`
       );
     }
+    if (this.resolveLifecycleMode() === "foreground-session") {
+      warnings.push(
+        "Foreground mode host takeover is temporary. If the machine powers off unexpectedly before rollback, manual host rollback may still be required."
+      );
+    }
 
     return {
       appCode,
@@ -393,6 +422,7 @@ export class HostDiscoveryService {
       configExists,
       backupRequired: configExists,
       riskLevel,
+      lifecycleMode: this.resolveLifecycleMode(),
       desiredTarget: adapter.buildManagedTarget(proxyBaseUrl),
       summary,
       managedFeaturesToEnable,
@@ -448,10 +478,76 @@ export class HostDiscoveryService {
       configPath: configPath ?? state.configPath,
       backupPath: state.backupPath,
       integrationState: "unmanaged",
+      lifecycleMode: state.lifecycleMode,
       message: this.buildMutationMessage(appCode, "rollback", state.supplementalFiles)
     };
     this.appendEvent(result);
     return result;
+  }
+
+  rollbackForegroundSessionConfigs(): HostCliRollbackBatchResult {
+    const results: HostCliMutationResult[] = [];
+    const failures: Array<{
+      readonly appCode: AppCode;
+      readonly message: string;
+    }> = [];
+
+    for (const adapter of this.adapters) {
+      if (!isManagedHostCliAdapter(adapter)) {
+        continue;
+      }
+
+      const state = this.readState(adapter.appCode);
+      if (state === null || state.lifecycleMode !== "foreground-session") {
+        continue;
+      }
+
+      try {
+        results.push(this.rollbackManagedConfig(adapter.appCode));
+      } catch (error) {
+        failures.push({
+          appCode: adapter.appCode,
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
+    return {
+      totalApps: results.length + failures.length,
+      rolledBackApps: results.map((item) => item.appCode),
+      failedApps: failures.map((item) => item.appCode),
+      items: results,
+      failures,
+      message:
+        results.length === 0 && failures.length === 0
+          ? "No foreground-session host takeover state required rollback"
+          : failures.length === 0
+            ? `Rolled back ${results.length} foreground-session host takeover(s)`
+            : `Rolled back ${results.length} foreground-session host takeover(s); ${failures.length} rollback failure(s) require manual review`
+    };
+  }
+
+  recoverForegroundSessionConfigsOnStartup(): HostCliStartupRecovery | null {
+    const result = this.rollbackForegroundSessionConfigs();
+
+    if (result.totalApps === 0) {
+      return this.startupRecovery;
+    }
+
+    this.startupRecovery = {
+      trigger: "startup-auto-rollback",
+      executedAt: nowIso(),
+      ...result,
+      message:
+        result.failedApps.length === 0
+          ? `Auto-recovered ${result.rolledBackApps.length} stale foreground-session host takeover(s) during daemon startup`
+          : `Auto-recovered ${result.rolledBackApps.length} stale foreground-session host takeover(s) during daemon startup; ${result.failedApps.length} app(s) still require manual recovery`
+    };
+    return this.startupRecovery;
+  }
+
+  getStartupRecovery(): HostCliStartupRecovery | null {
+    return this.startupRecovery;
   }
 
   private getManagedAdapter(appCode: AppCode) {
@@ -472,25 +568,38 @@ export class HostDiscoveryService {
     return `http://${this.options.daemonHost}:${this.options.daemonPort}/proxy/${appCode}`;
   }
 
+  private resolveLifecycleMode(): HostCliLifecycleMode {
+    return this.options.runMode === "systemd-user" ? "persistent" : "foreground-session";
+  }
+
   private buildMutationMessage(
     appCode: AppCode,
     action: "apply" | "rollback",
     supplementalFiles: readonly {
       readonly path: string;
-    }[]
+    }[],
+    lifecycleMode: HostCliLifecycleMode = "persistent"
   ): string {
     if (
       appCode === "claude-code" &&
       supplementalFiles.some((item) => item.path.endsWith("/.claude.json"))
     ) {
-      return action === "apply"
-        ? "Managed config applied for claude-code; Claude onboarding bypass enabled"
-        : "Managed config rolled back for claude-code; Claude onboarding bypass restored";
+      if (action === "apply") {
+        return lifecycleMode === "foreground-session"
+          ? "Managed config applied for claude-code; Claude onboarding bypass enabled; foreground session will auto-rollback on daemon shutdown"
+          : "Managed config applied for claude-code; Claude onboarding bypass enabled";
+      }
+
+      return "Managed config rolled back for claude-code; Claude onboarding bypass restored";
     }
 
-    return action === "apply"
-      ? `Managed config applied for ${appCode}`
-      : `Managed config rolled back for ${appCode}`;
+    if (action === "apply") {
+      return lifecycleMode === "foreground-session"
+        ? `Managed config applied for ${appCode}; foreground session will auto-rollback on daemon shutdown`
+        : `Managed config applied for ${appCode}`;
+    }
+
+    return `Managed config rolled back for ${appCode}`;
   }
 
   private detectIntegrationState(
@@ -547,6 +656,8 @@ export class HostDiscoveryService {
       appCode: parsed.appCode as AppCode,
       configPath: parsed.configPath,
       backupPath: typeof parsed.backupPath === "string" ? parsed.backupPath : null,
+      lifecycleMode:
+        parsed.lifecycleMode === "foreground-session" ? "foreground-session" : "persistent",
       rollbackAction: parsed.rollbackAction === "delete" ? "delete" : "restore",
       supplementalFiles: Array.isArray(parsed.supplementalFiles)
         ? parsed.supplementalFiles

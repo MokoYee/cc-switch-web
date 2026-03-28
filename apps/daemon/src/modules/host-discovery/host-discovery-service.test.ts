@@ -10,11 +10,13 @@ import { HostDiscoveryService } from "./host-discovery-service.js";
 const createService = (
   homeDir: string,
   dataDir: string,
-  processEnv: NodeJS.ProcessEnv = {}
+  processEnv: NodeJS.ProcessEnv = {},
+  runMode: "foreground" | "systemd-user" = "foreground"
 ): HostDiscoveryService => {
   mkdirSync(dataDir, { recursive: true });
   const database = openDatabase(join(dataDir, "test.sqlite"));
   return new HostDiscoveryService({
+    runMode,
     daemonHost: "127.0.0.1",
     daemonPort: 8787,
     dataDir,
@@ -43,6 +45,7 @@ test("applies and rolls back codex managed config", () => {
   const applyResult = service.applyManagedConfig("codex");
   const applied = readFileSync(configPath, "utf-8");
   assert.equal(applyResult.integrationState, "managed");
+  assert.equal(applyResult.lifecycleMode, "foreground-session");
   assert.match(applied, /model_provider = "ai_cli_switch"/);
   assert.match(applied, /\[model_providers\.ai_cli_switch\]/);
   assert.match(applied, /base_url = "http:\/\/127\.0\.0\.1:8787\/proxy\/codex\/v1"/);
@@ -50,10 +53,15 @@ test("applies and rolls back codex managed config", () => {
 
   const discoveriesAfterApply = service.scan();
   assert.equal(discoveriesAfterApply.find((item) => item.appCode === "codex")?.integrationState, "managed");
+  assert.equal(
+    discoveriesAfterApply.find((item) => item.appCode === "codex")?.lifecycleMode,
+    "foreground-session"
+  );
 
   const rollbackResult = service.rollbackManagedConfig("codex");
   const rolledBack = readFileSync(configPath, "utf-8");
   assert.equal(rollbackResult.integrationState, "unmanaged");
+  assert.equal(rollbackResult.lifecycleMode, "foreground-session");
   assert.match(rolledBack, /model_provider = "custom"/);
   assert.doesNotMatch(rolledBack, /ai_cli_switch/);
 
@@ -105,6 +113,7 @@ test("applies and rolls back claude managed config", () => {
     theme?: string;
   };
   assert.equal(applyResult.integrationState, "managed");
+  assert.equal(applyResult.lifecycleMode, "foreground-session");
   assert.equal(applied.env.ANTHROPIC_AUTH_TOKEN, "PROXY_MANAGED");
   assert.equal(applied.env.ANTHROPIC_BASE_URL, "http://127.0.0.1:8787/proxy/claude-code");
   assert.equal(appliedOnboarding.hasCompletedOnboarding, true);
@@ -114,6 +123,10 @@ test("applies and rolls back claude managed config", () => {
   assert.equal(
     discoveriesAfterApply.find((item) => item.appCode === "claude-code")?.integrationState,
     "managed"
+  );
+  assert.equal(
+    discoveriesAfterApply.find((item) => item.appCode === "claude-code")?.lifecycleMode,
+    "foreground-session"
   );
   assert.match(
     service.listRecentEvents(5)[0]?.message ?? "",
@@ -129,6 +142,7 @@ test("applies and rolls back claude managed config", () => {
     theme?: string;
   };
   assert.equal(rollbackResult.integrationState, "unmanaged");
+  assert.equal(rollbackResult.lifecycleMode, "foreground-session");
   assert.equal(rolledBack.env.ANTHROPIC_AUTH_TOKEN, "original-token");
   assert.equal(rolledBack.env.ANTHROPIC_BASE_URL, "https://api.anthropic.com");
   assert.equal(rolledBackOnboarding.hasCompletedOnboarding, false);
@@ -222,15 +236,120 @@ test("builds host takeover preview with governance details for codex and claude-
   const claudePreview = service.previewApplyManagedConfig("claude-code");
 
   assert.equal(codexPreview.riskLevel, "medium");
+  assert.equal(codexPreview.lifecycleMode, "foreground-session");
   assert.match(codexPreview.summary[0] ?? "", /route codex/);
+  assert.match(codexPreview.warnings.join(" "), /temporary/);
   assert.equal(codexPreview.validationChecklist.length >= 3, true);
   assert.equal(codexPreview.runbook.length >= 3, true);
 
   assert.equal(claudePreview.riskLevel, "high");
+  assert.equal(claudePreview.lifecycleMode, "foreground-session");
   assert.deepEqual(claudePreview.managedFeaturesToEnable, ["claude-onboarding-bypassed"]);
   assert.equal(claudePreview.touchedFiles.length, 2);
   assert.match(claudePreview.summary.join(" "), /Claude onboarding bypass/);
   assert.match(claudePreview.validationChecklist.join(" "), /first-run onboarding confirmation/);
+
+  rmSync(rootDir, { recursive: true, force: true });
+});
+
+test("rolls back foreground-managed host configs automatically during shutdown cleanup", () => {
+  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-host-cleanup-"));
+  const homeDir = join(rootDir, "home");
+  const dataDir = join(rootDir, "data");
+  const codexDir = join(homeDir, ".codex");
+  const configPath = join(codexDir, "config.toml");
+  mkdirSync(codexDir, { recursive: true });
+  writeFileSync(
+    configPath,
+    ['model_provider = "custom"', "", "[model_providers.custom]", 'base_url = "https://api.example.com/v1"'].join(
+      "\n"
+    ),
+    "utf-8"
+  );
+
+  const service = createService(homeDir, dataDir, {}, "foreground");
+  const applyResult = service.applyManagedConfig("codex");
+  assert.match(applyResult.message, /auto-rollback/);
+
+  const cleanup = service.rollbackForegroundSessionConfigs();
+  const rolledBack = readFileSync(configPath, "utf-8");
+
+  assert.equal(cleanup.items.length, 1);
+  assert.equal(cleanup.failures.length, 0);
+  assert.equal(cleanup.rolledBackApps[0], "codex");
+  assert.equal(cleanup.failedApps.length, 0);
+  assert.equal(cleanup.items[0]?.appCode, "codex");
+  assert.match(rolledBack, /model_provider = "custom"/);
+  assert.doesNotMatch(rolledBack, /ai_cli_switch/);
+
+  rmSync(rootDir, { recursive: true, force: true });
+});
+
+test("keeps persistent managed host configs when daemon runs as systemd user service", () => {
+  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-host-persistent-"));
+  const homeDir = join(rootDir, "home");
+  const dataDir = join(rootDir, "data");
+  const codexDir = join(homeDir, ".codex");
+  const configPath = join(codexDir, "config.toml");
+  mkdirSync(codexDir, { recursive: true });
+  writeFileSync(
+    configPath,
+    ['model_provider = "custom"', "", "[model_providers.custom]", 'base_url = "https://api.example.com/v1"'].join(
+      "\n"
+    ),
+    "utf-8"
+  );
+
+  const service = createService(homeDir, dataDir, {}, "systemd-user");
+  const preview = service.previewApplyManagedConfig("codex");
+  const applyResult = service.applyManagedConfig("codex");
+  const cleanup = service.rollbackForegroundSessionConfigs();
+  const managedConfig = readFileSync(configPath, "utf-8");
+
+  assert.equal(preview.lifecycleMode, "persistent");
+  assert.equal(applyResult.lifecycleMode, "persistent");
+  assert.equal(preview.warnings.some((item) => item.includes("temporary")), false);
+  assert.doesNotMatch(applyResult.message, /auto-rollback/);
+  assert.equal(cleanup.items.length, 0);
+  assert.equal(cleanup.failures.length, 0);
+  assert.equal(cleanup.rolledBackApps.length, 0);
+  assert.equal(cleanup.failedApps.length, 0);
+  assert.match(managedConfig, /ai_cli_switch/);
+
+  rmSync(rootDir, { recursive: true, force: true });
+});
+
+test("auto-recovers stale foreground-managed host configs on next startup", () => {
+  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-host-startup-recovery-"));
+  const homeDir = join(rootDir, "home");
+  const dataDir = join(rootDir, "data");
+  const codexDir = join(homeDir, ".codex");
+  const configPath = join(codexDir, "config.toml");
+  mkdirSync(codexDir, { recursive: true });
+  writeFileSync(
+    configPath,
+    ['model_provider = "custom"', "", "[model_providers.custom]", 'base_url = "https://api.example.com/v1"'].join(
+      "\n"
+    ),
+    "utf-8"
+  );
+
+  const crashedSessionService = createService(homeDir, dataDir, {}, "foreground");
+  crashedSessionService.applyManagedConfig("codex");
+  assert.match(readFileSync(configPath, "utf-8"), /ai_cli_switch/);
+
+  const restartedService = createService(homeDir, dataDir, {}, "systemd-user");
+  const recovery = restartedService.recoverForegroundSessionConfigsOnStartup();
+
+  assert.equal(recovery?.trigger, "startup-auto-rollback");
+  assert.equal(recovery?.items.length, 1);
+  assert.deepEqual(recovery?.rolledBackApps, ["codex"]);
+  assert.deepEqual(recovery?.failedApps, []);
+  assert.match(recovery?.message ?? "", /Auto-recovered 1 stale foreground-session/);
+  assert.match(readFileSync(configPath, "utf-8"), /model_provider = "custom"/);
+  assert.doesNotMatch(readFileSync(configPath, "utf-8"), /ai_cli_switch/);
+  assert.equal(restartedService.scan().find((item) => item.appCode === "codex")?.integrationState, "unmanaged");
+  assert.equal(restartedService.getStartupRecovery()?.rolledBackApps[0], "codex");
 
   rmSync(rootDir, { recursive: true, force: true });
 });

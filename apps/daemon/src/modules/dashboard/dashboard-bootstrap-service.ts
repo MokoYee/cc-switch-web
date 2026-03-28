@@ -194,6 +194,7 @@ export class DashboardBootstrapService {
       promptHostSyncStates: this.runtime.promptHostSyncService.listSyncStates(),
       skillDeliveryCapabilities: this.runtime.skillDeliveryService.listCapabilities(),
       discoveries,
+      hostStartupRecovery: this.runtime.hostDiscoveryService.getStartupRecovery(),
       hostIntegrationEvents: this.runtime.hostDiscoveryService.listRecentEvents(
         DASHBOARD_HOST_INTEGRATION_PREVIEW_LIMIT
       ),
