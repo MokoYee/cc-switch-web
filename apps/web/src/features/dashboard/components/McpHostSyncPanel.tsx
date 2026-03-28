@@ -1,7 +1,8 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 import type {
   AppBinding,
+  McpVerificationHistoryPage,
   McpGovernanceRepairPlanItem,
   McpGovernanceRepairPreview,
   McpHostSyncPreview,
@@ -19,6 +20,11 @@ import {
   buildMcpGovernanceBatchSummary,
   buildMcpGovernanceDiffSummary
 } from "../lib/buildMcpGovernanceSummaries.js";
+import {
+  buildMcpVerificationBatchSummary,
+  buildMcpVerificationPlan
+} from "../lib/buildMcpVerificationPlan.js";
+import { buildMcpVerificationHistory } from "../lib/buildMcpVerificationHistory.js";
 import { joinDashboardWarnings } from "../lib/formatDashboardWarning.js";
 
 const joinPreviewValues = (items: string[], fallback: string): string =>
@@ -300,15 +306,23 @@ const buildRuntimeRepairNotice = (
 
 type McpHostSyncPanelProps = {
   readonly snapshot: DashboardSnapshot;
+  readonly focusRequest?: {
+    readonly appCode: AppBinding["appCode"];
+    readonly target: "history";
+    readonly nonce: number;
+  } | null;
   readonly mcpImportOptions: McpImportOptions;
   readonly setMcpImportOptions: Dispatch<SetStateAction<McpImportOptions>>;
   readonly mcpHostSyncPreview: Record<string, McpHostSyncPreview | null>;
   readonly mcpGovernancePreview: Record<string, McpGovernanceRepairPreview | null>;
   readonly mcpImportPreview: Record<string, McpImportPreview | null>;
+  readonly mcpVerificationHistoryByApp: Record<string, McpVerificationHistoryPage | null>;
+  readonly mcpVerificationHistoryLoadingByApp: Record<string, boolean>;
   readonly mcpRuntimeViewByApp: Map<string, DashboardSnapshot["mcpRuntimeViews"][number]>;
   readonly mcpHostSyncStateByApp: Map<string, DashboardSnapshot["mcpHostSyncStates"][number]>;
   readonly isWorking: boolean;
   readonly onLoadImportPreview: (appCode: AppBinding["appCode"]) => void;
+  readonly onLoadMoreVerificationHistory: (appCode: AppBinding["appCode"]) => void;
   readonly onRepairGovernanceAll: () => void;
   readonly onRepairGovernance: (appCode: AppBinding["appCode"]) => void;
   readonly onImportFromHost: (appCode: AppBinding["appCode"]) => void;
@@ -318,6 +332,9 @@ type McpHostSyncPanelProps = {
   readonly onEditMcpServer: (item: DashboardSnapshot["mcpServers"][number]) => void;
   readonly onEditMcpBinding: (item: DashboardSnapshot["appMcpBindings"][number]) => void;
   readonly onOpenMcpForms: () => void;
+  readonly onOpenRuntime: (appCode: AppBinding["appCode"]) => void;
+  readonly onOpenAudit: (appCode: AppBinding["appCode"]) => void;
+  readonly onOpenTraffic: (appCode: AppBinding["appCode"]) => void;
 };
 
 type GovernanceFilter = "all" | "high" | "host-sync" | "active-app";
@@ -553,15 +570,19 @@ const buildHostCapabilityNotice = (
 
 export const McpHostSyncPanel = ({
   snapshot,
+  focusRequest = null,
   mcpImportOptions,
   setMcpImportOptions,
   mcpHostSyncPreview,
   mcpGovernancePreview,
   mcpImportPreview,
+  mcpVerificationHistoryByApp,
+  mcpVerificationHistoryLoadingByApp,
   mcpRuntimeViewByApp,
   mcpHostSyncStateByApp,
   isWorking,
   onLoadImportPreview,
+  onLoadMoreVerificationHistory,
   onRepairGovernanceAll,
   onRepairGovernance,
   onImportFromHost,
@@ -570,7 +591,10 @@ export const McpHostSyncPanel = ({
   onRollbackHostSync,
   onEditMcpServer,
   onEditMcpBinding,
-  onOpenMcpForms
+  onOpenMcpForms,
+  onOpenRuntime,
+  onOpenAudit,
+  onOpenTraffic
 }: McpHostSyncPanelProps): JSX.Element => {
   const { t, locale } = useI18n();
   const [dangerConfirmByApp, setDangerConfirmByApp] = useState<Record<string, boolean>>({});
@@ -582,6 +606,12 @@ export const McpHostSyncPanel = ({
     useState<HostCapabilityFilter>(readStoredHostCapabilityFilter);
   const [expandedHostCapabilities, setExpandedHostCapabilities] =
     useState<HostCapabilityExpandedState>(readStoredHostCapabilityExpanded);
+  const [expandedVerificationHistoryByApp, setExpandedVerificationHistoryByApp] =
+    useState<Record<string, boolean>>({});
+  const capabilityRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const verificationHistoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const handledFocusRequestNonceRef = useRef<number | null>(null);
+  const scrolledFocusRequestNonceRef = useRef<number | null>(null);
   const governanceEntries = buildMcpGovernanceEntries(snapshot, locale);
   const governanceEntryByApp = new Map(governanceEntries.map((item) => [item.appCode, item] as const));
   const activeAppCode =
@@ -688,6 +718,66 @@ export const McpHostSyncPanel = ({
     }
     return true;
   });
+
+  useEffect(() => {
+    if (focusRequest === null || handledFocusRequestNonceRef.current === focusRequest.nonce) {
+      return;
+    }
+
+    const targetCapability =
+      snapshot.mcpHostSyncCapabilities.find((item) => item.appCode === focusRequest.appCode) ?? null;
+    if (targetCapability === null) {
+      return;
+    }
+
+    if (
+      hostCapabilityFilter !== "all" &&
+      hostCapabilityFilter !== targetCapability.supportLevel
+    ) {
+      setHostCapabilityFilter(targetCapability.supportLevel);
+    }
+    setExpandedHostCapabilities((current) => ({
+      ...current,
+      [focusRequest.appCode]: true
+    }));
+    if (focusRequest.target === "history") {
+      setExpandedVerificationHistoryByApp((current) => ({
+        ...current,
+        [focusRequest.appCode]: true
+      }));
+    }
+
+    handledFocusRequestNonceRef.current = focusRequest.nonce;
+  }, [focusRequest, hostCapabilityFilter, snapshot.mcpHostSyncCapabilities]);
+
+  useEffect(() => {
+    if (focusRequest === null || scrolledFocusRequestNonceRef.current === focusRequest.nonce) {
+      return;
+    }
+
+    const target =
+      focusRequest.target === "history"
+        ? verificationHistoryRefs.current[focusRequest.appCode] ??
+          capabilityRowRefs.current[focusRequest.appCode]
+        : capabilityRowRefs.current[focusRequest.appCode];
+    if (target === null || target === undefined) {
+      return;
+    }
+
+    scrolledFocusRequestNonceRef.current = focusRequest.nonce;
+    if (typeof window === "undefined") {
+      target.scrollIntoView();
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    });
+  }, [focusRequest, expandedHostCapabilities, expandedVerificationHistoryByApp, visibleHostCapabilities]);
+
   const batchHostSyncCandidates = snapshot.mcpHostSyncCapabilities
     .filter((item) => item.supportLevel === "managed")
     .map((item) => item.appCode)
@@ -701,6 +791,59 @@ export const McpHostSyncPanel = ({
   );
   const batchHostSyncSummary = buildMcpBatchHostSyncSummary(snapshot, mcpHostSyncPreview, locale);
   const governanceBatchSummary = buildMcpGovernanceBatchSummary(snapshot, mcpGovernancePreview, locale);
+  const verificationBatchSummary = buildMcpVerificationBatchSummary({
+    snapshot,
+    locale,
+    previewByApp: mcpGovernancePreview,
+    hostPreviewByApp: mcpHostSyncPreview
+  });
+  const focusCapabilityCard = (appCode: AppBinding["appCode"]): void => {
+    setExpandedHostCapabilities((current) => ({
+      ...current,
+      [appCode]: true
+    }));
+    const target = capabilityRowRefs.current[appCode];
+    if (target === null || target === undefined) {
+      return;
+    }
+    if (typeof window === "undefined") {
+      target.scrollIntoView();
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    });
+  };
+
+  const reviewHostSyncForApp = (appCode: AppBinding["appCode"]): void => {
+    focusCapabilityCard(appCode);
+    onLoadImportPreview(appCode);
+  };
+
+  const renderVerificationJumpButtons = (
+    bucketId: string,
+    appCodes: readonly AppBinding["appCode"][],
+    onJump: (appCode: AppBinding["appCode"]) => void
+  ): JSX.Element =>
+    appCodes.length === 0 ? (
+      <span className="filter-summary-chip">{t("common.notFound")}</span>
+    ) : (
+      <div className="quick-action-row">
+        {appCodes.map((appCode) => (
+          <button
+            className="inline-action"
+            key={`${bucketId}-${appCode}`}
+            type="button"
+            onClick={() => onJump(appCode)}
+          >
+            {appCode}
+          </button>
+        ))}
+      </div>
+    );
 
   return (
     <article className="panel panel-span-2">
@@ -993,6 +1136,133 @@ export const McpHostSyncPanel = ({
           ))}
         </div>
         <div className="preview-item">
+          <strong>{localize(locale, "治理后验证摘要", "Post-Repair Verification Summary")}</strong>
+          <div className="preview-summary-grid">
+            <div className={`preview-summary-tile risk-${verificationBatchSummary.totalApps > 0 ? "medium" : "low"}`}>
+              <strong>{verificationBatchSummary.totalApps}</strong>
+              <span>{localize(locale, "验证对象", "Verification Targets")}</span>
+            </div>
+            <div className={`preview-summary-tile risk-${verificationBatchSummary.verifiedApps.length > 0 ? "low" : "medium"}`}>
+              <strong>{verificationBatchSummary.verifiedApps.length}</strong>
+              <span>{localize(locale, "已自动验证", "Auto-Verified")}</span>
+            </div>
+            <div className={`preview-summary-tile risk-${verificationBatchSummary.needsHostSyncApps.length > 0 ? "medium" : "low"}`}>
+              <strong>{verificationBatchSummary.needsHostSyncApps.length}</strong>
+              <span>{localize(locale, "仍需宿主机确认", "Need Host Confirmation")}</span>
+            </div>
+            <div className={`preview-summary-tile risk-${verificationBatchSummary.regressedApps.length > 0 ? "high" : "low"}`}>
+              <strong>{verificationBatchSummary.regressedApps.length}</strong>
+              <span>{localize(locale, "回退/阻断风险", "Regression / Blocker Risk")}</span>
+            </div>
+          </div>
+          <p>{verificationBatchSummary.summary}</p>
+          <p>
+            {localize(locale, "自动验证通过", "Auto-Verified Apps")}:{" "}
+            {joinPreviewValues(verificationBatchSummary.verifiedApps, t("common.notFound"))}
+          </p>
+          <p>
+            {localize(locale, "仍需 Host Sync / 漂移确认", "Still Need Host Sync / Drift Review")}:{" "}
+            {joinPreviewValues(verificationBatchSummary.needsHostSyncApps, t("common.notFound"))}
+          </p>
+          <p>
+            {localize(locale, "回退/阻断风险应用", "Regression / Blocker Risk Apps")}:{" "}
+            {joinPreviewValues(verificationBatchSummary.regressedApps, t("common.notFound"))}
+          </p>
+          <p>
+            {localize(locale, "仍需真实请求验证", "Still Need Live Request Verification")}:{" "}
+            {joinPreviewValues(verificationBatchSummary.needsTrafficVerificationApps, t("common.notFound"))}
+          </p>
+          {verificationBatchSummary.suggestions.map((item) => (
+            <p key={`mcp-verification-summary-${item}`}>{item}</p>
+          ))}
+          <div className="preview-item-list">
+            <div className="preview-item">
+              <strong>{localize(locale, "回退/阻断风险", "Regression / Blocker Risk")}</strong>
+              <p>
+                {verificationBatchSummary.highRiskApps.length > 0
+                  ? localize(
+                      locale,
+                      "点击应用可直接跳到对应卡片，优先看 runtime 主阻断项，以及最近治理动作后是否已经出现回退。",
+                      "Jump into the matching app card first, then prioritize runtime blockers and whether regression has already appeared after the latest governance action."
+                    )
+                  : localize(
+                      locale,
+                      "当前没有明显回退/阻断风险对象，说明最危险的主阻断项已经先被压住。",
+                      "There is no obvious regression or blocker risk target right now, which means the biggest primary blockers are already contained."
+                    )}
+              </p>
+              {renderVerificationJumpButtons(
+                "verification-high-risk",
+                verificationBatchSummary.highRiskApps,
+                focusCapabilityCard
+              )}
+            </div>
+            <div className="preview-item">
+              <strong>{localize(locale, "待宿主机确认", "Need Host Confirmation")}</strong>
+              <p>
+                {verificationBatchSummary.needsHostSyncApps.length > 0
+                  ? localize(
+                      locale,
+                      "点击应用会展开对应卡片并重新拉一遍 host preview，适合先核对增删项再决定 apply。",
+                      "Click an app to expand its card and refresh host preview so additions and removals can be reviewed before apply."
+                    )
+                  : localize(
+                      locale,
+                      "当前没有额外 Host Sync 待确认应用，宿主机托管层看起来已基本对齐。",
+                      "There is no extra app waiting for host confirmation, so the managed host layer already looks mostly aligned."
+                    )}
+              </p>
+              {renderVerificationJumpButtons(
+                "verification-host-review",
+                verificationBatchSummary.needsHostSyncApps,
+                reviewHostSyncForApp
+              )}
+            </div>
+            <div className="preview-item">
+              <strong>{localize(locale, "待真实请求验证", "Need Live Request Verification")}</strong>
+              <p>
+                {verificationBatchSummary.needsTrafficVerificationApps.length > 0
+                  ? localize(
+                      locale,
+                      "点击应用可先定位到对应卡片，再发起一次真实 CLI 请求确认修复不再传导到流量面。",
+                      "Jump to the app card first, then trigger a real CLI request to confirm the repair no longer propagates into traffic."
+                    )
+                  : localize(
+                      locale,
+                      "当前没有明显缺少真实请求验证的应用，可以继续观察回归窗口。",
+                      "There is no obvious app still missing live request verification right now, so you can continue observing the regression window."
+                    )}
+              </p>
+              {renderVerificationJumpButtons(
+                "verification-traffic",
+                verificationBatchSummary.needsTrafficVerificationApps,
+                focusCapabilityCard
+              )}
+            </div>
+            <div className="preview-item">
+              <strong>{localize(locale, "已自动验证", "Auto-Verified")}</strong>
+              <p>
+                {verificationBatchSummary.verifiedApps.length > 0
+                  ? localize(
+                      locale,
+                      "这些应用已经通过自动验证，点击可回看 checkpoint，并继续盯住是否出现回退。",
+                      "These apps have passed automatic verification. Jump in to review checkpoints and continue watching for regressions."
+                    )
+                  : localize(
+                      locale,
+                      "当前还没有进入“已自动验证”分组的应用，说明验证闭环仍在推进中。",
+                      "No app is inside the auto-verified group yet, so the verification loop is still moving forward."
+                    )}
+              </p>
+              {renderVerificationJumpButtons(
+                "verification-stable",
+                verificationBatchSummary.verifiedApps,
+                focusCapabilityCard
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="preview-item">
           <strong>{localize(locale, "MCP 宿主机生态矩阵", "MCP Host Ecosystem Matrix")}</strong>
           <div className="preview-summary-grid">
             <div className={`preview-summary-tile risk-${managedCapabilities.length > 0 ? "low" : "medium"}`}>
@@ -1072,6 +1342,39 @@ export const McpHostSyncPanel = ({
           const runtimeRepairNotice = runtimeView ? buildRuntimeRepairNotice(runtimeView, locale) : null;
           const capabilityNotice = buildHostCapabilityNotice(capability, locale);
           const capabilityRunbook = buildHostCapabilityRunbook(capability, locale);
+          const verificationPlan = buildMcpVerificationPlan({
+            snapshot,
+            appCode: capability.appCode,
+            locale,
+            governancePreview,
+            hostPreview
+          });
+          const verificationHistoryPage = mcpVerificationHistoryByApp[capability.appCode] ?? null;
+          const loadedVerificationHistoryCount = verificationHistoryPage?.items.length ?? 0;
+          const verificationHistoryExpanded =
+            expandedVerificationHistoryByApp[capability.appCode] ?? false;
+          const verificationHistoryLimit = verificationHistoryExpanded
+            ? Math.max(loadedVerificationHistoryCount, 3)
+            : 3;
+          const verificationHistory = buildMcpVerificationHistory({
+            snapshot,
+            appCode: capability.appCode,
+            locale,
+            governancePreview,
+            hostPreview,
+            historyPage: verificationHistoryPage,
+            limit: verificationHistoryLimit
+          });
+          const isVerificationHistoryLoading =
+            mcpVerificationHistoryLoadingByApp[capability.appCode] ?? false;
+          const hasMoreVerificationHistory =
+            verificationHistoryPage !== null &&
+            verificationHistoryPage.total > loadedVerificationHistoryCount;
+          const canRetryVerificationHistory = verificationHistoryPage === null;
+          const shouldShowVerificationHistoryActions =
+            hasMoreVerificationHistory ||
+            canRetryVerificationHistory ||
+            verificationHistoryExpanded;
           const primaryRuntimeServer =
             governanceEntry?.problemServerIds[0] ??
             runtimeView?.items.find((item) => item.issueCodes.length > 0)?.serverId ??
@@ -1094,7 +1397,13 @@ export const McpHostSyncPanel = ({
           const capabilityExpanded = expandedHostCapabilities[capability.appCode] ?? true;
 
           return (
-            <div className="list-row" key={capability.appCode}>
+            <div
+              className="list-row"
+              key={capability.appCode}
+              ref={(node) => {
+                capabilityRowRefs.current[capability.appCode] = node;
+              }}
+            >
               <div>
                 <strong>{capability.appCode}</strong>
                 <p>{renderMcpHostSyncLevel(capability, t)}</p>
@@ -1334,6 +1643,187 @@ export const McpHostSyncPanel = ({
                           ? "我已确认允许移除上述宿主机托管 MCP 条目"
                           : "I confirm that the managed host MCP entries above may be removed"}
                       </label>
+                    ) : null}
+                  </div>
+                ) : null}
+                {capabilityExpanded ? (
+                  <div className="preview-item">
+                    <strong>{localize(locale, "治理后验证手册", "Post-Repair Verification Runbook")}</strong>
+                    <p>
+                      {localize(locale, "自动验证状态", "Auto Verification Status")}:{" "}
+                      {verificationPlan.verificationStatusLabel}
+                    </p>
+                    <p>{verificationPlan.verificationStatusSummary}</p>
+                    {verificationPlan.verificationBaselineAt ? (
+                      <p>
+                        {localize(locale, "最近治理基线", "Latest Governance Baseline")}:{" "}
+                        {formatDateTime(verificationPlan.verificationBaselineAt)}
+                      </p>
+                    ) : null}
+                    {verificationPlan.latestSuccessAt ? (
+                      <p>
+                        {localize(locale, "最近成功请求", "Latest Successful Request")}:{" "}
+                        {formatDateTime(verificationPlan.latestSuccessAt)}
+                      </p>
+                    ) : null}
+                    {verificationPlan.latestFailureAt ? (
+                      <p>
+                        {localize(locale, "最近失败请求", "Latest Failed Request")}:{" "}
+                        {formatDateTime(verificationPlan.latestFailureAt)}
+                      </p>
+                    ) : null}
+                    {verificationPlan.checkpoints.map((item) => (
+                      <p key={`${capability.appCode}-${item.id}`}>
+                        {item.label}: {item.value}
+                      </p>
+                    ))}
+                    {verificationPlan.nextActions.map((item) => (
+                      <p key={`${capability.appCode}-verification-step-${item}`}>{item}</p>
+                    ))}
+                    <div className="quick-action-row">
+                      <button
+                        className="inline-action"
+                        type="button"
+                        disabled={isWorking}
+                        onClick={() => onOpenRuntime(capability.appCode)}
+                      >
+                        {localize(locale, "查看 Runtime", "Open Runtime")}
+                      </button>
+                      {capability.supportLevel === "managed" && verificationPlan.needsHostSync ? (
+                        <button
+                          className="inline-action"
+                          type="button"
+                          disabled={isWorking}
+                          onClick={() => reviewHostSyncForApp(capability.appCode)}
+                        >
+                          {localize(locale, "复核 Host Sync", "Review Host Sync")}
+                        </button>
+                      ) : null}
+                      {governancePreview && governancePreview.plannedActions.length > 0 ? (
+                        <button
+                          className="inline-action"
+                          type="button"
+                          disabled={isWorking}
+                          onClick={onOpenMcpForms}
+                        >
+                          {localize(locale, "回到 MCP 修复区", "Back To MCP Repair")}
+                        </button>
+                      ) : null}
+                      <button
+                        className="inline-action"
+                        type="button"
+                        disabled={isWorking}
+                        onClick={() => onOpenAudit(capability.appCode)}
+                      >
+                        {localize(locale, "聚焦 MCP 审计", "Focus MCP Audit")}
+                      </button>
+                      {verificationPlan.needsTrafficVerification || verificationPlan.level === "low" ? (
+                        <button
+                          className="inline-action"
+                          type="button"
+                          disabled={isWorking}
+                          onClick={() => onOpenTraffic(capability.appCode)}
+                        >
+                          {localize(locale, "验证真实请求", "Validate Live Requests")}
+                        </button>
+                      ) : null}
+                    </div>
+                    {verificationHistory.items.length > 0 ||
+                    verificationHistory.previewNote !== null ||
+                    shouldShowVerificationHistoryActions ? (
+                      <div
+                        className="preview-item"
+                        ref={(node) => {
+                          verificationHistoryRefs.current[capability.appCode] = node;
+                        }}
+                      >
+                        <strong>{localize(locale, "最近治理基线历史", "Recent Governance Baselines")}</strong>
+                        {verificationHistory.previewNote ? <p>{verificationHistory.previewNote}</p> : null}
+                        {verificationHistoryPage ? (
+                          <p>
+                            {localize(locale, "已加载基线", "Loaded Baselines")}:{" "}
+                            {`${Math.min(loadedVerificationHistoryCount, verificationHistoryPage.total)} / ${verificationHistoryPage.total}`}
+                          </p>
+                        ) : null}
+                        <div className="preview-item-list">
+                          {verificationHistory.items.map((item) => (
+                            <div className="preview-item" key={`${capability.appCode}-${item.id}`}>
+                              <strong>{item.baselineSourceLabel}</strong>
+                              <p>
+                                {localize(locale, "基线时间", "Baseline Time")}:{" "}
+                                {formatDateTime(item.baselineAt)}
+                              </p>
+                              <p>
+                                {localize(locale, "闭环状态", "Cycle Verdict")}:{" "}
+                                {item.verificationStatusLabel}
+                              </p>
+                              <p>{item.verificationStatusSummary}</p>
+                              <p>{item.baselineSummary}</p>
+                              {item.nextBaselineAt ? (
+                                <p>
+                                  {localize(locale, "下一次治理接管", "Next Baseline Took Over")}:{" "}
+                                  {formatDateTime(item.nextBaselineAt)}
+                                </p>
+                              ) : null}
+                              {item.latestSuccessAt ? (
+                                <p>
+                                  {localize(locale, "窗口内最近成功请求", "Latest Success In Cycle")}:{" "}
+                                  {formatDateTime(item.latestSuccessAt)}
+                                </p>
+                              ) : null}
+                              {item.latestFailureAt ? (
+                                <p>
+                                  {localize(locale, "窗口内最近失败请求", "Latest Failure In Cycle")}:{" "}
+                                  {formatDateTime(item.latestFailureAt)}
+                                </p>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                        {shouldShowVerificationHistoryActions ? (
+                          <div className="quick-action-row">
+                            {(hasMoreVerificationHistory || canRetryVerificationHistory) ? (
+                              <button
+                                className="inline-action"
+                                type="button"
+                                disabled={isWorking || isVerificationHistoryLoading}
+                                onClick={() => {
+                                  setExpandedVerificationHistoryByApp((current) => ({
+                                    ...current,
+                                    [capability.appCode]: true
+                                  }));
+                                  onLoadMoreVerificationHistory(capability.appCode);
+                                }}
+                              >
+                                {isVerificationHistoryLoading
+                                  ? localize(locale, "正在加载基线…", "Loading Baselines...")
+                                  : canRetryVerificationHistory
+                                    ? localize(locale, "补拉后端基线", "Load Server History")
+                                    : localize(
+                                        locale,
+                                        `查看更多基线（${loadedVerificationHistoryCount}/${verificationHistoryPage!.total}）`,
+                                        `Load More Baselines (${loadedVerificationHistoryCount}/${verificationHistoryPage!.total})`
+                                      )}
+                              </button>
+                            ) : null}
+                            {verificationHistoryExpanded && verificationHistory.items.length > 3 ? (
+                              <button
+                                className="inline-action"
+                                type="button"
+                                disabled={isWorking}
+                                onClick={() =>
+                                  setExpandedVerificationHistoryByApp((current) => ({
+                                    ...current,
+                                    [capability.appCode]: false
+                                  }))
+                                }
+                              >
+                                {localize(locale, "收起历史", "Collapse History")}
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                 ) : null}

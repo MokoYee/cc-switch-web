@@ -53,21 +53,20 @@ import {
   previewWorkspaceUpsert,
   type DashboardSnapshot
 } from "../api/load-dashboard-snapshot.js";
-
-const buildPreviewSignature = (value: unknown): string => JSON.stringify(value);
-
-const parseJsonRecord = (raw: string): Record<string, string> => {
-  if (raw.trim().length === 0) {
-    return {};
-  }
-
-  const parsed = JSON.parse(raw) as unknown;
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("JSON object expected");
-  }
-
-  return Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key, String(value)]));
-};
+import {
+  buildMcpServerEditorInput,
+  buildMcpServerEditorSignature,
+  buildPreviewSignature,
+  isPreviewInSync
+} from "../lib/editorConsistency.js";
+import {
+  buildPromptTemplatePreviewState,
+  buildSkillPreviewState,
+  buildWorkspacePreviewState,
+  isPromptTemplatePreviewInSync,
+  isSkillPreviewInSync,
+  isWorkspacePreviewInSync
+} from "../lib/previewConsistency.js";
 
 type UseDashboardPreviewStateParams = {
   readonly snapshot: DashboardSnapshot | null;
@@ -155,19 +154,17 @@ export const useDashboardPreviewState = ({
     }
 
     try {
-      const input: McpServerUpsert = {
-        ...mcpServerForm,
-        env: parseJsonRecord(mcpEnvText),
-        headers: parseJsonRecord(mcpHeadersText),
-        command: mcpServerForm.transport === "stdio" ? mcpServerForm.command : null,
-        url: mcpServerForm.transport === "http" ? mcpServerForm.url : null
-      };
+      const input: McpServerUpsert = buildMcpServerEditorInput(
+        mcpServerForm,
+        mcpEnvText,
+        mcpHeadersText
+      );
       let cancelled = false;
-      const signature = buildPreviewSignature({
-        form: mcpServerForm,
-        envText: mcpEnvText,
-        headersText: mcpHeadersText
-      });
+      const signature = buildMcpServerEditorSignature(
+        mcpServerForm,
+        mcpEnvText,
+        mcpHeadersText
+      );
       setMcpServerPreviewError(null);
 
       void previewMcpServerUpsert(input)
@@ -349,12 +346,12 @@ export const useDashboardPreviewState = ({
 
   useEffect(() => {
     let cancelled = false;
-    const signature = buildPreviewSignature({
-      ...promptTemplateForm,
-      tagsText: promptTagsText
-    });
+    const { saveInput: input, previewSignature: signature } = buildPromptTemplatePreviewState(
+      promptTemplateForm,
+      promptTagsText
+    );
 
-    void previewPromptTemplateUpsert(promptTemplateForm)
+    void previewPromptTemplateUpsert(input)
       .then((result) => {
         if (!cancelled) {
           setPromptTemplatePreview(result);
@@ -375,12 +372,12 @@ export const useDashboardPreviewState = ({
 
   useEffect(() => {
     let cancelled = false;
-    const signature = buildPreviewSignature({
-      ...skillForm,
-      tagsText: skillTagsText
-    });
+    const { saveInput: input, previewSignature: signature } = buildSkillPreviewState(
+      skillForm,
+      skillTagsText
+    );
 
-    void previewSkillUpsert(skillForm)
+    void previewSkillUpsert(input)
       .then((result) => {
         if (!cancelled) {
           setSkillPreview(result);
@@ -401,12 +398,12 @@ export const useDashboardPreviewState = ({
 
   useEffect(() => {
     let cancelled = false;
-    const signature = buildPreviewSignature({
-      ...workspaceForm,
-      tagsText: workspaceTagsText
-    });
+    const { saveInput: input, previewSignature: signature } = buildWorkspacePreviewState(
+      workspaceForm,
+      workspaceTagsText
+    );
 
-    void previewWorkspaceUpsert(workspaceForm)
+    void previewWorkspaceUpsert(input)
       .then((result) => {
         if (!cancelled) {
           setWorkspacePreview(result);
@@ -602,64 +599,70 @@ export const useDashboardPreviewState = ({
     };
   }, [selectedSnapshotVersion, setErrorMessage]);
 
-  const promptTemplateCurrentSignature = buildPreviewSignature({
-    ...promptTemplateForm,
-    tagsText: promptTagsText
-  });
-  const skillCurrentSignature = buildPreviewSignature({
-    ...skillForm,
-    tagsText: skillTagsText
-  });
-  const workspaceCurrentSignature = buildPreviewSignature({
-    ...workspaceForm,
-    tagsText: workspaceTagsText
-  });
-  const sessionCurrentSignature = buildPreviewSignature(sessionForm);
-  const appQuotaCurrentSignature = buildPreviewSignature(appQuotaForm);
-  const proxyPolicyCurrentSignature = buildPreviewSignature(proxyForm);
-  const providerCurrentSignature = buildPreviewSignature(providerForm);
-  const bindingCurrentSignature = buildPreviewSignature(bindingForm);
-  const failoverCurrentSignature = buildPreviewSignature(failoverForm);
-  const mcpServerCurrentSignature = buildPreviewSignature({
-    form: mcpServerForm,
-    envText: mcpEnvText,
-    headersText: mcpHeadersText
-  });
-  const mcpBindingCurrentSignature = buildPreviewSignature(mcpBindingForm);
+  const mcpServerCurrentInput = (() => {
+    try {
+      return buildMcpServerEditorInput(mcpServerForm, mcpEnvText, mcpHeadersText);
+    } catch {
+      return null;
+    }
+  })();
 
-  const canSaveWorkspace =
-    workspacePreview !== null && workspacePreviewSignature === workspaceCurrentSignature;
-  const canSaveSession =
-    sessionPreview !== null && sessionPreviewSignature === sessionCurrentSignature;
-  const canSavePromptTemplate =
-    promptTemplatePreview !== null &&
-    promptTemplatePreviewSignature === promptTemplateCurrentSignature;
-  const canSaveSkill =
-    skillPreview !== null && skillPreviewSignature === skillCurrentSignature;
+  const canSaveWorkspace = isWorkspacePreviewInSync(
+    workspacePreview,
+    workspacePreviewSignature,
+    workspaceForm,
+    workspaceTagsText
+  );
+  const canSaveSession = isPreviewInSync(
+    sessionPreview,
+    sessionPreviewSignature,
+    sessionForm
+  );
+  const canSavePromptTemplate = isPromptTemplatePreviewInSync(
+    promptTemplatePreview,
+    promptTemplatePreviewSignature,
+    promptTemplateForm,
+    promptTagsText
+  );
+  const canSaveSkill = isSkillPreviewInSync(
+    skillPreview,
+    skillPreviewSignature,
+    skillForm,
+    skillTagsText
+  );
   const canSaveMcpServer =
-    mcpServerPreview !== null &&
     mcpServerPreviewError === null &&
-    mcpServerPreviewSignature === mcpServerCurrentSignature;
+    mcpServerCurrentInput !== null &&
+    isPreviewInSync(
+      mcpServerPreview,
+      mcpServerPreviewSignature,
+      mcpServerCurrentInput
+    );
   const canSaveMcpBinding =
     snapshot !== null &&
     snapshot.mcpServers.length > 0 &&
-    mcpBindingPreview !== null &&
-    mcpBindingPreviewSignature === mcpBindingCurrentSignature;
-  const canSaveProvider =
-    providerPreview !== null && providerPreviewSignature === providerCurrentSignature;
+    isPreviewInSync(mcpBindingPreview, mcpBindingPreviewSignature, mcpBindingForm);
+  const canSaveProvider = isPreviewInSync(
+    providerPreview,
+    providerPreviewSignature,
+    providerForm
+  );
   const canSaveBinding =
     (snapshot?.providers.length ?? 0) > 0 &&
-    bindingPreview !== null &&
-    bindingPreviewSignature === bindingCurrentSignature;
-  const canSaveAppQuota =
-    appQuotaPreview !== null && appQuotaPreviewSignature === appQuotaCurrentSignature;
-  const canSaveProxyPolicy =
-    proxyPolicyPreview !== null &&
-    proxyPolicyPreviewSignature === proxyPolicyCurrentSignature;
+    isPreviewInSync(bindingPreview, bindingPreviewSignature, bindingForm);
+  const canSaveAppQuota = isPreviewInSync(
+    appQuotaPreview,
+    appQuotaPreviewSignature,
+    appQuotaForm
+  );
+  const canSaveProxyPolicy = isPreviewInSync(
+    proxyPolicyPreview,
+    proxyPolicyPreviewSignature,
+    proxyForm
+  );
   const canSaveFailover =
     (snapshot?.providers.length ?? 0) > 0 &&
-    failoverPreview !== null &&
-    failoverPreviewSignature === failoverCurrentSignature;
+    isPreviewInSync(failoverPreview, failoverPreviewSignature, failoverForm);
 
   return {
     promptTemplatePreview,

@@ -387,6 +387,19 @@ const renderManagedFeatureHints = (
   return hints;
 };
 
+const renderLifecycleModeLabel = (
+  lifecycleMode:
+    | DashboardSnapshot["discoveries"][number]["lifecycleMode"]
+    | HostCliApplyPreview["lifecycleMode"],
+  locale: "zh-CN" | "en-US"
+): string => {
+  if (lifecycleMode === "foreground-session") {
+    return localize(locale, "临时接管", "Temporary");
+  }
+
+  return localize(locale, "持久接管", "Persistent");
+};
+
 const renderEnvConflictSource = (
   sourceType: DashboardSnapshot["discoveries"][number]["envConflicts"][number]["sourceType"],
   locale: "zh-CN" | "en-US"
@@ -634,6 +647,7 @@ type RuntimeGovernancePanelsProps = {
   readonly onOpenAssetForms: () => void;
   readonly onApplyHostCliManagedConfig: (appCode: string) => void;
   readonly onRollbackHostCliManagedConfig: (appCode: string) => void;
+  readonly onRollbackForegroundHostCliManagedConfigs: () => void;
   readonly hostApplyPreviewByApp: Record<string, HostCliApplyPreview | null>;
   readonly onPreviewHostCliManagedConfig: (appCode: string) => void;
   readonly refreshWorkspaceRuntimeDetail: (workspaceId: string) => void;
@@ -683,6 +697,7 @@ export const RuntimeGovernancePanels = ({
   onOpenAssetForms,
   onApplyHostCliManagedConfig,
   onRollbackHostCliManagedConfig,
+  onRollbackForegroundHostCliManagedConfigs,
   hostApplyPreviewByApp,
   onPreviewHostCliManagedConfig,
   refreshWorkspaceRuntimeDetail,
@@ -703,6 +718,9 @@ export const RuntimeGovernancePanels = ({
   formatNumber
 }: RuntimeGovernancePanelsProps): JSX.Element => {
   const { t, locale } = useI18n();
+  const foregroundManagedDiscoveries = snapshot.discoveries.filter(
+    (item) => item.integrationState === "managed" && item.lifecycleMode === "foreground-session"
+  );
 
   const renderTakeoverActionLabel = (action: TrafficTakeoverActionKind): string => {
     switch (action) {
@@ -1103,6 +1121,48 @@ export const RuntimeGovernancePanels = ({
 
       <article className="panel">
         <h2>{t("dashboard.panels.discoveries")}</h2>
+        {foregroundManagedDiscoveries.length > 0 ? (
+          <>
+            <GovernanceNoticeCard
+              locale={locale}
+              notice={{
+                level: "high",
+                summary: localize(
+                  locale,
+                  `当前有 ${foregroundManagedDiscoveries.length} 个宿主机接管处于临时模式。daemon 正常退出会自动回滚，但异常断电后仍应人工检查宿主机配置是否恢复。`,
+                  `${foregroundManagedDiscoveries.length} host takeover(s) are currently temporary. A clean daemon shutdown will auto-rollback them, but after an unexpected power loss you should still verify host configs were restored.`
+                ),
+                suggestions: [
+                  localize(
+                    locale,
+                    `涉及应用：${foregroundManagedDiscoveries.map((item) => item.appCode).join(", ")}。`,
+                    `Affected apps: ${foregroundManagedDiscoveries.map((item) => item.appCode).join(", ")}.`
+                  ),
+                  localize(
+                    locale,
+                    "如果需要跨重启保留接管，请改为 systemd user service 运行模式。",
+                    "If takeover must survive restarts, switch to the systemd user service run mode."
+                  ),
+                  localize(
+                    locale,
+                    "如果只是临时使用，现在就可以一键回滚全部临时接管，避免宿主机残留代理目标。",
+                    "If this is only for a temporary session, roll back all temporary takeovers now to avoid stale proxy targets on the host."
+                  )
+                ]
+              }}
+            />
+            <div className="quick-action-row">
+              <button
+                className="inline-action danger"
+                type="button"
+                disabled={isWorking}
+                onClick={onRollbackForegroundHostCliManagedConfigs}
+              >
+                {localize(locale, "回滚全部临时接管", "Rollback All Temporary Takeovers")}
+              </button>
+            </div>
+          </>
+        ) : null}
         <div className="list">
           {snapshot.discoveries.map((item) => {
             const preview = hostApplyPreviewByApp[item.appCode];
@@ -1116,6 +1176,12 @@ export const RuntimeGovernancePanels = ({
                   <p>{renderSupportReason(item, t)}</p>
                   <p>{t("dashboard.discovery.currentTarget")}: {item.currentTarget ?? t("common.notFound")}</p>
                   {item.desiredTarget ? <p>{t("dashboard.discovery.desiredTarget")}: {item.desiredTarget}</p> : null}
+                  {item.lifecycleMode ? (
+                    <p>
+                      {localize(locale, "接管生命周期", "Takeover Lifecycle")}:{" "}
+                      {renderLifecycleModeLabel(item.lifecycleMode, locale)}
+                    </p>
+                  ) : null}
                   {item.envConflicts.length > 0 ? (
                     <div className="note-block warning-block">
                       <strong>
@@ -1164,6 +1230,10 @@ export const RuntimeGovernancePanels = ({
                       </p>
                       <p>
                         {localize(locale, "将修改文件", "Touched Files")}: {preview.touchedFiles.length}
+                      </p>
+                      <p>
+                        {localize(locale, "接管生命周期", "Takeover Lifecycle")}:{" "}
+                        {renderLifecycleModeLabel(preview.lifecycleMode, locale)}
                       </p>
                       <ul className="governance-suggestion-list">
                         {preview.summary.map((line) => (
@@ -1228,6 +1298,11 @@ export const RuntimeGovernancePanels = ({
                 </div>
                 <div className="row-meta">
                   <code>{item.configPath ?? item.configLocationHint ?? renderDiscoveryPath(item, t)}</code>
+                  {item.lifecycleMode ? (
+                    <span className="governance-notice-badge">
+                      {renderLifecycleModeLabel(item.lifecycleMode, locale)}
+                    </span>
+                  ) : null}
                   {(item.appCode === "codex" ||
                     item.appCode === "claude-code" ||
                     item.appCode === "gemini-cli" ||

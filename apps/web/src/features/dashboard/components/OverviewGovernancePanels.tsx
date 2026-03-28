@@ -6,7 +6,7 @@ import { buildRequestPrimaryCause } from "../lib/buildRoutingPrimaryCause.js";
 import { buildTrafficTakeoverEntries } from "../lib/buildTrafficTakeoverEntries.js";
 import { joinDashboardWarnings } from "../lib/formatDashboardWarning.js";
 import { GovernanceNoticeCard } from "./GovernanceNoticeCard.js";
-import type { DashboardFollowUpNotice } from "../hooks/useDashboardActions.js";
+import type { DashboardFollowUpNotice } from "../lib/dashboardFollowUp.js";
 import { buildHostTakeoverPreviewNotice } from "../lib/buildHostTakeoverPreview.js";
 
 type GovernanceQueueItem = {

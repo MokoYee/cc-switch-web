@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build",
     "dev": "vite",
+    "test": "npm run build --workspace @cc-switch-web/shared && node --import tsx --test test/editor-consistency.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

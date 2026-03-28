@@ -37,6 +37,7 @@ export {
   isolateProviderHealth,
   loadAuditEvents,
   loadDashboardSnapshot,
+  loadMcpVerificationHistory,
   loadProviderDiagnosticDetail,
   loadSnapshotByVersion,
   loadSnapshotDiffByVersion,
@@ -88,6 +89,7 @@ export {
   previewProviderUpsert,
   probeProviderHealth,
   rollbackHostMcpSync,
+  rollbackForegroundHostCliManagedConfigs,
   rollbackPromptHostSync,
   rollbackHostCliManagedConfig,
   restoreLatestSnapshot,
@@ -109,6 +111,7 @@ export {
 } from "../../../shared/lib/api.js";
 export type {
   DashboardSnapshot,
+  McpVerificationHistoryPage,
   QuickContextAssetApplyResult,
   QuickContextAssetInput,
   QuickContextAssetPreview,

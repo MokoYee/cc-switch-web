@@ -4,6 +4,7 @@ import type {
   AppCode,
   HostCliApplyPreview,
   LocaleCode,
+  McpVerificationHistoryPage,
   McpGovernanceRepairPreview,
   McpHostSyncPreview,
   OnboardingAppCode,
@@ -17,7 +18,8 @@ import type { DashboardSnapshot } from "../api/load-dashboard-snapshot.js";
 import type {
   DashboardFollowUpAction,
   DashboardFollowUpNotice
-} from "../hooks/useDashboardActions.js";
+} from "../lib/dashboardFollowUp.js";
+import { ProjectIntakeWorkbench } from "./ProjectIntakeWorkbench.js";
 import { QuickAssetDeliveryWorkbench } from "./QuickAssetDeliveryWorkbench.js";
 import { QuickOnboardingWorkbench } from "./QuickOnboardingWorkbench.js";
 import { buildMcpGovernanceEntries } from "../lib/buildMcpGovernanceEntries.js";
@@ -64,6 +66,9 @@ type QuickStartPanelProps = {
   readonly onInstallSystemService: () => void;
   readonly onOpenRuntime: () => void;
   readonly onOpenTraffic: (appCode: AppCode) => void;
+  readonly onOpenMcpRuntime: (appCode: AppCode) => void;
+  readonly onOpenMcpAudit: (appCode: AppCode) => void;
+  readonly onOpenMcpVerificationHistory: (appCode: AppCode) => void;
   readonly onOpenAssetForms: () => void;
   readonly onOpenMcpForms: () => void;
   readonly onRefreshSnapshot: () => void;
@@ -72,6 +77,7 @@ type QuickStartPanelProps = {
   readonly promptHostSyncStateByApp: Map<string, DashboardSnapshot["promptHostSyncStates"][number]>;
   readonly mcpHostSyncPreview: Record<string, McpHostSyncPreview | null>;
   readonly mcpGovernancePreview: Record<string, McpGovernanceRepairPreview | null>;
+  readonly mcpVerificationHistoryByApp: Record<string, McpVerificationHistoryPage | null>;
   readonly mcpRuntimeViewByApp: Map<string, DashboardSnapshot["mcpRuntimeViews"][number]>;
   readonly mcpHostSyncStateByApp: Map<string, DashboardSnapshot["mcpHostSyncStates"][number]>;
   readonly onImportPromptFromHost: (appCode: AppCode) => void;
@@ -81,8 +87,15 @@ type QuickStartPanelProps = {
   readonly onRepairMcpGovernance: (appCode: AppCode) => void;
   readonly onApplyMcpHostSync: (appCode: AppCode) => void;
   readonly onRollbackMcpHostSync: (appCode: AppCode) => void;
+  readonly onOpenContextResources: () => void;
+  readonly onImportAllWorkspaceDiscovery: () => void;
+  readonly onEnsureSessionAndActivateFromDiscovery: (
+    item: DashboardSnapshot["workspaceDiscovery"][number]
+  ) => void;
+  readonly onRunIntakeConvergence: () => void;
   readonly onClearActiveWorkspace: () => void;
   readonly onClearActiveSession: () => void;
+  readonly onArchiveStaleSessions: () => void;
   readonly onQuickContextApplied?: ((
     appCode: AppCode,
     result: QuickContextAssetApplyResult
@@ -229,6 +242,9 @@ export const QuickStartPanel = ({
   onInstallSystemService,
   onOpenRuntime,
   onOpenTraffic,
+  onOpenMcpRuntime,
+  onOpenMcpAudit,
+  onOpenMcpVerificationHistory,
   onOpenAssetForms,
   onOpenMcpForms,
   onRefreshSnapshot,
@@ -237,6 +253,7 @@ export const QuickStartPanel = ({
   promptHostSyncStateByApp,
   mcpHostSyncPreview,
   mcpGovernancePreview,
+  mcpVerificationHistoryByApp,
   mcpRuntimeViewByApp,
   mcpHostSyncStateByApp,
   onImportPromptFromHost,
@@ -246,8 +263,13 @@ export const QuickStartPanel = ({
   onRepairMcpGovernance,
   onApplyMcpHostSync,
   onRollbackMcpHostSync,
+  onOpenContextResources,
+  onImportAllWorkspaceDiscovery,
+  onEnsureSessionAndActivateFromDiscovery,
+  onRunIntakeConvergence,
   onClearActiveWorkspace,
   onClearActiveSession,
+  onArchiveStaleSessions,
   onQuickContextApplied,
   onQuickOnboardingApplied,
   followUpNotice = null,
@@ -661,6 +683,7 @@ export const QuickStartPanel = ({
         promptHostSyncStateByApp={promptHostSyncStateByApp}
         mcpHostSyncPreview={mcpHostSyncPreview}
         mcpGovernancePreview={mcpGovernancePreview}
+        mcpVerificationHistoryByApp={mcpVerificationHistoryByApp}
         mcpRuntimeViewByApp={mcpRuntimeViewByApp}
         mcpHostSyncStateByApp={mcpHostSyncStateByApp}
         onImportPromptFromHost={onImportPromptFromHost}
@@ -672,8 +695,24 @@ export const QuickStartPanel = ({
         onRollbackMcpHostSync={onRollbackMcpHostSync}
         onOpenAssetForms={onOpenAssetForms}
         onOpenMcpForms={onOpenMcpForms}
+        onOpenMcpVerificationHistory={onOpenMcpVerificationHistory}
         onOpenTraffic={onOpenTraffic}
+        onOpenMcpRuntime={onOpenMcpRuntime}
+        onOpenMcpAudit={onOpenMcpAudit}
         onQuickContextApplied={onQuickContextApplied}
+      />
+
+      <ProjectIntakeWorkbench
+        snapshot={snapshot}
+        locale={locale}
+        disabled={isWorking}
+        onOpenContextResources={onOpenContextResources}
+        onImportAllWorkspaceDiscovery={onImportAllWorkspaceDiscovery}
+        onEnsureSessionAndActivateFromDiscovery={onEnsureSessionAndActivateFromDiscovery}
+        onRunIntakeConvergence={onRunIntakeConvergence}
+        onArchiveStaleSessions={onArchiveStaleSessions}
+        onClearActiveWorkspace={onClearActiveWorkspace}
+        onClearActiveSession={onClearActiveSession}
       />
 
       <div className="preview-summary-grid">

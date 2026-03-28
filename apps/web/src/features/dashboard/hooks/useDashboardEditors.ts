@@ -19,6 +19,14 @@ import {
   loadSkillVersions,
   type DashboardSnapshot
 } from "../api/load-dashboard-snapshot.js";
+import {
+  buildMcpBindingEditorState,
+  buildMcpServerEditorState,
+  buildPromptTemplateEditorState,
+  buildSessionEditorState,
+  buildSkillEditorState,
+  buildWorkspaceEditorState
+} from "../lib/editorConsistency.js";
 
 type UseDashboardEditorsParams = {
   readonly setPromptTemplateForm: Dispatch<SetStateAction<PromptTemplateUpsert>>;
@@ -88,16 +96,9 @@ export const useDashboardEditors = ({
   const loadPromptTemplateToEditor = (
     item: DashboardSnapshot["promptTemplates"][number]
   ): void => {
-    setPromptTemplateForm({
-      id: item.id,
-      name: item.name,
-      appCode: item.appCode,
-      locale: item.locale,
-      content: item.content,
-      tags: item.tags,
-      enabled: item.enabled
-    });
-    setPromptTagsText(item.tags.join(", "));
+    const editorState = buildPromptTemplateEditorState(item);
+    setPromptTemplateForm(editorState.form);
+    setPromptTagsText(editorState.tagsText);
     void loadPromptTemplateVersions(item.id)
       .then((items) => {
         setPromptTemplateVersions(items);
@@ -108,16 +109,9 @@ export const useDashboardEditors = ({
   };
 
   const loadSkillToEditor = (item: DashboardSnapshot["skills"][number]): void => {
-    setSkillForm({
-      id: item.id,
-      name: item.name,
-      appCode: item.appCode,
-      promptTemplateId: item.promptTemplateId,
-      content: item.content,
-      tags: item.tags,
-      enabled: item.enabled
-    });
-    setSkillTagsText(item.tags.join(", "));
+    const editorState = buildSkillEditorState(item);
+    setSkillForm(editorState.form);
+    setSkillTagsText(editorState.tagsText);
     void loadSkillVersions(item.id)
       .then((items) => {
         setSkillVersions(items);
@@ -130,66 +124,32 @@ export const useDashboardEditors = ({
   const loadWorkspaceToEditor = (
     item: DashboardSnapshot["workspaces"][number]
   ): void => {
-    setWorkspaceForm({
-      id: item.id,
-      name: item.name,
-      rootPath: item.rootPath,
-      appCode: item.appCode,
-      defaultProviderId: item.defaultProviderId,
-      defaultPromptTemplateId: item.defaultPromptTemplateId,
-      defaultSkillId: item.defaultSkillId,
-      tags: item.tags,
-      enabled: item.enabled
-    });
-    setWorkspaceTagsText(item.tags.join(", "));
+    const editorState = buildWorkspaceEditorState(item);
+    setWorkspaceForm(editorState.form);
+    setWorkspaceTagsText(editorState.tagsText);
   };
 
   const loadSessionToEditor = (
     item: DashboardSnapshot["sessionRecords"][number]
   ): void => {
-    setSessionForm({
-      id: item.id,
-      workspaceId: item.workspaceId,
-      appCode: item.appCode,
-      title: item.title,
-      cwd: item.cwd,
-      providerId: item.providerId,
-      promptTemplateId: item.promptTemplateId,
-      skillId: item.skillId,
-      status: item.status,
-      startedAt: item.startedAt
-    });
+    setSessionForm(buildSessionEditorState(item));
   };
 
   const startEditMcpServer = (
     server: DashboardSnapshot["mcpServers"][number]
   ): void => {
+    const editorState = buildMcpServerEditorState(server);
     setEditingMcpServerId(server.id);
-    setMcpServerForm({
-      id: server.id,
-      name: server.name,
-      transport: server.transport,
-      command: server.command,
-      args: server.args,
-      url: server.url,
-      env: server.env,
-      headers: server.headers,
-      enabled: server.enabled
-    });
-    setMcpEnvText(JSON.stringify(server.env, null, 2));
-    setMcpHeadersText(JSON.stringify(server.headers, null, 2));
+    setMcpServerForm(editorState.form);
+    setMcpEnvText(editorState.envText);
+    setMcpHeadersText(editorState.headersText);
   };
 
   const startEditMcpBinding = (
     binding: DashboardSnapshot["appMcpBindings"][number]
   ): void => {
     setEditingMcpBindingId(binding.id);
-    setMcpBindingForm({
-      id: binding.id,
-      appCode: binding.appCode,
-      serverId: binding.serverId,
-      enabled: binding.enabled
-    });
+    setMcpBindingForm(buildMcpBindingEditorState(binding));
   };
 
   return {

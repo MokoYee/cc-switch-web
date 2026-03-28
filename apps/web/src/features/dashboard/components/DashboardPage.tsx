@@ -39,15 +39,34 @@ import { ConfigImpactSummary } from "./ConfigImpactSummary.js";
 import { DeleteReviewPanel } from "./DeleteReviewPanel.js";
 import type { ActiveGovernanceCampaign } from "./OverviewGovernancePanels.js";
 import { QuickStartPanel } from "./QuickStartPanel.js";
-import { useDashboardActions, type DashboardFollowUpAction, type DashboardFollowUpNotice } from "../hooks/useDashboardActions.js";
+import type {
+  DashboardFollowUpAction,
+  DashboardFollowUpNotice
+} from "../lib/dashboardFollowUp.js";
+import { useDashboardActions } from "../hooks/useDashboardActions.js";
 import { useDashboardEditors } from "../hooks/useDashboardEditors.js";
 import { useDashboardDerivedState } from "../hooks/useDashboardDerivedState.js";
 import { useDashboardPreviewState } from "../hooks/useDashboardPreviewState.js";
 import { useDashboardDataRuntime } from "../hooks/useDashboardDataRuntime.js";
 import {
+  buildAppQuotaEditorState,
+  buildBindingEditorState,
+  buildFailoverEditorState,
+  buildProviderEditorState,
+  createDefaultAppQuotaForm,
+  createDefaultBindingForm,
+  createDefaultFailoverForm,
+  createDefaultPromptTemplateForm,
+  createDefaultProviderForm,
+  createDefaultSessionForm,
+  createDefaultSkillForm,
+  createDefaultWorkspaceForm
+} from "../lib/editorConsistency.js";
+import {
   buildRequestPrimaryCause,
   renderRoutingPrimaryCauseLabel
 } from "../lib/buildRoutingPrimaryCause.js";
+import { buildMcpVerificationPlan } from "../lib/buildMcpVerificationPlan.js";
 import { buildTrafficTakeoverEntries } from "../lib/buildTrafficTakeoverEntries.js";
 import {
   installSystemUserService,
@@ -128,11 +147,6 @@ const renderBindingMode = (
 
 const toJsonString = (value: ExportPackage): string => JSON.stringify(value, null, 2);
 const joinProviderIds = (providerIds: string[]): string => providerIds.join(", ");
-const splitProviderIds = (rawValue: string): string[] =>
-  rawValue
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
 
 const formatNumber = (value: number): string => new Intl.NumberFormat().format(value);
 const formatPercent = (value: number | null): string =>
@@ -168,21 +182,6 @@ const formatSnapshotDiffItems = (
   return `+${renderItems(bucket.added)} / ~${renderItems(bucket.changed)} / -${renderItems(bucket.removed)}`;
 };
 
-const parseJsonRecord = (raw: string): Record<string, string> => {
-  if (raw.trim().length === 0) {
-    return {};
-  }
-
-  const parsed = JSON.parse(raw) as unknown;
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("JSON object expected");
-  }
-
-  return Object.fromEntries(
-    Object.entries(parsed).map(([key, value]) => [key, String(value)])
-  );
-};
-
 type FollowUpValidationItem = {
   readonly id: string;
   readonly label: string;
@@ -211,6 +210,24 @@ type BatchFollowUpCompletion = {
   readonly level: "low" | "medium" | "high";
   readonly title: string;
   readonly summary: string;
+};
+
+type ScrollSectionTarget =
+  | HTMLDivElement
+  | null
+  | { readonly current: HTMLDivElement | null };
+
+type McpHostSyncFocusRequest = {
+  readonly appCode: AppBinding["appCode"];
+  readonly target: "history";
+  readonly nonce: number;
+};
+
+const resolveScrollSectionTarget = (target: ScrollSectionTarget): HTMLDivElement | null => {
+  if (target !== null && typeof target === "object" && "current" in target) {
+    return target.current;
+  }
+  return target;
 };
 
 const buildFollowUpNoticeKey = (notice: DashboardFollowUpNotice): string =>
@@ -302,6 +319,13 @@ const buildFollowUpRunbook = (
         localize(locale, "必要时回到路由/资产面板，继续修正上游配置。", "Return to routing or asset panels if upstream configuration still needs correction.")
       ];
     case "mcp":
+      if (targetAppCode !== null && snapshot !== null) {
+        return buildMcpVerificationPlan({
+          snapshot,
+          appCode: targetAppCode,
+          locale
+        }).nextActions.slice(0, 3);
+      }
       return [
         localize(locale, "先看 MCP runtime，确认 issue code 和 host drift 是否收敛。", "Check MCP runtime first and confirm issue codes and host drift are converging."),
         trafficPrimaryCause
@@ -610,6 +634,28 @@ const buildFollowUpValidationItems = ({
   }
 
   if (followUpNotice.category === "mcp" && targetMcpRuntime) {
+    const mcpVerificationPlan =
+      snapshot === null
+        ? null
+        : buildMcpVerificationPlan({
+            snapshot,
+            appCode: targetMcpRuntime.appCode,
+            locale
+          });
+    if (mcpVerificationPlan !== null) {
+      items.push({
+        id: `mcp-verification-status-${targetMcpRuntime.appCode}`,
+        label: localize(locale, "自动验证状态", "Auto Verification Status"),
+        value: mcpVerificationPlan.verificationStatusLabel,
+        level:
+          mcpVerificationPlan.verificationStatus === "verified"
+            ? "low"
+            : mcpVerificationPlan.verificationStatus === "regressed" ||
+                mcpVerificationPlan.verificationStatus === "pending-runtime"
+              ? "high"
+              : "medium"
+      });
+    }
     items.push({
       id: `mcp-runtime-${targetMcpRuntime.appCode}`,
       label: localize(locale, "MCP 运行态", "MCP Runtime"),
@@ -640,7 +686,8 @@ const buildFollowUpValidationItems = ({
 const buildFollowUpVerdict = (
   locale: "zh-CN" | "en-US",
   notice: DashboardFollowUpNotice | null,
-  items: readonly FollowUpValidationItem[]
+  items: readonly FollowUpValidationItem[],
+  snapshot: DashboardSnapshot | null
 ): FollowUpVerdict | null => {
   if (notice === null || items.length === 0) {
     return null;
@@ -655,6 +702,13 @@ const buildFollowUpVerdict = (
   const sessionItem = items.find((item) => item.id.startsWith("session-errors-")) ?? null;
   const primaryCauseItem = items.find((item) => item.id.startsWith("traffic-primary-cause-")) ?? null;
   const takeoverItem = items.find((item) => item.id.startsWith("takeover-state-")) ?? null;
+  const targetAppCode =
+    notice.actions.find((action) => action.kind === "app-logs")?.appCode ??
+    notice.actions.find(
+      (action): action is Extract<DashboardFollowUpAction, { readonly kind: "audit" }> =>
+        action.kind === "audit"
+    )?.filters.appCode ??
+    null;
 
   const buildSummary = (healthy: string, partial: string, degraded: string): FollowUpVerdict => {
     if (highCount === 0 && mediumCount === 0) {
@@ -742,6 +796,32 @@ const buildFollowUpVerdict = (
   }
 
   if (notice.category === "mcp") {
+    if (targetAppCode !== null && snapshot !== null) {
+      const plan = buildMcpVerificationPlan({
+        snapshot,
+        appCode: targetAppCode,
+        locale
+      });
+      return {
+        level:
+          plan.verificationStatus === "verified"
+            ? "low"
+            : plan.verificationStatus === "regressed" ||
+                plan.verificationStatus === "pending-runtime"
+              ? "high"
+              : "medium",
+        title:
+          plan.verificationStatus === "verified"
+            ? localize(locale, "已验证", "Verified")
+            : plan.verificationStatus === "regressed"
+              ? localize(locale, "存在回退风险", "Regression Risk")
+              : plan.verificationStatus === "pending-runtime"
+                ? localize(locale, "先收敛 Runtime", "Fix Runtime First")
+                : localize(locale, "待继续验证", "Needs More Verification"),
+        summary: plan.verificationStatusSummary
+      };
+    }
+
     return buildSummary(
       localize(
         locale,
@@ -1171,60 +1251,6 @@ const defaultMcpBindingForm = (): AppMcpBindingUpsert => ({
   enabled: true
 });
 
-const defaultAppQuotaForm = (): AppQuotaUpsert => ({
-  id: "quota-codex",
-  appCode: "codex",
-  enabled: false,
-  period: "day",
-  maxRequests: null,
-  maxTokens: null
-});
-
-const defaultPromptTemplateForm = (): PromptTemplateUpsert => ({
-  id: "prompt-codex-review-zh",
-  name: "Code Review",
-  appCode: "codex",
-  locale: "zh-CN",
-  content: "请先检查 correctness、边界条件与回归风险。",
-  tags: ["review"],
-  enabled: true
-});
-
-const defaultSkillForm = (): SkillUpsert => ({
-  id: "skill-review-checklist",
-  name: "Review Checklist",
-  appCode: "codex",
-  promptTemplateId: null,
-  content: "输出前先完成 correctness、maintainability、regression risk 三项检查。",
-  tags: ["review"],
-  enabled: true
-});
-
-const defaultWorkspaceForm = (): WorkspaceUpsert => ({
-  id: "workspace-api",
-  name: "API Service",
-  rootPath: "/srv/api-service",
-  appCode: "codex",
-  defaultProviderId: null,
-  defaultPromptTemplateId: null,
-  defaultSkillId: null,
-  tags: ["backend"],
-  enabled: true
-});
-
-const defaultSessionForm = (): SessionRecordUpsert => ({
-  id: "session-api-001",
-  workspaceId: null,
-  appCode: "codex",
-  title: "Repair proxy headers",
-  cwd: "/srv/api-service",
-  providerId: null,
-  promptTemplateId: null,
-  skillId: null,
-  status: "active",
-  startedAt: new Date().toISOString()
-});
-
 type SnapshotDiffBucketKey =
   | "providers"
   | "promptTemplates"
@@ -1311,37 +1337,31 @@ const buildSnapshotDiffItems = (
 export const DashboardPage = (): JSX.Element => {
   const { t, locale } = useI18n();
   const assetFormsRef = useRef<HTMLDivElement | null>(null);
+  const contextResourcesRef = useRef<HTMLDivElement | null>(null);
+  const mcpHostSyncPanelRef = useRef<HTMLDivElement | null>(null);
   const mcpFormsRef = useRef<HTMLDivElement | null>(null);
   const routingFormsRef = useRef<HTMLDivElement | null>(null);
   const runtimePanelsRef = useRef<HTMLDivElement | null>(null);
   const trafficPanelsRef = useRef<HTMLDivElement | null>(null);
   const recoveryPanelRef = useRef<HTMLDivElement | null>(null);
+  const pendingScrollResolverRef = useRef<(() => HTMLDivElement | null) | null>(null);
+  const startupRecoveryNoticeRef = useRef<string | null>(null);
+  const mcpHostSyncFocusNonceRef = useRef(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
   const [followUpNotice, setFollowUpNotice] = useState<DashboardFollowUpNotice | null>(null);
   const [followUpVisitedTargets, setFollowUpVisitedTargets] = useState<Record<string, string[]>>({});
   const [activeGovernanceCampaign, setActiveGovernanceCampaign] = useState<ActiveGovernanceCampaign | null>(null);
   const [showAdvancedPanels, setShowAdvancedPanels] = useState(false);
+  const [mcpHostSyncFocusRequest, setMcpHostSyncFocusRequest] =
+    useState<McpHostSyncFocusRequest | null>(null);
   const [tokenInput, setTokenInput] = useState("");
   const [authActionError, setAuthActionError] = useState<string | null>(null);
   const [authActionNotice, setAuthActionNotice] = useState<string | null>(null);
   const [exportText, setExportText] = useState("");
   const [importText, setImportText] = useState("");
-  const [providerForm, setProviderForm] = useState<ProviderUpsert>({
-    id: "provider-primary",
-    name: "Primary Provider",
-    providerType: "openai-compatible",
-    baseUrl: "https://api.example.com/v1",
-    apiKey: "",
-    enabled: true,
-    timeoutMs: 30000
-  });
-  const [bindingForm, setBindingForm] = useState<AppBindingUpsert>({
-    id: "binding-codex",
-    appCode: "codex",
-    providerId: "",
-    mode: "managed"
-  });
+  const [providerForm, setProviderForm] = useState<ProviderUpsert>(createDefaultProviderForm);
+  const [bindingForm, setBindingForm] = useState<AppBindingUpsert>(createDefaultBindingForm);
   const [proxyForm, setProxyForm] = useState<ProxyPolicy>({
     listenHost: "127.0.0.1",
     listenPort: 8788,
@@ -1349,21 +1369,15 @@ export const DashboardPage = (): JSX.Element => {
     requestTimeoutMs: 60000,
     failureThreshold: 3
   });
-  const [failoverForm, setFailoverForm] = useState<FailoverChainUpsert>({
-    id: "failover-codex",
-    appCode: "codex",
-    enabled: false,
-    providerIds: [],
-    cooldownSeconds: 30,
-    maxAttempts: 2
-  });
+  const [failoverForm, setFailoverForm] = useState<FailoverChainUpsert>(createDefaultFailoverForm);
   const [mcpServerForm, setMcpServerForm] = useState<McpServerUpsert>(defaultMcpServerForm);
   const [mcpBindingForm, setMcpBindingForm] = useState<AppMcpBindingUpsert>(defaultMcpBindingForm);
-  const [appQuotaForm, setAppQuotaForm] = useState<AppQuotaUpsert>(defaultAppQuotaForm);
-  const [promptTemplateForm, setPromptTemplateForm] = useState<PromptTemplateUpsert>(defaultPromptTemplateForm);
-  const [skillForm, setSkillForm] = useState<SkillUpsert>(defaultSkillForm);
-  const [workspaceForm, setWorkspaceForm] = useState<WorkspaceUpsert>(defaultWorkspaceForm);
-  const [sessionForm, setSessionForm] = useState<SessionRecordUpsert>(defaultSessionForm);
+  const [appQuotaForm, setAppQuotaForm] = useState<AppQuotaUpsert>(createDefaultAppQuotaForm);
+  const [promptTemplateForm, setPromptTemplateForm] =
+    useState<PromptTemplateUpsert>(createDefaultPromptTemplateForm);
+  const [skillForm, setSkillForm] = useState<SkillUpsert>(createDefaultSkillForm);
+  const [workspaceForm, setWorkspaceForm] = useState<WorkspaceUpsert>(createDefaultWorkspaceForm);
+  const [sessionForm, setSessionForm] = useState<SessionRecordUpsert>(createDefaultSessionForm);
   const [mcpEnvText, setMcpEnvText] = useState('{\n  "ROOT_PATH": "/tmp"\n}');
   const [mcpHeadersText, setMcpHeadersText] = useState("{}");
   const [promptTagsText, setPromptTagsText] = useState("review");
@@ -1398,6 +1412,8 @@ export const DashboardPage = (): JSX.Element => {
     importPreviewSourceText,
     pendingDeleteReview,
     mcpImportPreview,
+    mcpVerificationHistoryByApp,
+    mcpVerificationHistoryLoadingByApp,
     setSelectedWorkspaceRuntimeDetail,
     setSelectedSessionRuntimeDetail,
     setSelectedProviderDiagnosticId,
@@ -1423,7 +1439,8 @@ export const DashboardPage = (): JSX.Element => {
     loadImportPreview,
     loadDeleteReview,
     executeDelete,
-    loadMcpImportPreview
+    loadMcpImportPreview,
+    loadMoreMcpVerificationHistory
   } = useDashboardDataRuntime({
     setErrorMessage,
     setNoticeMessage,
@@ -1456,6 +1473,71 @@ export const DashboardPage = (): JSX.Element => {
       return changed ? next : current;
     });
   }, [snapshot]);
+
+  useEffect(() => {
+    const startupRecovery = snapshot?.hostStartupRecovery;
+
+    if (startupRecovery === null || startupRecovery === undefined) {
+      return;
+    }
+
+    if (startupRecoveryNoticeRef.current === startupRecovery.executedAt) {
+      return;
+    }
+
+    startupRecoveryNoticeRef.current = startupRecovery.executedAt;
+
+    const targetAppCode =
+      startupRecovery.rolledBackApps.length === 1
+        ? startupRecovery.rolledBackApps[0]
+        : undefined;
+
+    setFollowUpNotice({
+      category: "app-traffic",
+      title:
+        startupRecovery.failedApps.length === 0
+          ? localize(locale, "已自动恢复残留临时接管", "Temporary Host Takeover Recovered Automatically")
+          : localize(locale, "已自动恢复部分残留临时接管", "Temporary Host Takeover Partially Recovered"),
+      summary:
+        startupRecovery.failedApps.length === 0
+          ? localize(
+              locale,
+              `系统在本次启动时自动恢复了上次异常退出残留的临时宿主机接管：${startupRecovery.rolledBackApps.join(", ")}。这些 CLI 现在应已恢复原始宿主机配置。`,
+              `During this startup, the system automatically recovered stale temporary host takeovers left by the previous abnormal exit: ${startupRecovery.rolledBackApps.join(", ")}. Those CLIs should now be back on their original host configuration.`
+            )
+          : localize(
+              locale,
+              `系统在本次启动时自动恢复了 ${startupRecovery.rolledBackApps.length} 个残留临时接管，但仍有 ${startupRecovery.failedApps.length} 个应用需要人工检查宿主机配置与备份。`,
+              `During this startup, the system automatically recovered ${startupRecovery.rolledBackApps.length} stale temporary takeover(s), but ${startupRecovery.failedApps.length} app(s) still need manual host-config and backup review.`
+            ),
+      actions: [
+        {
+          id: "startup-recovery-host-audit",
+          label: localize(locale, "查看宿主机审计", "Open Host Audit"),
+          kind: "audit",
+          filters: {
+            source: "host-integration"
+          }
+        },
+        {
+          id: "startup-recovery-runtime",
+          label: localize(locale, "打开运行时", "Open Runtime"),
+          kind: "section",
+          section: "runtime"
+        },
+        ...(targetAppCode
+          ? [
+              {
+                id: `startup-recovery-app-${targetAppCode}`,
+                label: localize(locale, "查看该应用流量", "Open App Traffic"),
+                kind: "app-logs" as const,
+                appCode: targetAppCode
+              }
+            ]
+          : [])
+      ]
+    });
+  }, [locale, snapshot?.hostStartupRecovery, setFollowUpNotice]);
 
   const {
     promptTemplatePreview,
@@ -1695,6 +1777,26 @@ export const DashboardPage = (): JSX.Element => {
     });
   };
 
+  const openMcpRuntimeFocus = (appCode: AppBinding["appCode"]): void => {
+    syncAppEvidence(appCode, {
+      source: "mcp"
+    });
+    scrollToSection(runtimePanelsRef);
+  };
+
+  const openMcpAuditFocus = (appCode: AppBinding["appCode"]): void => {
+    openAuditFocus({
+      source: "mcp",
+      appCode
+    });
+    scrollToSection(runtimePanelsRef);
+  };
+
+  const openAppTrafficFocus = (appCode: AppBinding["appCode"]): void => {
+    focusAppLogs(appCode);
+    scrollToSection(trafficPanelsRef);
+  };
+
   const clearEvidenceFocus = (): void => {
     setSelectedProviderDiagnosticId(null);
     setSelectedProviderDiagnosticDetail(null);
@@ -1761,6 +1863,27 @@ export const DashboardPage = (): JSX.Element => {
     setPendingDeleteReview,
     setExportText,
     setImportText,
+    setBindingForm,
+    setAppQuotaForm,
+    setFailoverForm,
+    setProxyForm,
+    setWorkspaceForm,
+    setWorkspaceTagsText,
+    setSessionForm,
+    setProviderForm,
+    setPromptTemplateForm,
+    setPromptTagsText,
+    setPromptTemplateVersions,
+    setSkillForm,
+    setSkillTagsText,
+    setSkillVersions,
+    editingMcpServerId,
+    editingMcpBindingId,
+    resetMcpServerEditor,
+    resetMcpBindingEditor,
+    loadMcpServerToEditor: startEditMcpServer,
+    loadMcpBindingToEditor: startEditMcpBinding,
+    dashboardSnapshot: snapshot,
     selectedSnapshotVersion,
     snapshotMcpServersLength: snapshot?.mcpServers.length ?? 0,
     hasProviders,
@@ -1782,26 +1905,71 @@ export const DashboardPage = (): JSX.Element => {
     proxyForm,
     failoverForm,
     importText,
-    splitProviderIds,
-    parseJsonRecord,
     toJsonString
   });
 
-  const scrollToSection = (target: HTMLDivElement | null): void => {
+  const scrollToSection = (target: ScrollSectionTarget): void => {
     preloadAdvancedPanels();
     startTransition(() => {
       setShowAdvancedPanels(true);
     });
-    setTimeout(() => {
-      target?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 0);
+    const resolveTarget = () => resolveScrollSectionTarget(target);
+    const nextTarget = resolveTarget();
+    if (nextTarget === null) {
+      pendingScrollResolverRef.current = resolveTarget;
+      return;
+    }
+    pendingScrollResolverRef.current = null;
+    if (typeof window === "undefined") {
+      nextTarget.scrollIntoView();
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      nextTarget.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   };
+
+  useEffect(() => {
+    if (!showAdvancedPanels) {
+      return;
+    }
+
+    const resolveTarget = pendingScrollResolverRef.current;
+    if (resolveTarget === null) {
+      return;
+    }
+
+    const target = resolveTarget();
+    if (target === null) {
+      return;
+    }
+
+    pendingScrollResolverRef.current = null;
+    if (typeof window === "undefined") {
+      target.scrollIntoView();
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [showAdvancedPanels]);
 
   const openAdvancedPanels = (): void => {
     preloadAdvancedPanels();
     startTransition(() => {
       setShowAdvancedPanels(true);
     });
+  };
+
+  const openMcpVerificationHistory = (appCode: AppBinding["appCode"]): void => {
+    mcpHostSyncFocusNonceRef.current += 1;
+    setMcpHostSyncFocusRequest({
+      appCode,
+      target: "history",
+      nonce: mcpHostSyncFocusNonceRef.current
+    });
+    scrollToSection(mcpHostSyncPanelRef);
   };
 
   const toggleAdvancedPanels = (): void => {
@@ -1844,50 +2012,22 @@ export const DashboardPage = (): JSX.Element => {
   };
 
   const editProviderAndFocus = (item: DashboardSnapshot["providers"][number]): void => {
-    setProviderForm({
-      id: item.id,
-      name: item.name,
-      providerType: item.providerType,
-      baseUrl: item.baseUrl,
-      apiKey: "",
-      apiKeyMasked: item.apiKeyMasked,
-      enabled: item.enabled,
-      timeoutMs: item.timeoutMs
-    });
+    setProviderForm(buildProviderEditorState(item));
     scrollToSection(routingFormsRef.current);
   };
 
   const editBindingAndFocus = (item: DashboardSnapshot["bindings"][number]): void => {
-    setBindingForm({
-      id: item.id,
-      appCode: item.appCode,
-      providerId: item.providerId,
-      mode: item.mode
-    });
+    setBindingForm(buildBindingEditorState(item));
     scrollToSection(routingFormsRef.current);
   };
 
   const editAppQuotaAndFocus = (item: DashboardSnapshot["appQuotas"][number]): void => {
-    setAppQuotaForm({
-      id: item.id,
-      appCode: item.appCode,
-      enabled: item.enabled,
-      period: item.period,
-      maxRequests: item.maxRequests,
-      maxTokens: item.maxTokens
-    });
+    setAppQuotaForm(buildAppQuotaEditorState(item));
     scrollToSection(routingFormsRef.current);
   };
 
   const editFailoverAndFocus = (item: DashboardSnapshot["failoverChains"][number]): void => {
-    setFailoverForm({
-      id: item.id,
-      appCode: item.appCode,
-      enabled: item.enabled,
-      providerIds: item.providerIds,
-      cooldownSeconds: item.cooldownSeconds,
-      maxAttempts: item.maxAttempts
-    });
+    setFailoverForm(buildFailoverEditorState(item));
     scrollToSection(routingFormsRef.current);
   };
 
@@ -2162,7 +2302,12 @@ export const DashboardPage = (): JSX.Element => {
     requestLogPage,
     auditEventPage
   });
-  const followUpVerdict = buildFollowUpVerdict(locale, followUpNotice, followUpValidationItems);
+  const followUpVerdict = buildFollowUpVerdict(
+    locale,
+    followUpNotice,
+    followUpValidationItems,
+    snapshot
+  );
   const followUpRunbook = buildFollowUpRunbook(locale, followUpNotice, snapshot);
   const batchFollowUpProgress = buildBatchFollowUpProgress({
     locale,
@@ -2704,16 +2849,20 @@ export const DashboardPage = (): JSX.Element => {
                 localize(locale, "User service 已安装", "User service installed")
               );
             }}
-            onOpenRuntime={() => scrollToSection(runtimePanelsRef.current)}
-            onOpenTraffic={focusAppLogs}
-            onOpenAssetForms={() => scrollToSection(assetFormsRef.current)}
-            onOpenMcpForms={() => scrollToSection(mcpFormsRef.current)}
+            onOpenRuntime={() => scrollToSection(runtimePanelsRef)}
+            onOpenTraffic={openAppTrafficFocus}
+            onOpenMcpRuntime={openMcpRuntimeFocus}
+            onOpenMcpAudit={openMcpAuditFocus}
+            onOpenMcpVerificationHistory={openMcpVerificationHistory}
+            onOpenAssetForms={() => scrollToSection(assetFormsRef)}
+            onOpenMcpForms={() => scrollToSection(mcpFormsRef)}
             onRefreshSnapshot={refreshSnapshot}
             promptHostSyncPreview={promptHostSyncPreview}
             promptHostImportPreview={promptHostImportPreview}
             promptHostSyncStateByApp={promptHostSyncStateByApp}
             mcpHostSyncPreview={mcpHostSyncPreview}
             mcpGovernancePreview={mcpGovernancePreview}
+            mcpVerificationHistoryByApp={mcpVerificationHistoryByApp}
             mcpRuntimeViewByApp={mcpRuntimeViewByApp}
             mcpHostSyncStateByApp={mcpHostSyncStateByApp}
             onImportPromptFromHost={actions.promptHost.importFromHost}
@@ -2723,8 +2872,15 @@ export const DashboardPage = (): JSX.Element => {
             onRepairMcpGovernance={actions.mcpHost.repairGovernance}
             onApplyMcpHostSync={actions.mcpHost.applyHostSync}
             onRollbackMcpHostSync={actions.mcpHost.rollbackHostSync}
+            onOpenContextResources={() => scrollToSection(contextResourcesRef)}
+            onImportAllWorkspaceDiscovery={actions.contextResources.importAllWorkspaceDiscovery}
+            onEnsureSessionAndActivateFromDiscovery={
+              actions.contextResources.ensureSessionAndActivateFromDiscovery
+            }
+            onRunIntakeConvergence={actions.contextResources.runIntakeConvergence}
             onClearActiveWorkspace={actions.clearActiveWorkspace}
             onClearActiveSession={actions.clearActiveSession}
+            onArchiveStaleSessions={actions.archiveStaleSessions}
             onQuickContextApplied={(appCode, result) => {
               setFollowUpNotice({
                 category: result.target.resolvedMode === "asset-only" ? "asset" : "app-traffic",
@@ -2921,43 +3077,45 @@ export const DashboardPage = (): JSX.Element => {
                 />
               }
             >
-              <LazyContextResourcePanels
-                snapshot={snapshot}
-                resolvedWorkspaceContextById={resolvedWorkspaceContextById}
-                resolvedSessionContextById={resolvedSessionContextById}
-                mcpRuntimeItemByBindingId={mcpRuntimeItemByBindingId}
-                mcpBindingUsage={mcpBindingUsage}
-                isWorking={isWorking}
-                onEditPromptTemplate={editPromptTemplateAndFocus}
-                onDeletePromptTemplate={actions.contextResources.deletePromptTemplateReview}
-                onOpenWorkspaceBatchReview={(workspaceIds, sourceLabel, appCode) =>
-                  openContextBatchFollowUp("workspace", workspaceIds, sourceLabel, appCode)
-                }
-                onOpenSessionBatchReview={(sessionIds, sourceLabel, appCode) =>
-                  openContextBatchFollowUp("session", sessionIds, sourceLabel, appCode)
-                }
-                onEditSkill={editSkillAndFocus}
-                onDeleteSkill={actions.contextResources.deleteSkillReview}
-                onEditWorkspace={editWorkspaceAndFocus}
-                onActivateWorkspace={actions.contextResources.activateWorkspace}
-                onDeleteWorkspace={actions.contextResources.deleteWorkspaceReview}
-                onImportAllWorkspaceDiscovery={actions.contextResources.importAllWorkspaceDiscovery}
-                onImportWorkspaceDiscovery={actions.contextResources.importWorkspaceDiscovery}
-                onEnsureSessionFromDiscovery={actions.contextResources.ensureSessionFromDiscovery}
-                onEnsureSessionAndActivateFromDiscovery={
-                  actions.contextResources.ensureSessionAndActivateFromDiscovery
-                }
-                onEditSession={editSessionAndFocus}
-                onActivateSession={actions.contextResources.activateSession}
-                onArchiveSession={actions.contextResources.archiveSession}
-                onDeleteSession={actions.contextResources.deleteSessionReview}
-                onEditFailoverChain={editFailoverAndFocus}
-                onDeleteFailoverChain={actions.contextResources.deleteFailoverReview}
-                onEditMcpServer={editMcpServerAndFocus}
-                onDeleteMcpServer={actions.contextResources.deleteMcpServerReview}
-                onEditMcpBinding={editMcpBindingAndFocus}
-                onDeleteMcpBinding={actions.contextResources.deleteMcpBindingReview}
-              />
+              <div ref={contextResourcesRef} className="panel-scroll-target">
+                <LazyContextResourcePanels
+                  snapshot={snapshot}
+                  resolvedWorkspaceContextById={resolvedWorkspaceContextById}
+                  resolvedSessionContextById={resolvedSessionContextById}
+                  mcpRuntimeItemByBindingId={mcpRuntimeItemByBindingId}
+                  mcpBindingUsage={mcpBindingUsage}
+                  isWorking={isWorking}
+                  onEditPromptTemplate={editPromptTemplateAndFocus}
+                  onDeletePromptTemplate={actions.contextResources.deletePromptTemplateReview}
+                  onOpenWorkspaceBatchReview={(workspaceIds, sourceLabel, appCode) =>
+                    openContextBatchFollowUp("workspace", workspaceIds, sourceLabel, appCode)
+                  }
+                  onOpenSessionBatchReview={(sessionIds, sourceLabel, appCode) =>
+                    openContextBatchFollowUp("session", sessionIds, sourceLabel, appCode)
+                  }
+                  onEditSkill={editSkillAndFocus}
+                  onDeleteSkill={actions.contextResources.deleteSkillReview}
+                  onEditWorkspace={editWorkspaceAndFocus}
+                  onActivateWorkspace={actions.contextResources.activateWorkspace}
+                  onDeleteWorkspace={actions.contextResources.deleteWorkspaceReview}
+                  onImportAllWorkspaceDiscovery={actions.contextResources.importAllWorkspaceDiscovery}
+                  onImportWorkspaceDiscovery={actions.contextResources.importWorkspaceDiscovery}
+                  onEnsureSessionFromDiscovery={actions.contextResources.ensureSessionFromDiscovery}
+                  onEnsureSessionAndActivateFromDiscovery={
+                    actions.contextResources.ensureSessionAndActivateFromDiscovery
+                  }
+                  onEditSession={editSessionAndFocus}
+                  onActivateSession={actions.contextResources.activateSession}
+                  onArchiveSession={actions.contextResources.archiveSession}
+                  onDeleteSession={actions.contextResources.deleteSessionReview}
+                  onEditFailoverChain={editFailoverAndFocus}
+                  onDeleteFailoverChain={actions.contextResources.deleteFailoverReview}
+                  onEditMcpServer={editMcpServerAndFocus}
+                  onDeleteMcpServer={actions.contextResources.deleteMcpServerReview}
+                  onEditMcpBinding={editMcpBindingAndFocus}
+                  onDeleteMcpBinding={actions.contextResources.deleteMcpBindingReview}
+                />
+              </div>
             </Suspense>
 
             <Suspense
@@ -2991,27 +3149,36 @@ export const DashboardPage = (): JSX.Element => {
                 />
               }
             >
-              <LazyMcpHostSyncPanel
-                snapshot={snapshot}
-                mcpImportOptions={mcpImportOptions}
-                setMcpImportOptions={setMcpImportOptions}
-                mcpHostSyncPreview={mcpHostSyncPreview}
-                mcpGovernancePreview={mcpGovernancePreview}
-                mcpImportPreview={mcpImportPreview}
-                mcpRuntimeViewByApp={mcpRuntimeViewByApp}
-                mcpHostSyncStateByApp={mcpHostSyncStateByApp}
-                isWorking={isWorking}
-                onLoadImportPreview={loadMcpImportPreview}
-                onRepairGovernanceAll={actions.mcpHost.repairGovernanceAll}
-                onRepairGovernance={actions.mcpHost.repairGovernance}
-                onImportFromHost={actions.mcpHost.importFromHost}
-                onApplyHostSyncAll={actions.mcpHost.applyHostSyncAll}
-                onApplyHostSync={actions.mcpHost.applyHostSync}
-                onRollbackHostSync={actions.mcpHost.rollbackHostSync}
-                onEditMcpServer={editMcpServerAndFocus}
-                onEditMcpBinding={editMcpBindingAndFocus}
-                onOpenMcpForms={() => scrollToSection(mcpFormsRef.current)}
-              />
+              <div ref={mcpHostSyncPanelRef} className="panel-scroll-target">
+                <LazyMcpHostSyncPanel
+                  snapshot={snapshot}
+                  focusRequest={mcpHostSyncFocusRequest}
+                  mcpImportOptions={mcpImportOptions}
+                  setMcpImportOptions={setMcpImportOptions}
+                  mcpHostSyncPreview={mcpHostSyncPreview}
+                  mcpGovernancePreview={mcpGovernancePreview}
+                  mcpImportPreview={mcpImportPreview}
+                  mcpVerificationHistoryByApp={mcpVerificationHistoryByApp}
+                  mcpVerificationHistoryLoadingByApp={mcpVerificationHistoryLoadingByApp}
+                  mcpRuntimeViewByApp={mcpRuntimeViewByApp}
+                  mcpHostSyncStateByApp={mcpHostSyncStateByApp}
+                  isWorking={isWorking}
+                  onLoadImportPreview={loadMcpImportPreview}
+                  onLoadMoreVerificationHistory={loadMoreMcpVerificationHistory}
+                  onRepairGovernanceAll={actions.mcpHost.repairGovernanceAll}
+                  onRepairGovernance={actions.mcpHost.repairGovernance}
+                  onImportFromHost={actions.mcpHost.importFromHost}
+                  onApplyHostSyncAll={actions.mcpHost.applyHostSyncAll}
+                  onApplyHostSync={actions.mcpHost.applyHostSync}
+                  onRollbackHostSync={actions.mcpHost.rollbackHostSync}
+                  onEditMcpServer={editMcpServerAndFocus}
+                  onEditMcpBinding={editMcpBindingAndFocus}
+                  onOpenMcpForms={() => scrollToSection(mcpFormsRef)}
+                  onOpenRuntime={openMcpRuntimeFocus}
+                  onOpenAudit={openMcpAuditFocus}
+                  onOpenTraffic={openAppTrafficFocus}
+                />
+              </div>
             </Suspense>
 
             <div ref={runtimePanelsRef} className="panel-scroll-target">
@@ -3052,6 +3219,9 @@ export const DashboardPage = (): JSX.Element => {
                   onOpenAssetForms={() => scrollToSection(assetFormsRef.current)}
                   onApplyHostCliManagedConfig={actions.runtime.applyHostCliManagedConfig}
                   onRollbackHostCliManagedConfig={actions.runtime.rollbackHostCliManagedConfig}
+                  onRollbackForegroundHostCliManagedConfigs={
+                    actions.runtime.rollbackForegroundHostCliManagedConfigs
+                  }
                   hostApplyPreviewByApp={hostApplyPreviewByApp}
                   onPreviewHostCliManagedConfig={loadHostApplyPreview}
                   refreshWorkspaceRuntimeDetail={refreshWorkspaceRuntimeDetail}

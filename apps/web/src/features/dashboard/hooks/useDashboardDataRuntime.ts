@@ -7,6 +7,7 @@ import type {
   ConfigImportPreview,
   McpImportPreview,
   McpImportOptions,
+  McpVerificationHistoryPage,
   ProviderDiagnosticDetail,
   ProxyRequestLogPage,
   UsageRecordPage,
@@ -30,6 +31,7 @@ import {
   deleteWorkspace,
   loadAuditEvents,
   loadDashboardSnapshot,
+  loadMcpVerificationHistory,
   loadProviderDiagnosticDetail,
   loadProxyRequestLogs,
   loadSessionRuntimeDetail,
@@ -56,6 +58,12 @@ import {
 import {
   UnauthorizedApiError
 } from "../../../shared/lib/api.js";
+import {
+  resolveProxyPolicyFormFromBootstrap,
+  syncBindingFormWithBootstrap,
+  syncFailoverFormWithBootstrap,
+  syncMcpBindingFormWithBootstrap
+} from "../lib/editorConsistency.js";
 
 const toIsoDateTime = (value: string): string | undefined =>
   value.trim().length === 0 ? undefined : new Date(value).toISOString();
@@ -131,13 +139,30 @@ type UseDashboardDataRuntimeParams = {
   }>>;
 };
 
-const currentProxyFallback = (snapshot: DashboardSnapshot) => ({
-  listenHost: snapshot.latestSnapshot?.payload.proxyPolicy.listenHost ?? "127.0.0.1",
-  listenPort: snapshot.latestSnapshot?.payload.proxyPolicy.listenPort ?? 8788,
-  enabled: snapshot.latestSnapshot?.payload.proxyPolicy.enabled ?? false,
-  requestTimeoutMs: snapshot.latestSnapshot?.payload.proxyPolicy.requestTimeoutMs ?? 60000,
-  failureThreshold: snapshot.latestSnapshot?.payload.proxyPolicy.failureThreshold ?? 3
-});
+const MCP_VERIFICATION_HISTORY_PAGE_SIZE = 5;
+
+const mergeMcpVerificationHistoryPage = (
+  currentPage: McpVerificationHistoryPage | null,
+  nextPage: McpVerificationHistoryPage
+): McpVerificationHistoryPage => {
+  if (currentPage === null) {
+    return nextPage;
+  }
+
+  const mergedItems = [
+    ...currentPage.items,
+    ...nextPage.items
+  ].filter(
+    (item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index
+  );
+
+  return {
+    items: mergedItems,
+    total: Math.max(currentPage.total, nextPage.total),
+    limit: mergedItems.length,
+    offset: 0
+  };
+};
 
 export const useDashboardDataRuntime = ({
   setErrorMessage,
@@ -198,6 +223,10 @@ export const useDashboardDataRuntime = ({
   const [importPreviewSourceText, setImportPreviewSourceText] = useState("");
   const [pendingDeleteReview, setPendingDeleteReview] = useState<PendingDeleteReview | null>(null);
   const [mcpImportPreview, setMcpImportPreview] = useState<Record<string, McpImportPreview | null>>({});
+  const [mcpVerificationHistoryByApp, setMcpVerificationHistoryByApp] =
+    useState<Record<string, McpVerificationHistoryPage | null>>({});
+  const [mcpVerificationHistoryLoadingByApp, setMcpVerificationHistoryLoadingByApp] =
+    useState<Record<string, boolean>>({});
 
   const refreshSnapshot = (): void => {
     setNoticeMessage(null);
@@ -235,21 +264,16 @@ export const useDashboardDataRuntime = ({
             ? current
             : null
         );
-        setBindingForm((current) => ({
-          ...current,
-          providerId: result.providers[0]?.id ?? ""
-        }));
-        setMcpBindingForm((current) => ({
-          ...current,
-          serverId: result.mcpServers[0]?.id ?? current.serverId
-        }));
-        setFailoverForm((current) => ({
-          ...current,
-          providerIds: current.providerIds.filter((providerId) =>
-            result.providers.some((provider) => provider.id === providerId)
-          )
-        }));
-        setProxyForm(currentProxyFallback(result));
+        setBindingForm((current) =>
+          syncBindingFormWithBootstrap(current, result.bindings, result.providers)
+        );
+        setMcpBindingForm((current) =>
+          syncMcpBindingFormWithBootstrap(current, result.appMcpBindings, result.mcpServers)
+        );
+        setFailoverForm((current) =>
+          syncFailoverFormWithBootstrap(current, result.failoverChains, result.providers)
+        );
+        setProxyForm(resolveProxyPolicyFormFromBootstrap(result.latestSnapshot));
       })
       .catch((error: unknown) => {
         if (error instanceof UnauthorizedApiError) {
@@ -549,6 +573,100 @@ export const useDashboardDataRuntime = ({
       });
   };
 
+  const refreshMcpVerificationHistories = (targetSnapshot: DashboardSnapshot | null): void => {
+    if (targetSnapshot === null) {
+      setMcpVerificationHistoryByApp({});
+      setMcpVerificationHistoryLoadingByApp({});
+      return;
+    }
+
+    const appCodes = Array.from(
+      new Set([
+        ...targetSnapshot.mcpRuntimeViews.map((item) => item.appCode),
+        ...targetSnapshot.mcpHostSyncCapabilities.map((item) => item.appCode)
+      ])
+    ) as AppBinding["appCode"][];
+
+    setMcpVerificationHistoryLoadingByApp(
+      Object.fromEntries(appCodes.map((appCode) => [appCode, true]))
+    );
+
+    void Promise.allSettled(
+      appCodes.map(async (appCode) => [
+        appCode,
+        await loadMcpVerificationHistory(appCode, {
+          limit: MCP_VERIFICATION_HISTORY_PAGE_SIZE,
+          offset: 0
+        })
+      ] as const)
+    ).then((results) => {
+      const nextState: Record<string, McpVerificationHistoryPage | null> = {};
+      let firstError: string | null = null;
+
+      results.forEach((result, index) => {
+        const appCode = appCodes[index];
+        if (!appCode) {
+          return;
+        }
+
+        if (result.status === "fulfilled") {
+          nextState[appCode] = result.value[1];
+          return;
+        }
+
+        nextState[appCode] = null;
+        if (firstError === null) {
+          firstError =
+            result.reason instanceof Error ? result.reason.message : "unknown error";
+        }
+      });
+
+      setMcpVerificationHistoryByApp(nextState);
+      setMcpVerificationHistoryLoadingByApp(
+        Object.fromEntries(appCodes.map((appCode) => [appCode, false]))
+      );
+      if (firstError !== null) {
+        setErrorMessage(firstError);
+      }
+    });
+  };
+
+  const loadMoreMcpVerificationHistory = (appCode: AppBinding["appCode"]): void => {
+    if (mcpVerificationHistoryLoadingByApp[appCode]) {
+      return;
+    }
+
+    const currentPage = mcpVerificationHistoryByApp[appCode] ?? null;
+    if (currentPage !== null && currentPage.items.length >= currentPage.total) {
+      return;
+    }
+
+    setMcpVerificationHistoryLoadingByApp((current) => ({
+      ...current,
+      [appCode]: true
+    }));
+
+    void loadMcpVerificationHistory(appCode, {
+      limit: MCP_VERIFICATION_HISTORY_PAGE_SIZE,
+      offset: currentPage?.items.length ?? 0
+    })
+      .then((nextPage) => {
+        setMcpVerificationHistoryByApp((current) => ({
+          ...current,
+          [appCode]: mergeMcpVerificationHistoryPage(current[appCode] ?? null, nextPage)
+        }));
+      })
+      .catch((error: unknown) => {
+        setErrorMessage(error instanceof Error ? error.message : "unknown error");
+      })
+      .finally(() => {
+        setMcpVerificationHistoryLoadingByApp((current) => ({
+          ...current,
+          [appCode]: false
+        }));
+      });
+  };
+
   useEffect(() => {
     refreshSnapshot();
   }, []);
@@ -574,6 +692,7 @@ export const useDashboardDataRuntime = ({
     refreshRequestLogs();
     refreshAuditEvents();
     refreshUsage();
+    refreshMcpVerificationHistories(snapshot);
   }, [snapshot]);
 
   return {
@@ -597,6 +716,8 @@ export const useDashboardDataRuntime = ({
     importPreviewSourceText,
     pendingDeleteReview,
     mcpImportPreview,
+    mcpVerificationHistoryByApp,
+    mcpVerificationHistoryLoadingByApp,
     setSelectedWorkspaceRuntimeDetail,
     setSelectedSessionRuntimeDetail,
     setSelectedProviderDiagnosticId,
@@ -622,6 +743,7 @@ export const useDashboardDataRuntime = ({
     loadImportPreview,
     loadDeleteReview,
     executeDelete,
-    loadMcpImportPreview
+    loadMcpImportPreview,
+    loadMoreMcpVerificationHistory
   };
 };

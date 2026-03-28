@@ -1,6 +1,7 @@
 import type {
   AppCode,
   LocaleCode,
+  McpVerificationHistoryPage,
   McpGovernanceRepairPreview,
   McpHostSyncPreview,
   PromptHostImportPreview,
@@ -9,6 +10,8 @@ import type {
 } from "@cc-switch-web/shared";
 
 import type { DashboardSnapshot } from "../api/load-dashboard-snapshot.js";
+import { buildMcpVerificationHistory } from "../lib/buildMcpVerificationHistory.js";
+import { buildMcpVerificationPlan } from "../lib/buildMcpVerificationPlan.js";
 import { QuickContextAssetWorkbench } from "./QuickContextAssetWorkbench.js";
 
 const APP_CODES: AppCode[] = ["codex", "claude-code"];
@@ -18,6 +21,9 @@ const buildQuickSkillId = (appCode: AppCode): string => `skill-quick-${appCode}`
 
 const localize = (locale: LocaleCode, zhCN: string, enUS: string): string =>
   locale === "zh-CN" ? zhCN : enUS;
+
+const formatDateTime = (value: string): string =>
+  value.replace("T", " ").replace(".000Z", "Z");
 
 const renderRiskLevel = (
   locale: LocaleCode,
@@ -128,6 +134,7 @@ type QuickAssetDeliveryWorkbenchProps = {
   readonly promptHostSyncStateByApp: Map<string, DashboardSnapshot["promptHostSyncStates"][number]>;
   readonly mcpHostSyncPreview: Record<string, McpHostSyncPreview | null>;
   readonly mcpGovernancePreview: Record<string, McpGovernanceRepairPreview | null>;
+  readonly mcpVerificationHistoryByApp: Record<string, McpVerificationHistoryPage | null>;
   readonly mcpRuntimeViewByApp: Map<string, DashboardSnapshot["mcpRuntimeViews"][number]>;
   readonly mcpHostSyncStateByApp: Map<string, DashboardSnapshot["mcpHostSyncStates"][number]>;
   readonly onImportPromptFromHost: (appCode: AppCode) => void;
@@ -139,7 +146,10 @@ type QuickAssetDeliveryWorkbenchProps = {
   readonly onRollbackMcpHostSync: (appCode: AppCode) => void;
   readonly onOpenAssetForms: () => void;
   readonly onOpenMcpForms: () => void;
+  readonly onOpenMcpVerificationHistory: (appCode: AppCode) => void;
   readonly onOpenTraffic: (appCode: AppCode) => void;
+  readonly onOpenMcpRuntime: (appCode: AppCode) => void;
+  readonly onOpenMcpAudit: (appCode: AppCode) => void;
   readonly onQuickContextApplied?: ((
     appCode: AppCode,
     result: QuickContextAssetApplyResult
@@ -156,6 +166,7 @@ export const QuickAssetDeliveryWorkbench = ({
   promptHostSyncStateByApp,
   mcpHostSyncPreview,
   mcpGovernancePreview,
+  mcpVerificationHistoryByApp,
   mcpRuntimeViewByApp,
   mcpHostSyncStateByApp,
   onImportPromptFromHost,
@@ -167,7 +178,10 @@ export const QuickAssetDeliveryWorkbench = ({
   onRollbackMcpHostSync,
   onOpenAssetForms,
   onOpenMcpForms,
+  onOpenMcpVerificationHistory,
   onOpenTraffic,
+  onOpenMcpRuntime,
+  onOpenMcpAudit,
   onQuickContextApplied
 }: QuickAssetDeliveryWorkbenchProps): JSX.Element => {
   return (
@@ -222,6 +236,24 @@ export const QuickAssetDeliveryWorkbench = ({
             governancePreview,
             hostPreview: mcpPreview
           });
+          const mcpVerificationPlan = buildMcpVerificationPlan({
+            snapshot,
+            appCode,
+            locale,
+            governancePreview,
+            hostPreview: mcpPreview
+          });
+          const mcpVerificationHistory = buildMcpVerificationHistory({
+            snapshot,
+            appCode,
+            locale,
+            governancePreview,
+            hostPreview: mcpPreview,
+            historyPage: mcpVerificationHistoryByApp[appCode] ?? null,
+            limit: 2
+          });
+          const latestVerificationBaseline = mcpVerificationHistory.items[0] ?? null;
+          const previousVerificationBaseline = mcpVerificationHistory.items[1] ?? null;
 
           return (
             <article className="quick-asset-card" key={`quick-asset-${appCode}`}>
@@ -405,6 +437,53 @@ export const QuickAssetDeliveryWorkbench = ({
                         {localize(locale, "最近已下发", "Last Applied")}: {mcpSyncState.lastAppliedAt}
                       </li>
                     ) : null}
+                    <li>
+                      {localize(locale, "自动验证状态", "Auto Verification Status")}:{" "}
+                      {mcpVerificationPlan.verificationStatusLabel}
+                    </li>
+                    <li>
+                      {localize(locale, "当前验证结论", "Current Verification Verdict")}:{" "}
+                      {mcpVerificationPlan.verificationStatusSummary}
+                    </li>
+                    {latestVerificationBaseline ? (
+                      <li>
+                        {localize(locale, "最近治理基线", "Latest Governance Baseline")}:{" "}
+                        {latestVerificationBaseline.baselineSourceLabel}
+                        {" / "}
+                        {formatDateTime(latestVerificationBaseline.baselineAt)}
+                      </li>
+                    ) : null}
+                    {previousVerificationBaseline ? (
+                      <li>
+                        {localize(locale, "上一轮收尾", "Previous Cycle Verdict")}:{" "}
+                        {previousVerificationBaseline.baselineSourceLabel}
+                        {" / "}
+                        {previousVerificationBaseline.verificationStatusLabel}
+                      </li>
+                    ) : null}
+                    {latestVerificationBaseline === null && mcpVerificationPlan.verificationBaselineAt ? (
+                      <li>
+                        {localize(locale, "最近治理基线", "Latest Governance Baseline")}:{" "}
+                        {formatDateTime(mcpVerificationPlan.verificationBaselineAt)}
+                      </li>
+                    ) : null}
+                    {mcpVerificationPlan.latestSuccessAt ? (
+                      <li>
+                        {localize(locale, "最近成功请求", "Latest Successful Request")}:{" "}
+                        {formatDateTime(mcpVerificationPlan.latestSuccessAt)}
+                      </li>
+                    ) : null}
+                    {mcpVerificationPlan.latestFailureAt ? (
+                      <li>
+                        {localize(locale, "最近失败请求", "Latest Failed Request")}:{" "}
+                        {formatDateTime(mcpVerificationPlan.latestFailureAt)}
+                      </li>
+                    ) : null}
+                    {mcpVerificationPlan.checkpoints.slice(0, 2).map((item) => (
+                      <li key={`${appCode}-${item.id}`}>
+                        {item.label}: {item.value}
+                      </li>
+                    ))}
                   </ul>
                   <div className="quick-action-row">
                     <button
@@ -438,6 +517,52 @@ export const QuickAssetDeliveryWorkbench = ({
                     >
                       {localize(locale, "回滚 MCP", "Rollback MCP")}
                     </button>
+                  </div>
+                  <ul className="governance-suggestion-list">
+                    {mcpVerificationPlan.nextActions.slice(0, 2).map((item) => (
+                      <li key={`${appCode}-mcp-next-${item}`}>{item}</li>
+                    ))}
+                  </ul>
+                  <div className="quick-action-row">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() => onOpenMcpRuntime(appCode)}
+                    >
+                      {localize(locale, "查看 Runtime", "Open Runtime")}
+                    </button>
+                    {(mcpVerificationPlan.hasRuntimeIssues || mcpVerificationPlan.needsHostSync) && (
+                      <button
+                        type="button"
+                        className="ghost-button"
+                        onClick={onOpenMcpForms}
+                      >
+                        {localize(locale, "回到 MCP 修复区", "Back To MCP Repair")}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() => onOpenMcpVerificationHistory(appCode)}
+                    >
+                      {localize(locale, "查看基线历史", "Open Baselines")}
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() => onOpenMcpAudit(appCode)}
+                    >
+                      {localize(locale, "聚焦 MCP 审计", "Focus MCP Audit")}
+                    </button>
+                    {(mcpVerificationPlan.needsTrafficVerification || mcpVerificationPlan.level === "low") && (
+                      <button
+                        type="button"
+                        className="ghost-button"
+                        onClick={() => onOpenTraffic(appCode)}
+                      >
+                        {localize(locale, "验证真实请求", "Validate Live Requests")}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

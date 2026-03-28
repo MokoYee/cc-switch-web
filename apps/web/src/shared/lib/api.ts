@@ -38,6 +38,7 @@ import {
   type FailoverChainUpsert,
   type HostCliDiscovery,
   type HostCliApplyPreview,
+  type HostCliRollbackBatchResult,
   hostMcpSyncCapabilitySchema,
   type HostMcpSyncCapability,
   type McpAppRuntimeView,
@@ -53,12 +54,15 @@ import {
   type McpGovernanceBatchResult,
   type McpGovernanceRepairPreview,
   type McpGovernanceRepairResult,
+  mcpVerificationHistoryPageSchema,
   type McpImportOptions,
   type McpImportPreview,
   type McpServerSavePreview,
   type McpServer,
   mcpServerSchema,
   type McpServerUpsert,
+  type McpVerificationHistoryPage,
+  type McpVerificationHistoryQuery,
   type PromptTemplate,
   type PromptTemplateSavePreview,
   type PromptTemplateUpsert,
@@ -283,10 +287,6 @@ const toQueryString = (query: Record<string, string | number | undefined>): stri
   return serialized.length > 0 ? `?${serialized}` : "";
 };
 
-export const saveProvider = async (input: ProviderUpsert): Promise<void> => {
-  await writeJson("/api/v1/providers", "POST", input);
-};
-
 export const previewQuickOnboarding = async (
   input: QuickOnboardingPreviewInput
 ): Promise<QuickOnboardingPreview> => {
@@ -342,8 +342,24 @@ export const previewProviderUpsert = async (
   return providerRoutingPreviewSchema.parse(result.item);
 };
 
-export const savePromptTemplate = async (input: PromptTemplateUpsert): Promise<void> => {
-  await writeJson("/api/v1/prompts", "POST", input);
+export const saveProvider = async (
+  input: ProviderUpsert
+): Promise<{ readonly item: Provider; readonly snapshotVersion: number }> => {
+  return writeJson<{ readonly item: Provider; readonly snapshotVersion: number }>(
+    "/api/v1/providers",
+    "POST",
+    input
+  );
+};
+
+export const savePromptTemplate = async (
+  input: PromptTemplateUpsert
+): Promise<{ readonly item: PromptTemplate; readonly snapshotVersion: number }> => {
+  return writeJson<{ readonly item: PromptTemplate; readonly snapshotVersion: number }>(
+    "/api/v1/prompts",
+    "POST",
+    input
+  );
 };
 
 export const previewPromptTemplateUpsert = async (
@@ -369,8 +385,8 @@ export const loadPromptTemplateVersions = async (
 export const restorePromptTemplateVersion = async (
   id: string,
   versionNumber: number
-): Promise<void> => {
-  await writeJson(
+): Promise<{ readonly item: PromptTemplate; readonly snapshotVersion: number }> => {
+  return writeJson<{ readonly item: PromptTemplate; readonly snapshotVersion: number }>(
     `/api/v1/prompts/${encodeURIComponent(id)}/restore/${versionNumber}`,
     "POST",
     {}
@@ -386,8 +402,14 @@ export const previewDeletePromptTemplate = async (id: string): Promise<ConfigDel
   return result.item;
 };
 
-export const saveSkill = async (input: SkillUpsert): Promise<void> => {
-  await writeJson("/api/v1/skills", "POST", input);
+export const saveSkill = async (
+  input: SkillUpsert
+): Promise<{ readonly item: Skill; readonly snapshotVersion: number }> => {
+  return writeJson<{ readonly item: Skill; readonly snapshotVersion: number }>(
+    "/api/v1/skills",
+    "POST",
+    input
+  );
 };
 
 export const previewSkillUpsert = async (
@@ -411,8 +433,8 @@ export const loadSkillVersions = async (id: string): Promise<SkillVersion[]> => 
 export const restoreSkillVersion = async (
   id: string,
   versionNumber: number
-): Promise<void> => {
-  await writeJson(
+): Promise<{ readonly item: Skill; readonly snapshotVersion: number }> => {
+  return writeJson<{ readonly item: Skill; readonly snapshotVersion: number }>(
     `/api/v1/skills/${encodeURIComponent(id)}/restore/${versionNumber}`,
     "POST",
     {}
@@ -452,8 +474,14 @@ export const applyAssetGovernanceRepair = async (
   return assetGovernanceRepairResultSchema.parse(result.item);
 };
 
-export const saveWorkspace = async (input: WorkspaceUpsert): Promise<void> => {
-  await writeJson("/api/v1/workspaces", "POST", input);
+export const saveWorkspace = async (
+  input: WorkspaceUpsert
+): Promise<{ readonly item: Workspace; readonly snapshotVersion: number }> => {
+  return writeJson<{ readonly item: Workspace; readonly snapshotVersion: number }>(
+    "/api/v1/workspaces",
+    "POST",
+    input
+  );
 };
 
 export const previewWorkspaceUpsert = async (
@@ -492,8 +520,14 @@ export const previewDeleteWorkspace = async (id: string): Promise<ConfigDeletePr
   return result.item;
 };
 
-export const saveSessionRecord = async (input: SessionRecordUpsert): Promise<void> => {
-  await writeJson("/api/v1/sessions", "POST", input);
+export const saveSessionRecord = async (
+  input: SessionRecordUpsert
+): Promise<{ readonly item: SessionRecord; readonly snapshotVersion: number }> => {
+  return writeJson<{ readonly item: SessionRecord; readonly snapshotVersion: number }>(
+    "/api/v1/sessions",
+    "POST",
+    input
+  );
 };
 
 export const previewSessionRecordUpsert = async (
@@ -546,8 +580,14 @@ export const activateSession = async (sessionId: string | null): Promise<void> =
   await writeJson("/api/v1/active-context/session", "POST", { sessionId });
 };
 
-export const saveBinding = async (input: AppBindingUpsert): Promise<void> => {
-  await writeJson("/api/v1/app-bindings", "POST", input);
+export const saveBinding = async (
+  input: AppBindingUpsert
+): Promise<{ readonly item: AppBinding; readonly snapshotVersion: number }> => {
+  return writeJson<{ readonly item: AppBinding; readonly snapshotVersion: number }>(
+    "/api/v1/app-bindings",
+    "POST",
+    input
+  );
 };
 
 export const previewBindingUpsert = async (
@@ -561,8 +601,14 @@ export const previewBindingUpsert = async (
   return appBindingRoutingPreviewSchema.parse(result.item);
 };
 
-export const saveAppQuota = async (input: AppQuotaUpsert): Promise<void> => {
-  await writeJson("/api/v1/app-quotas", "POST", input);
+export const saveAppQuota = async (
+  input: AppQuotaUpsert
+): Promise<{ readonly item: AppQuota; readonly snapshotVersion: number }> => {
+  return writeJson<{ readonly item: AppQuota; readonly snapshotVersion: number }>(
+    "/api/v1/app-quotas",
+    "POST",
+    input
+  );
 };
 
 export const previewAppQuotaUpsert = async (
@@ -576,8 +622,14 @@ export const previewAppQuotaUpsert = async (
   return result.item;
 };
 
-export const saveFailoverChain = async (input: FailoverChainUpsert): Promise<void> => {
-  await writeJson("/api/v1/failover-chains", "POST", input);
+export const saveFailoverChain = async (
+  input: FailoverChainUpsert
+): Promise<{ readonly item: FailoverChain; readonly snapshotVersion: number }> => {
+  return writeJson<{ readonly item: FailoverChain; readonly snapshotVersion: number }>(
+    "/api/v1/failover-chains",
+    "POST",
+    input
+  );
 };
 
 export const previewFailoverChainUpsert = async (
@@ -591,8 +643,14 @@ export const previewFailoverChainUpsert = async (
   return failoverChainRoutingPreviewSchema.parse(result.item);
 };
 
-export const saveMcpServer = async (input: McpServerUpsert): Promise<void> => {
-  await writeJson("/api/v1/mcp/servers", "POST", input);
+export const saveMcpServer = async (
+  input: McpServerUpsert
+): Promise<{ readonly item: McpServer; readonly snapshotVersion: number }> => {
+  return writeJson<{ readonly item: McpServer; readonly snapshotVersion: number }>(
+    "/api/v1/mcp/servers",
+    "POST",
+    input
+  );
 };
 
 export const deleteMcpServer = async (id: string): Promise<void> => {
@@ -615,8 +673,14 @@ export const previewMcpServerUpsert = async (
   return result.item;
 };
 
-export const saveAppMcpBinding = async (input: AppMcpBindingUpsert): Promise<void> => {
-  await writeJson("/api/v1/mcp/app-bindings", "POST", input);
+export const saveAppMcpBinding = async (
+  input: AppMcpBindingUpsert
+): Promise<{ readonly item: AppMcpBinding; readonly snapshotVersion: number }> => {
+  return writeJson<{ readonly item: AppMcpBinding; readonly snapshotVersion: number }>(
+    "/api/v1/mcp/app-bindings",
+    "POST",
+    input
+  );
 };
 
 export const deleteAppMcpBinding = async (id: string): Promise<void> => {
@@ -691,6 +755,18 @@ export const previewMcpImportFromHost = async (
     `/api/v1/mcp/import/${encodeURIComponent(appCode)}/preview${query}`
   );
   return result.item;
+};
+
+export const loadMcpVerificationHistory = async (
+  appCode: AppBinding["appCode"],
+  query: Partial<McpVerificationHistoryQuery> = {}
+): Promise<McpVerificationHistoryPage> => {
+  const result = await readJson<McpVerificationHistoryPage>(
+    `/api/v1/mcp/verification-history/${encodeURIComponent(appCode)}${toQueryString(
+      query as Record<string, string | number | undefined>
+    )}`
+  );
+  return mcpVerificationHistoryPageSchema.parse(result);
 };
 
 export const previewPromptHostImport = async (
@@ -810,8 +886,18 @@ export const previewHostMcpSyncApply = async (
   return result.item;
 };
 
-export const saveProxyPolicy = async (policy: ProxyPolicy): Promise<void> => {
-  await writeJson("/api/v1/proxy-policy", "PUT", policy);
+export const saveProxyPolicy = async (
+  policy: ProxyPolicy
+): Promise<{
+  readonly policy: ProxyPolicy;
+  readonly runtimeState: "stopped" | "starting" | "running";
+  readonly snapshotVersion: number;
+}> => {
+  return writeJson<{
+    readonly policy: ProxyPolicy;
+    readonly runtimeState: "stopped" | "starting" | "running";
+    readonly snapshotVersion: number;
+  }>("/api/v1/proxy-policy", "PUT", policy);
 };
 
 export const previewProxyPolicyUpdate = async (
@@ -964,6 +1050,15 @@ export const rollbackHostCliManagedConfig = async (
   return result.item;
 };
 
+export const rollbackForegroundHostCliManagedConfigs = async (): Promise<HostCliRollbackBatchResult> => {
+  const result = await writeJson<{ item: HostCliRollbackBatchResult }>(
+    "/api/v1/host-discovery/rollback-foreground",
+    "POST",
+    {}
+  );
+  return result.item;
+};
+
 export const probeProviderHealth = async (providerId: string): Promise<void> => {
   await writeJson(`/api/v1/provider-health/${encodeURIComponent(providerId)}/probe`, "POST", {});
 };
@@ -1024,6 +1119,7 @@ export const loadSessionRuntimeDetail = async (
 };
 
 export type {
+  McpVerificationHistoryPage,
   ProviderDiagnosticDetail,
   QuickContextAssetApplyResult,
   QuickContextAssetInput,

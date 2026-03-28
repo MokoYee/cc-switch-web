@@ -51,6 +51,16 @@ export const buildHostTakeoverPreviewNotice = (
     );
   }
 
+  if (preview.lifecycleMode === "foreground-session") {
+    suggestions.push(
+      localize(
+        locale,
+        "这次接管属于临时接管，daemon 正常退出后会自动回滚；如果希望重启后继续生效，应改用 systemd user service。",
+        "This takeover is temporary and will auto-rollback when the daemon exits cleanly. Use a systemd user service if it must survive restarts."
+      )
+    );
+  }
+
   if (suggestions.length === 0) {
     suggestions.push(
       localize(

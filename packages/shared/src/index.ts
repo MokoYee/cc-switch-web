@@ -600,6 +600,55 @@ export const mcpGovernanceBatchResultSchema = z.object({
   message: z.string().min(1)
 });
 
+export const mcpVerificationHistoryStatusSchema = z.enum([
+  "verified",
+  "pending-runtime",
+  "pending-host-sync",
+  "pending-audit",
+  "pending-traffic",
+  "regressed",
+  "superseded"
+]);
+
+export const mcpVerificationBaselineActionSchema = z.enum([
+  "server-upsert",
+  "server-delete",
+  "binding-upsert",
+  "binding-delete",
+  "import",
+  "governance-repair",
+  "host-apply",
+  "host-rollback",
+  "host-apply-snapshot"
+]);
+
+export const mcpVerificationHistoryItemSchema = z.object({
+  id: z.string().min(1),
+  appCode: appCodeSchema,
+  baselineAt: z.string().datetime(),
+  baselineAction: mcpVerificationBaselineActionSchema,
+  baselineSummary: z.string().min(1),
+  verificationStatus: mcpVerificationHistoryStatusSchema,
+  latestSuccessAt: z.string().datetime().nullable(),
+  latestFailureAt: z.string().datetime().nullable(),
+  latestAuditAt: z.string().datetime().nullable(),
+  nextBaselineAt: z.string().datetime().nullable(),
+  currentCycle: z.boolean(),
+  synthetic: z.boolean()
+});
+
+export const mcpVerificationHistoryQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(5),
+  offset: z.coerce.number().int().min(0).default(0)
+});
+
+export const mcpVerificationHistoryPageSchema = z.object({
+  items: z.array(mcpVerificationHistoryItemSchema),
+  total: z.number().int().min(0),
+  limit: z.number().int().min(1),
+  offset: z.number().int().min(0)
+});
+
 const tagsSchema = z.array(z.string().min(1)).default([]);
 
 export const promptTemplateSchema = z.object({
@@ -1054,6 +1103,8 @@ export const exportPackageSchema = z.object({
   snapshot: configSnapshotSchema.nullable()
 });
 
+export const hostCliLifecycleModeSchema = z.enum(["persistent", "foreground-session"]);
+
 export const hostCliDiscoverySchema = z.object({
   appCode: appCodeSchema,
   discovered: z.boolean(),
@@ -1077,6 +1128,7 @@ export const hostCliDiscoverySchema = z.object({
   currentTarget: z.string().nullable().default(null),
   desiredTarget: z.string().nullable().default(null),
   managedTarget: z.string().nullable().default(null),
+  lifecycleMode: hostCliLifecycleModeSchema.nullable().default(null),
   managedFeatures: z.array(z.enum(["claude-onboarding-bypassed"])).default([]),
   envConflicts: z.array(
     z.object({
@@ -1111,6 +1163,7 @@ export const hostCliMutationResultSchema = z.object({
   configPath: z.string(),
   backupPath: z.string().nullable(),
   integrationState: z.enum(["managed", "unmanaged"]),
+  lifecycleMode: hostCliLifecycleModeSchema.nullable().default(null),
   message: z.string().min(1)
 });
 
@@ -1120,6 +1173,7 @@ export const hostCliApplyPreviewSchema = z.object({
   configExists: z.boolean(),
   backupRequired: z.boolean(),
   riskLevel: z.enum(["low", "medium", "high"]),
+  lifecycleMode: hostCliLifecycleModeSchema,
   desiredTarget: z.string().nullable(),
   summary: z.array(z.string().min(1)),
   managedFeaturesToEnable: z.array(z.enum(["claude-onboarding-bypassed"])),
@@ -1150,6 +1204,25 @@ export const hostCliApplyPreviewSchema = z.object({
     })
   ).default([]),
   warnings: z.array(z.string().min(1))
+});
+
+export const hostCliRollbackBatchResultSchema = z.object({
+  totalApps: z.number().int().nonnegative(),
+  rolledBackApps: z.array(appCodeSchema),
+  failedApps: z.array(appCodeSchema),
+  items: z.array(hostCliMutationResultSchema),
+  failures: z.array(
+    z.object({
+      appCode: appCodeSchema,
+      message: z.string().min(1)
+    })
+  ),
+  message: z.string().min(1)
+});
+
+export const hostCliStartupRecoverySchema = hostCliRollbackBatchResultSchema.extend({
+  trigger: z.literal("startup-auto-rollback"),
+  executedAt: z.string().datetime()
 });
 
 export const onboardingAppCodeSchema = z.enum(["codex", "claude-code"]);
@@ -1968,6 +2041,7 @@ export const dashboardBootstrapSchema = z.object({
   promptHostSyncStates: z.array(promptHostSyncStateSchema),
   skillDeliveryCapabilities: z.array(skillDeliveryCapabilitySchema),
   discoveries: z.array(hostCliDiscoverySchema),
+  hostStartupRecovery: hostCliStartupRecoverySchema.nullable(),
   hostIntegrationEvents: z.array(hostIntegrationEventSchema),
   metadata: systemMetadataSchema,
   controlAuth: controlAuthRuntimeViewSchema,
@@ -2064,6 +2138,11 @@ export type McpGovernanceRepairPreview = z.infer<typeof mcpGovernanceRepairPrevi
 export type McpGovernanceRepairResult = z.infer<typeof mcpGovernanceRepairResultSchema>;
 export type McpGovernanceBatchPreview = z.infer<typeof mcpGovernanceBatchPreviewSchema>;
 export type McpGovernanceBatchResult = z.infer<typeof mcpGovernanceBatchResultSchema>;
+export type McpVerificationHistoryStatus = z.infer<typeof mcpVerificationHistoryStatusSchema>;
+export type McpVerificationBaselineAction = z.infer<typeof mcpVerificationBaselineActionSchema>;
+export type McpVerificationHistoryItem = z.infer<typeof mcpVerificationHistoryItemSchema>;
+export type McpVerificationHistoryQuery = z.infer<typeof mcpVerificationHistoryQuerySchema>;
+export type McpVerificationHistoryPage = z.infer<typeof mcpVerificationHistoryPageSchema>;
 export type PromptTemplate = z.infer<typeof promptTemplateSchema>;
 export type PromptTemplateUpsert = z.infer<typeof promptTemplateUpsertSchema>;
 export type PromptTemplateVersion = z.infer<typeof promptTemplateVersionSchema>;
@@ -2102,10 +2181,13 @@ export type ConfigSnapshotDiff = z.infer<typeof configSnapshotDiffSchema>;
 export type ConfigDeletePreview = z.infer<typeof configDeletePreviewSchema>;
 export type ConfigImportPreview = z.infer<typeof configImportPreviewSchema>;
 export type ConfigRestorePreview = z.infer<typeof configRestorePreviewSchema>;
+export type HostCliLifecycleMode = z.infer<typeof hostCliLifecycleModeSchema>;
 export type HostCliDiscovery = z.infer<typeof hostCliDiscoverySchema>;
 export type HostCliCapability = z.infer<typeof hostCliCapabilitySchema>;
 export type HostCliMutationResult = z.infer<typeof hostCliMutationResultSchema>;
 export type HostCliApplyPreview = z.infer<typeof hostCliApplyPreviewSchema>;
+export type HostCliRollbackBatchResult = z.infer<typeof hostCliRollbackBatchResultSchema>;
+export type HostCliStartupRecovery = z.infer<typeof hostCliStartupRecoverySchema>;
 export type PromptHostSyncSelectionSource = z.infer<typeof promptHostSyncSelectionSourceSchema>;
 export type PromptHostSyncCapability = z.infer<typeof promptHostSyncCapabilitySchema>;
 export type PromptHostSyncPreview = z.infer<typeof promptHostSyncPreviewSchema>;
