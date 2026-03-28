@@ -1,0 +1,18 @@
+# CC Switch Web Prometheus 抓取示例
+#
+# 适用场景：
+# - Prometheus 与 daemon 部署在同一台 Linux 主机
+# - 或 Prometheus 通过可信内网 / 反向代理访问 daemon 的 /metrics
+#
+# 使用前请确认：
+# - targets 指向的是 daemon 或反向代理的真实地址
+# - /metrics 已经被本机监听边界、ACL 或内网策略保护
+
+scrape_configs:
+  - job_name: ccsw
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - 127.0.0.1:8787
+

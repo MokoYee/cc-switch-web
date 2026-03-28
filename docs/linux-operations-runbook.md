@@ -69,6 +69,11 @@ ccsw daemon start
 
 ## 4. Prometheus 抓取示例
 
+仓库内可直接复用的示例文件：
+
+- `docs/examples/prometheus/scrape.yml`
+- `docs/examples/prometheus/alerts.yml`
+
 ### 4.1 同机 Prometheus
 
 适用于 Prometheus 与 daemon 部署在同一台 Linux 主机。
@@ -107,6 +112,10 @@ scrape_configs:
 ## 5. 首批告警建议
 
 当前 `/metrics` 以 gauge 为主，适合先配“运行态异常、Provider 健康、MCP 漂移、配额越界、快照缺失”五类告警。
+
+可直接从仓库示例起步：
+
+- `docs/examples/prometheus/alerts.yml`
 
 ```yaml
 groups:

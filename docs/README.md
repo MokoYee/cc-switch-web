@@ -12,6 +12,8 @@
 
 - `linux-web-console-design.md`：总体设计、当前已落地能力、宿主机接管支持矩阵、剩余重点功能清单。
 - `linux-operations-runbook.md`：Linux 运行手册、Prometheus 抓取示例、首批告警建议、部署与回滚 runbook。
+- `examples/prometheus/scrape.yml`：Prometheus 抓取配置示例。
+- `examples/prometheus/alerts.yml`：Prometheus 告警规则示例。
 
 ## 说明
 

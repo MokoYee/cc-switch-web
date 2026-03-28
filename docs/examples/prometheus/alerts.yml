@@ -1,0 +1,57 @@
+# CC Switch Web Prometheus 告警示例
+#
+# 当前指标以 gauge 为主，建议先覆盖：
+# - Proxy runtime 未运行
+# - Provider 健康异常
+# - MCP Host Drift
+# - App 配额越界
+# - Snapshot 不存在
+
+groups:
+  - name: ccsw.rules
+    rules:
+      - alert: CCSWProxyRuntimeNotRunning
+        expr: ccsw_proxy_runtime_state < 2
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CC Switch Web proxy runtime is not running"
+          description: "Proxy runtime state stayed below running=2 for more than 5 minutes."
+
+      - alert: CCSWProviderDiagnosisDegraded
+        expr: ccsw_provider_diagnosis_total{status=~"down|degraded|recovering"} > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CC Switch Web has degraded providers"
+          description: "At least one provider remains in down/degraded/recovering state."
+
+      - alert: CCSWMcpHostDriftDetected
+        expr: ccsw_mcp_host_drift_total > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CC Switch Web MCP host drift detected"
+          description: "Managed MCP host state differs from current enabled configuration."
+
+      - alert: CCSWAppQuotaExceeded
+        expr: ccsw_app_quota_status_total{state="exceeded"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CC Switch Web app quota exceeded"
+          description: "At least one app is already in exceeded quota state."
+
+      - alert: CCSWNoSnapshotAvailable
+        expr: ccsw_latest_snapshot_version == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CC Switch Web has no usable snapshot"
+          description: "No persisted configuration snapshot is currently available."
+
