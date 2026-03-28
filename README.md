@@ -240,3 +240,8 @@ ccsw daemon service status
 ├── package.json
 └── tsconfig.base.json
 ```
+
+## 更多公开文档
+
+- [Linux 单端口控制台设计](./docs/linux-web-console-design.md)
+- [Linux 运行与回滚手册](./docs/linux-operations-runbook.md)
