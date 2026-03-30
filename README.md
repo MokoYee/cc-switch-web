@@ -1,202 +1,119 @@
 # CC Switch Web
 
-`CC Switch Web` 是当前采用的对外名称，仓库名统一为 `cc-switch-web`。
-它参考 `cc-switch` 的能力模型，但交付形态是面向 Linux 宿主机的 `daemon-first + web console`。
+`CC Switch Web` 是一个面向 Linux 宿主机的 AI CLI 控制台。  
+它用来统一管理 `Codex`、`Claude Code`、`Gemini CLI` 等工具在本机上的接入、切换、观测与恢复。
 
-GitHub 仓库地址：`https://github.com/MokoYee/cc-switch-web`
-
-这是一个面向 `Codex`、`Claude Code`、`Gemini CLI` 等 AI 编码工具用户的本机控制面与代理入口。  
-目标不是再做一个“技术演示面板”，而是帮助用户在一台 Linux 宿主机上，把多种 AI CLI 的接入、切换、观察和后续代理能力统一起来。
+如果你的机器上同时跑多个 AI CLI，配置分散、切换麻烦、故障难排、回滚靠手工，这个项目就是为这类场景准备的。
 
 ## 它解决什么问题
 
-如果你同时在用 `Codex`、`Claude Code`、`Gemini CLI`，很快会遇到这些问题：
+在真实使用里，AI CLI 往往会很快从“单机小工具”变成“本机基础设施”，常见问题包括：
 
-- Provider、令牌、代理地址、超时配置分散在不同地方，切一次就要改一轮配置
-- 同一台服务器上跑多个 AI CLI，缺少统一入口和统一控制面
-- 切换主路由、备用路由、观察模式时，没有一个稳定的本机管理界面
-- 出问题时看不到当前绑定关系，也很难快速恢复到上一个可用配置
-- 很多项目只做桌面端，不适合 Linux 无头服务器场景
+- 不同 CLI 的 Provider、令牌、代理和超时配置分散，切换成本高
+- 同一台机器上运行多个 AI CLI，没有统一的控制入口
+- 请求是否真的走到了本地代理、当前到底命中了哪条配置链路，很难看清
+- 一旦改坏了配置，缺少稳定的恢复与回滚能力
+- 现有方案很多偏桌面端，不适合 Linux 无头服务器
 
-这个项目就是为这些问题服务的。
+`CC Switch Web` 的目标，就是把这些零散动作收敛成一个可持续使用的本地控制面。
 
-## 核心方案
+## 核心价值
 
-`CC Switch Web` 采用的是“宿主机单端口 daemon + 内置控制台 + 本地持久化”的方案：
+- 统一入口：把多种 AI CLI 的接入和切换收敛到一个控制台
+- 本地优先：数据、控制令牌和快照都保存在本机，便于长期运行
+- 可观测：能看到当前绑定关系、请求、用量、审计和运行状态
+- 可恢复：支持快照、导入导出、接管回滚和异常后的自动恢复
 
-- 默认在宿主机本机启动一个 daemon
-- 同一个端口同时承载管理 API 和内置 Control UI
-- 控制令牌持久化保存在本地 SQLite
-- Provider、应用绑定、代理策略写入 SQLite 后自动生成配置快照
-- 可以导出配置包、重新导入、恢复最近快照
-- `ccsw web` 仍然保留，但只作为调试/旁路控制台模式
+## 当前能做什么
 
-这意味着它天然更适合：
-
-- Linux 无头服务器
-- 和 `Codex` / `Claude Code` / `Gemini CLI` 同机部署
-- 本地优先、低依赖、可恢复的控制面产品形态
-
-## 现在最核心的使用路径
-
-当前产品优先解决的是这条最短主流程：
-
-1. 启动 daemon
-2. 生成或确认控制令牌
-3. 接管本机 AI CLI
-4. 让 CLI 请求走到本地代理
-5. 验证请求是否真的已经打进来
-
-换句话说，当前首先要做好的是“能装、能接管、能跑、能回滚”，而不是先把所有治理面板铺开。
-
-当前已经具备的主流程能力：
-
-- 单端口 daemon
-- 内置 `/ui` 控制台
-- 本地持久化控制令牌
-- `systemd --user` 用户态服务辅助命令
-- 宿主机 CLI 扫描
-- `codex` 接管 / 回滚
-- `claude-code` 接管 / 回滚
-- `gemini-cli` / `opencode` / MCP 配置导入与同步能力矩阵
-- MCP Host Sync 整批预览 / 整批执行 / 整批回滚
-- Prompt Host Sync 与宿主机 Prompt 投放 / 回滚
-- Prompt Host Sync 整批预览 / 整批执行
-- Skill 交付能力矩阵与代理侧注入路径说明
-- QuickStart 项目接入工作台与工作区候选 / 会话治理收敛入口
-- 前台临时接管自动回滚与异常退出后的下次启动自动恢复
-- MCP Runtime 治理预检 / 修复与基线校验历史
-- Service Doctor、运行治理面板与 Prometheus `/metrics` 导出
-- 宿主机接管预检与回滚备份
-- OpenAI-compatible 直通、Anthropic 非流式 / 流式桥接
-- 请求日志、审计事件、usage 统计、应用级日配额治理
-- 工作区 / 会话有效上下文解析与请求级覆盖协议
+- 提供单端口 daemon 与内置 Web 控制台
+- 管理 Provider、应用绑定、代理策略和故障转移
+- 接管并回滚 `codex`、`claude-code` 等本机 CLI 配置
+- 管理 MCP 与 Prompt 的导入、预览、发布和回滚
+- 提供 usage 统计、审计事件、运行治理与 `/metrics`
+- 提供配置快照、导入导出和最近版本恢复
 
 ## 适合谁
 
-- 在 Linux 服务器上同时使用多个 AI CLI 的开发者
-- 想把 `Codex`、`Claude Code`、`Gemini CLI` 统一到一个控制入口的人
-- 想把“配置切换、状态观察、恢复能力”做成本机基础设施的人
-- 准备把 AI CLI 使用场景产品化、团队化的人
+- 在 Linux 服务器上长期使用多个 AI CLI 的个人开发者
+- 想把 `Codex`、`Claude Code`、`Gemini CLI` 收敛到统一入口的团队
+- 需要把“切换、观察、恢复”做成本机稳定能力的人
+- 准备把 AI CLI 使用环境做成可交付运行面的场景
+
+## 典型使用路径
+
+最短路径通常只有四步：
+
+1. 启动 daemon
+2. 登录控制台或获取控制令牌
+3. 接管本机 AI CLI
+4. 验证请求、观察状态，必要时回滚
+
+它优先解决的是“能装、能接管、能跑、能看、能恢复”，而不是只做一个演示页面。
 
 ## 快速启动
 
-默认 CLI 命令：
-
-- 推荐短命令：`ccsw`
-- 兼容别名：`cc-switch-web`、`ai-cli-switch`、`aicli-switch`
-- 当前环境变量与 systemd 单元名仍沿用兼容前缀：`AICLI_SWITCH_*`、`ai-cli-switch.service`
-
-开发模式：
+安装依赖并启动：
 
 ```bash
 npm install
-npm run dev:daemon
-npm run dev:web
-```
-
-本机构建运行：
-
-```bash
 npm run build
-node apps/cli/dist/index.js daemon start
-# 或在安装到 PATH 后使用
 ccsw daemon start
 ```
 
-启动后访问：
-
-- 登录页：`http://127.0.0.1:8787/`
-- 内置控制台：`http://127.0.0.1:8787/ui/`
-- Prometheus 指标：`http://127.0.0.1:8787/metrics`
-
-查看或轮换本地控制令牌：
+如果当前还没有安装到 PATH，也可以直接用：
 
 ```bash
-node apps/cli/dist/index.js auth print-token
-node apps/cli/dist/index.js auth rotate-token
-# 或
+node apps/cli/dist/index.js daemon start
+```
+
+启动后默认访问：
+
+- 登录页：`http://127.0.0.1:8787/`
+- 控制台：`http://127.0.0.1:8787/ui/`
+- Metrics：`http://127.0.0.1:8787/metrics`
+
+查看控制令牌：
+
+```bash
 ccsw auth print-token
 ```
 
-按需打开独立调试控制台：
+接管 `codex`：
 
 ```bash
-node apps/cli/dist/index.js web
-# 或
-ccsw web
+ccsw host setup codex
 ```
 
-## 宿主机主流程示例
-
-最短路径可以按这个顺序：
+接管 `claude-code`：
 
 ```bash
-npm install
-npm run build
-node apps/cli/dist/index.js daemon start
-node apps/cli/dist/index.js auth print-token
-node apps/cli/dist/index.js host setup codex
+ccsw host setup claude-code
 ```
 
-如果你想进一步压成一条主命令：
+如果需要先预览再决定是否接管：
 
 ```bash
-node apps/cli/dist/index.js quickstart codex
-```
-
-如果你要先看预检再决定是否接管：
-
-```bash
-node apps/cli/dist/index.js host preview codex
-node apps/cli/dist/index.js host apply codex
+ccsw host preview codex
+ccsw host apply codex
 ```
 
 如果需要回滚：
 
 ```bash
-node apps/cli/dist/index.js host rollback codex
+ccsw host rollback codex
 ```
 
-`claude-code` 同理：
+## Linux 运行方式
 
-```bash
-node apps/cli/dist/index.js host setup claude-code
-```
+默认运行模型是：
 
-## Linux 宿主机运行模型
+- 本机 daemon
+- 内置 `/ui` 控制台
+- 本地 SQLite 持久化
+- `systemd --user` 作为长期运行方式
 
-默认端口：
-
-- Daemon 管理 API：`http://127.0.0.1:8787`
-- Daemon 内置控制台：`http://127.0.0.1:8787/ui/`
-- 独立调试控制台：`http://127.0.0.1:8788`
-
-默认安全策略：
-
-- Daemon 默认仅监听 `127.0.0.1`
-- 控制台默认要求控制令牌登录
-- 登录后使用 cookie 访问同端口 UI 和 API
-- 控制令牌默认持久化到本地 SQLite
-- `/metrics` 当前不走控制台登录态，建议放在可信网络或反向代理 ACL 后
-- 允许来源可通过 `ALLOWED_ORIGINS` 覆盖
-
-环境变量示例：
-
-```bash
-AICLI_SWITCH_CONTROL_TOKEN=your-token
-AICLI_SWITCH_ALLOWED_ORIGINS=http://localhost:<web-port>,http://<host>:<web-port>
-AICLI_SWITCH_DAEMON_HOST=<daemon-host>
-AICLI_SWITCH_DAEMON_PORT=<daemon-port>
-AICLI_SWITCH_WEB_HOST=127.0.0.1
-AICLI_SWITCH_WEB_PORT=<web-port>
-AICLI_SWITCH_DATA_DIR=~/.ai-cli-switch
-AICLI_SWITCH_DB_PATH=~/.ai-cli-switch/ai-cli-switch.sqlite
-```
-
-## systemd 用户态服务
-
-在 Linux 宿主机上可以直接生成用户态服务配置：
+常用命令：
 
 ```bash
 ccsw daemon service print
@@ -204,29 +121,13 @@ ccsw daemon service install
 ccsw daemon service status
 ```
 
-默认会写入：
+兼容命令与历史前缀仍保留：
 
-- unit：`~/.config/systemd/user/ai-cli-switch.service`
-- env：`~/.config/ai-cli-switch/daemon.env`
+- CLI 别名：`cc-switch-web`、`ai-cli-switch`、`aicli-switch`
+- 环境变量前缀：`AICLI_SWITCH_*`
+- `systemd` unit：`ai-cli-switch.service`
 
-## 仓库结构
-
-```text
-.
-├── apps
-│   ├── cli
-│   ├── daemon
-│   └── web
-├── docs
-├── packages
-│   └── shared
-├── tools
-│   └── standalone
-├── package.json
-└── tsconfig.base.json
-```
-
-## 更多公开文档
+## 公开文档
 
 - [Linux 单端口控制台设计](./docs/linux-web-console-design.md)
 - [Linux 运行与回滚手册](./docs/linux-operations-runbook.md)
