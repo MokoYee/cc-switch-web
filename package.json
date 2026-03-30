@@ -1,6 +1,6 @@
 {
   "name": "@mokoyee/cc-switch-web",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Daemon-first web console and local proxy control plane for Codex, Claude Code, Gemini CLI, and related AI CLI tools.",
   "type": "module",
   "bin": {
