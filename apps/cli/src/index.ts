@@ -204,6 +204,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+WorkingDirectory=${workspaceRoot}
 EnvironmentFile=-${systemdEnvPath}
 ExecStart=${process.execPath} ${cliEntry} daemon start
 Restart=on-failure

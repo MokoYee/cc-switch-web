@@ -23,7 +23,7 @@ export const providerSchema = z.object({
   name: z.string().min(1),
   providerType: providerTypeSchema,
   baseUrl: z.string().url(),
-  apiKeyMasked: z.string().min(1),
+  apiKeyMasked: z.string(),
   enabled: z.boolean(),
   timeoutMs: z.number().int().positive(),
   createdAt: z.string().datetime(),
@@ -40,6 +40,10 @@ export const providerUpsertSchema = providerSchema.pick({
 }).extend({
   apiKey: z.string().trim().optional().default(""),
   apiKeyMasked: z.string().trim().optional()
+});
+
+export const exportProviderSchema = providerSchema.extend({
+  apiKey: z.string().trim().optional()
 });
 
 export const appBindingSchema = z.object({
@@ -542,6 +546,15 @@ export const mcpHostSyncBatchResultSchema = z.object({
   appliedApps: z.array(appCodeSchema),
   skippedApps: z.array(appCodeSchema),
   syncedServerIds: z.array(z.string().min(1)),
+  items: z.array(hostMcpSyncResultSchema),
+  message: z.string().min(1)
+});
+
+export const mcpHostSyncBatchRollbackResultSchema = z.object({
+  totalApps: z.number().int().min(0),
+  rolledBackApps: z.array(appCodeSchema),
+  skippedApps: z.array(appCodeSchema),
+  restoredServerIds: z.array(z.string().min(1)),
   items: z.array(hostMcpSyncResultSchema),
   message: z.string().min(1)
 });
@@ -1089,7 +1102,7 @@ export const configRestorePreviewSchema = z.object({
 export const exportPackageSchema = z.object({
   version: z.literal("0.1.0"),
   exportedAt: z.string().datetime(),
-  providers: z.array(providerSchema),
+  providers: z.array(exportProviderSchema),
   bindings: z.array(appBindingSchema),
   appQuotas: z.array(appQuotaSchema).default([]),
   proxyPolicy: proxyPolicySchema,
@@ -2067,6 +2080,7 @@ export type AppCode = z.infer<typeof appCodeSchema>;
 export type LocaleCode = z.infer<typeof localeCodeSchema>;
 export type Provider = z.infer<typeof providerSchema>;
 export type ProviderUpsert = z.infer<typeof providerUpsertSchema>;
+export type ExportProvider = z.infer<typeof exportProviderSchema>;
 export type AppBinding = z.infer<typeof appBindingSchema>;
 export type AppBindingUpsert = z.infer<typeof appBindingUpsertSchema>;
 export type RoutingPreviewIssueCode = z.infer<typeof routingPreviewIssueCodeSchema>;
@@ -2132,6 +2146,7 @@ export type McpBindingSavePreview = z.infer<typeof mcpBindingSavePreviewSchema>;
 export type McpHostSyncPreview = z.infer<typeof mcpHostSyncPreviewSchema>;
 export type McpHostSyncBatchPreview = z.infer<typeof mcpHostSyncBatchPreviewSchema>;
 export type McpHostSyncBatchResult = z.infer<typeof mcpHostSyncBatchResultSchema>;
+export type McpHostSyncBatchRollbackResult = z.infer<typeof mcpHostSyncBatchRollbackResultSchema>;
 export type McpGovernanceRepairAction = z.infer<typeof mcpGovernanceRepairActionSchema>;
 export type McpGovernanceRepairPlanItem = z.infer<typeof mcpGovernanceRepairPlanItemSchema>;
 export type McpGovernanceRepairPreview = z.infer<typeof mcpGovernanceRepairPreviewSchema>;

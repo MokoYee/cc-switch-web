@@ -1,8 +1,17 @@
 {
   "name": "cc-switch-web",
   "version": "0.1.0",
+  "description": "Daemon-first web console and local proxy control plane for Codex, Claude Code, Gemini CLI, and related AI CLI tools.",
   "private": true,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MokoYee/cc-switch-web.git"
+  },
+  "homepage": "https://github.com/MokoYee/cc-switch-web#readme",
+  "bugs": {
+    "url": "https://github.com/MokoYee/cc-switch-web/issues"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -11,10 +20,29 @@
     "node": ">=20.0.0"
   },
   "scripts": {
+    "acceptance:all": "npm run acceptance:core && npm run acceptance:delivery",
+    "acceptance:core": "npm run typecheck && npm run test && npm run test:browser",
+    "acceptance:delivery": "npm run smoke && npm run release:bundle && npm run release:verify:latest",
     "build": "npm run build --workspace @cc-switch-web/shared && npm run build --workspace @cc-switch-web/daemon && npm run build --workspace @cc-switch-web/web && npm run build --workspace @cc-switch-web/cli",
+    "ci": "npm run typecheck && npm run test && npm run build && npm run smoke:daemon",
     "dev:daemon": "npm run build --workspace @cc-switch-web/shared && npm run dev --workspace @cc-switch-web/daemon",
     "dev:web": "npm run build --workspace @cc-switch-web/shared && npm run dev --workspace @cc-switch-web/web",
+    "ops:install": "bash tools/ops/install-host.sh",
+    "ops:rollback": "bash tools/ops/rollback-host.sh",
+    "ops:upgrade": "bash tools/ops/upgrade-host.sh",
+    "ops:verify": "bash tools/ops/verify-host.sh",
+    "release:bundle": "bash tools/release/package-bundle.sh",
+    "release:verify": "bash tools/release/verify-bundle.sh",
+    "release:verify:latest": "bash tools/release/verify-latest-bundle.sh",
+    "smoke": "npm run build --workspace @cc-switch-web/shared && npm run build --workspace @cc-switch-web/web && npm run build --workspace @cc-switch-web/daemon && npm run smoke:daemon",
+    "smoke:daemon": "node tools/smoke/daemon-smoke.mjs",
     "start:standalone": "node tools/standalone/server.mjs",
+    "test": "npm run test --workspace @cc-switch-web/daemon && npm run test --workspace @cc-switch-web/web",
+    "test:browser": "npm run build --workspace @cc-switch-web/shared && npm run build --workspace @cc-switch-web/web && npm run build --workspace @cc-switch-web/daemon && playwright test",
+    "test:browser:install": "playwright install chromium",
     "typecheck": "npm run build --workspace @cc-switch-web/shared && npm run typecheck --workspace @cc-switch-web/daemon && npm run typecheck --workspace @cc-switch-web/web && npm run typecheck --workspace @cc-switch-web/cli"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.53.2"
   }
 }

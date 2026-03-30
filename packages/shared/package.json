@@ -4,6 +4,15 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MokoYee/cc-switch-web.git",
+    "directory": "packages/shared"
+  },
+  "homepage": "https://github.com/MokoYee/cc-switch-web/tree/main/packages/shared",
+  "bugs": {
+    "url": "https://github.com/MokoYee/cc-switch-web/issues"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

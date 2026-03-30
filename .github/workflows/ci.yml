@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  web-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build --workspace @cc-switch-web/shared
+
+      - name: Typecheck web
+        run: npm run typecheck --workspace @cc-switch-web/web
+
+      - name: Test web
+        run: npm run test --workspace @cc-switch-web/web
+
+      - name: Build web
+        run: npm run build --workspace @cc-switch-web/web
+
+  daemon-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build --workspace @cc-switch-web/shared
+
+      - name: Typecheck daemon
+        run: npm run typecheck --workspace @cc-switch-web/daemon
+
+      - name: Test daemon
+        run: npm run test --workspace @cc-switch-web/daemon
+
+      - name: Build daemon
+        run: npm run build --workspace @cc-switch-web/daemon
+
+      - name: Typecheck cli
+        run: npm run typecheck --workspace @cc-switch-web/cli
+
+      - name: Build cli
+        run: npm run build --workspace @cc-switch-web/cli
+
+  daemon-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run daemon smoke
+        run: npm run smoke
+
+  release-bundle-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build release bundle
+        run: npm run release:bundle
+
+      - name: Verify latest release bundle
+        run: npm run release:verify:latest

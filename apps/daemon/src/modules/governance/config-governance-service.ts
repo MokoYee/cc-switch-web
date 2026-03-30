@@ -430,12 +430,31 @@ export class ConfigGovernanceService {
     const payload = exportPackageSchema.parse(input);
     const routingApps = new Set(payload.bindings.map((item) => item.appCode));
     const warnings: string[] = [];
+    const existingProviderSecrets = new Map(
+      this.providerRepository.listRuntime().map((item) => [item.id, item.apiKeyPlaintext.trim()])
+    );
+    const enabledProvidersWithoutImportedSecret = payload.providers.filter(
+      (item) => item.enabled && (item.apiKey?.trim().length ?? 0) === 0
+    );
+    const enabledProvidersWithoutFallback = enabledProvidersWithoutImportedSecret.filter(
+      (item) => (existingProviderSecrets.get(item.id)?.length ?? 0) === 0
+    );
 
     if (payload.proxyPolicy.listenHost !== "127.0.0.1") {
       warnings.push(`Imported proxy host is not loopback-only: ${payload.proxyPolicy.listenHost}`);
     }
     if (payload.bindings.length === 0) {
       warnings.push("Imported package contains no app bindings.");
+    }
+    if (enabledProvidersWithoutImportedSecret.length > 0) {
+      warnings.push(
+        `Imported package omits plaintext credentials for enabled providers: ${enabledProvidersWithoutImportedSecret.map((item) => item.id).join(", ")}.`
+      );
+    }
+    if (enabledProvidersWithoutFallback.length > 0) {
+      warnings.push(
+        `Enabled providers without imported or local fallback credentials will require API key re-entry after import: ${enabledProvidersWithoutFallback.map((item) => item.id).join(", ")}.`
+      );
     }
 
     return {

@@ -2,6 +2,15 @@
   "name": "@cc-switch-web/cli",
   "version": "0.1.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MokoYee/cc-switch-web.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://github.com/MokoYee/cc-switch-web/tree/main/apps/cli",
+  "bugs": {
+    "url": "https://github.com/MokoYee/cc-switch-web/issues"
+  },
   "bin": {
     "ccsw": "dist/index.js",
     "cc-switch-web": "dist/index.js",

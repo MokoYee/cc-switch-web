@@ -40,6 +40,7 @@ import {
   buildSkillEditorState,
   buildWorkspaceEditorState
 } from "../lib/editorConsistency.js";
+import { writeDashboardEditorSelection } from "../lib/editorBootstrapStorage.js";
 
 import {
   type DashboardActionLocale,
@@ -124,6 +125,7 @@ export const createDashboardAssetActions = ({
       async () => {
         const { item } = await saveWorkspace(buildWorkspaceSaveInput(workspaceForm, workspaceTagsText));
         const editorState = buildWorkspaceEditorState(item);
+        writeDashboardEditorSelection("workspace", item.id);
         setWorkspaceForm(editorState.form);
         setWorkspaceTagsText(editorState.tagsText);
         refreshWorkspaceRuntimeDetail(item.id);
@@ -135,6 +137,7 @@ export const createDashboardAssetActions = ({
   saveSession: () =>
     runAction(async () => {
       const { item } = await saveSessionRecord(sessionForm);
+      writeDashboardEditorSelection("session", item.id);
       setSessionForm(buildSessionEditorState(item));
       refreshSessionRuntimeDetail(item.id);
       focusSessionLogs(item.id);
@@ -147,6 +150,7 @@ export const createDashboardAssetActions = ({
           buildPromptTemplateSaveInput(promptTemplateForm, promptTagsText)
         );
         const editorState = buildPromptTemplateEditorState(item);
+        writeDashboardEditorSelection("prompt-template", item.id);
         setPromptTemplateForm(editorState.form);
         setPromptTagsText(editorState.tagsText);
         await refreshPromptTemplateVersionsFor(item.id);
@@ -162,6 +166,7 @@ export const createDashboardAssetActions = ({
       async () => {
         const { item } = await savePromptTemplate(input);
         const editorEcho = buildPromptTemplateVersionedEditorEcho(promptTemplateForm.id, item);
+        writeDashboardEditorSelection("prompt-template", item.id);
         if (editorEcho.editorState !== null) {
           const editorState = editorEcho.editorState;
           setPromptTemplateForm(editorState.form);
@@ -181,6 +186,7 @@ export const createDashboardAssetActions = ({
     runAction(async () => {
       const { item } = await restorePromptTemplateVersion(promptTemplateId, versionNumber);
       const editorEcho = buildPromptTemplateVersionedEditorEcho(promptTemplateForm.id, item);
+      writeDashboardEditorSelection("prompt-template", item.id);
       if (editorEcho.editorState !== null) {
         const editorState = editorEcho.editorState;
         setPromptTemplateForm(editorState.form);
@@ -199,6 +205,7 @@ export const createDashboardAssetActions = ({
       async () => {
         const { item } = await saveSkill(buildSkillSaveInput(skillForm, skillTagsText));
         const editorState = buildSkillEditorState(item);
+        writeDashboardEditorSelection("skill", item.id);
         setSkillForm(editorState.form);
         setSkillTagsText(editorState.tagsText);
         await refreshSkillVersionsFor(item.id);
@@ -214,6 +221,7 @@ export const createDashboardAssetActions = ({
       async () => {
         const { item } = await saveSkill(input);
         const editorEcho = buildSkillVersionedEditorEcho(skillForm.id, item);
+        writeDashboardEditorSelection("skill", item.id);
         if (editorEcho.editorState !== null) {
           const editorState = editorEcho.editorState;
           setSkillForm(editorState.form);
@@ -233,6 +241,7 @@ export const createDashboardAssetActions = ({
     runAction(async () => {
       const { item } = await restoreSkillVersion(skillId, versionNumber);
       const editorEcho = buildSkillVersionedEditorEcho(skillForm.id, item);
+      writeDashboardEditorSelection("skill", item.id);
       if (editorEcho.editorState !== null) {
         const editorState = editorEcho.editorState;
         setSkillForm(editorState.form);

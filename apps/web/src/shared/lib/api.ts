@@ -45,6 +45,7 @@ import {
   type McpHostSyncState,
   type McpHostSyncPreview,
   type McpHostSyncBatchPreview,
+  type McpHostSyncBatchRollbackResult,
   type McpHostSyncBatchResult,
   type HostMcpSyncResult,
   type HostIntegrationEvent,
@@ -870,6 +871,15 @@ export const applyHostMcpSyncAll = async (): Promise<McpHostSyncBatchResult> => 
   return result.item;
 };
 
+export const rollbackHostMcpSyncAll = async (): Promise<McpHostSyncBatchRollbackResult> => {
+  const result = await writeJson<{ item: McpHostSyncBatchRollbackResult }>(
+    "/api/v1/mcp/host-sync/rollback-all",
+    "POST",
+    {}
+  );
+  return result.item;
+};
+
 export const rollbackHostMcpSync = async (appCode: AppBinding["appCode"]): Promise<HostMcpSyncResult> => {
   const result = await writeJson<{ item: HostMcpSyncResult }>(
     `/api/v1/mcp/host-sync/${encodeURIComponent(appCode)}/rollback`,
@@ -958,8 +968,16 @@ export const previewDeleteFailoverChain = async (id: string): Promise<ConfigDele
   return result.item;
 };
 
-export const exportCurrentConfig = async (): Promise<ExportPackage> => {
-  const result = await readJson<ExportPackage>("/api/v1/import-export/export");
+export const exportCurrentConfig = async (
+  options: {
+    readonly includeSecrets?: boolean;
+  } = {}
+): Promise<ExportPackage> => {
+  const result = await readJson<ExportPackage>(
+    `/api/v1/import-export/export${toQueryString({
+      includeSecrets: options.includeSecrets ? "true" : undefined
+    })}`
+  );
   return exportPackageSchema.parse(result);
 };
 

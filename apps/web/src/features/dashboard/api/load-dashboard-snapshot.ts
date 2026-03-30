@@ -89,6 +89,7 @@ export {
   previewProviderUpsert,
   probeProviderHealth,
   rollbackHostMcpSync,
+  rollbackHostMcpSyncAll,
   rollbackForegroundHostCliManagedConfigs,
   rollbackPromptHostSync,
   rollbackHostCliManagedConfig,

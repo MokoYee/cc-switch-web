@@ -179,6 +179,65 @@ test("previews and applies MCP host sync changes across managed apps", () => {
   rmSync(rootDir, { recursive: true, force: true });
 });
 
+test("rolls back MCP host sync changes across managed apps", () => {
+  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-batch-rollback-"));
+  const homeDir = join(rootDir, "home");
+  const dataDir = join(rootDir, "data");
+  mkdirSync(join(homeDir, ".codex"), { recursive: true });
+  writeFileSync(
+    join(homeDir, ".codex/config.toml"),
+    ['model_provider = "custom"', "", "[model_providers.custom]", 'base_url = "https://example.com/v1"'].join("\n"),
+    "utf-8"
+  );
+  writeFileSync(
+    join(homeDir, ".claude.json"),
+    JSON.stringify(
+      {
+        mcpServers: {
+          shared: {
+            type: "stdio",
+            command: "echo",
+            args: ["legacy"]
+          }
+        }
+      },
+      null,
+      2
+    ),
+    "utf-8"
+  );
+
+  const service = createHostSyncService(homeDir, dataDir);
+  const bindings = [
+    createBinding(),
+    createBinding({
+      id: "claude-filesystem",
+      appCode: "claude-code"
+    })
+  ];
+  const servers = [createMcpServer()];
+
+  service.applyAll(bindings, servers);
+
+  const result = service.rollbackAll();
+  assert.deepEqual(result.rolledBackApps.sort(), ["claude-code", "codex"]);
+  assert.deepEqual(result.skippedApps.sort(), ["gemini-cli", "opencode"]);
+  assert.deepEqual(result.restoredServerIds, ["filesystem"]);
+  assert.match(result.message, /Rolled back MCP host sync/);
+
+  const rolledBackCodex = readFileSync(join(homeDir, ".codex/config.toml"), "utf-8");
+  assert.doesNotMatch(rolledBackCodex, /CC Switch Web MCP/);
+  assert.match(rolledBackCodex, /model_provider = "custom"/);
+
+  const rolledBackClaude = JSON.parse(readFileSync(join(homeDir, ".claude.json"), "utf-8")) as {
+    mcpServers: Record<string, { command?: string }>;
+  };
+  assert.equal(rolledBackClaude.mcpServers.shared?.command, "echo");
+  assert.equal(rolledBackClaude.mcpServers.filesystem, undefined);
+
+  rmSync(rootDir, { recursive: true, force: true });
+});
+
 test("syncs claude MCP config while preserving unmanaged servers", () => {
   const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-claude-"));
   const homeDir = join(rootDir, "home");

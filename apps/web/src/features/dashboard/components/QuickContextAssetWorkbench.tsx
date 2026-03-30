@@ -188,7 +188,7 @@ export const QuickContextAssetWorkbench = ({
   };
 
   return (
-    <div className="quick-context-shell">
+    <div className="quick-context-shell" data-testid={`quick-context-workbench-${appCode}`}>
       <div className="quick-onboarding-section-header">
         <div>
           <strong>{localize(locale, "默认资产创建", "Default Asset Bootstrap")}</strong>
@@ -213,7 +213,11 @@ export const QuickContextAssetWorkbench = ({
       <div className="quick-context-grid">
         <label>
           <span>{localize(locale, "Prompt 语言", "Prompt Locale")}</span>
-          <select value={promptLocale} onChange={(event) => setPromptLocale(event.target.value as LocaleCode)}>
+          <select
+            value={promptLocale}
+            onChange={(event) => setPromptLocale(event.target.value as LocaleCode)}
+            data-testid={`quick-context-prompt-locale-${appCode}`}
+          >
             <option value="zh-CN">zh-CN</option>
             <option value="en-US">en-US</option>
           </select>
@@ -224,6 +228,7 @@ export const QuickContextAssetWorkbench = ({
           <select
             value={targetMode}
             onChange={(event) => setTargetMode(event.target.value as QuickContextAssetTargetMode)}
+            data-testid={`quick-context-target-mode-${appCode}`}
           >
             <option value="auto">{localize(locale, "自动选择（推荐）", "Auto (Recommended)")}</option>
             <option value="app-binding">{localize(locale, "应用默认链路", "App Default Binding")}</option>
@@ -239,6 +244,7 @@ export const QuickContextAssetWorkbench = ({
             value={promptContent}
             onChange={(event) => setPromptContent(event.target.value)}
             rows={6}
+            data-testid={`quick-context-prompt-input-${appCode}`}
             placeholder={localize(
               locale,
               "输入这条应用默认要带上的系统 Prompt。",
@@ -253,6 +259,7 @@ export const QuickContextAssetWorkbench = ({
             value={skillContent}
             onChange={(event) => setSkillContent(event.target.value)}
             rows={4}
+            data-testid={`quick-context-skill-input-${appCode}`}
             placeholder={localize(
               locale,
               "可留空。填写后会同时创建一份默认 Skill 并与 Prompt 绑定。",
@@ -262,11 +269,22 @@ export const QuickContextAssetWorkbench = ({
         </label>
       </div>
 
-      {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
-      {noticeMessage ? <p className="form-notice">{noticeMessage}</p> : null}
+      {errorMessage ? (
+        <p className="form-error" data-testid={`quick-context-error-${appCode}`}>
+          {errorMessage}
+        </p>
+      ) : null}
+      {noticeMessage ? (
+        <p className="form-notice" data-testid={`quick-context-notice-${appCode}`}>
+          {noticeMessage}
+        </p>
+      ) : null}
 
       {preview ? (
-        <div className={`quick-onboarding-result ${preview.canApply ? "risk-low" : "risk-high"}`}>
+        <div
+          className={`quick-onboarding-result ${preview.canApply ? "risk-low" : "risk-high"}`}
+          data-testid={`quick-context-preview-${appCode}`}
+        >
           <div className="quick-onboarding-result-header">
             <div>
               <h4>{localize(locale, "默认资产预检", "Default Asset Preview")}</h4>
@@ -294,6 +312,7 @@ export const QuickContextAssetWorkbench = ({
           className="ghost-button"
           onClick={handlePreview}
           disabled={disabled || isPreviewing || isApplying || !canSubmit}
+          data-testid={`quick-context-preview-button-${appCode}`}
         >
           {isPreviewing ? localize(locale, "预检中…", "Previewing…") : localize(locale, "预检默认资产", "Preview Default Assets")}
         </button>
@@ -301,6 +320,7 @@ export const QuickContextAssetWorkbench = ({
           type="button"
           onClick={handleApply}
           disabled={disabled || isPreviewing || isApplying || !canSubmit}
+          data-testid={`quick-context-apply-button-${appCode}`}
         >
           {isApplying ? localize(locale, "保存中…", "Applying…") : localize(locale, "保存并挂载", "Save And Attach")}
         </button>

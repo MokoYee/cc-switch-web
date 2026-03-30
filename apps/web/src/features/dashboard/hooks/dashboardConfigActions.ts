@@ -36,6 +36,7 @@ import {
   buildMcpServerEditorInput,
   buildProviderEditorState
 } from "../lib/editorConsistency.js";
+import { writeDashboardEditorSelection } from "../lib/editorBootstrapStorage.js";
 
 import {
   type DashboardActionLocale,
@@ -163,6 +164,7 @@ export const createDashboardRoutingActions = ({
   saveProvider: () =>
     runAction(async () => {
       const { item } = await saveProvider(providerForm);
+      writeDashboardEditorSelection("provider", item.id);
       setProviderForm(buildProviderEditorState(item));
       refreshProviderDiagnosticDetail(item.id);
       focusProviderFailureLogs(item.id);
@@ -187,6 +189,7 @@ export const createDashboardRoutingActions = ({
   saveAppQuota: () =>
     runAction(async () => {
       const { item } = await saveAppQuota(appQuotaForm);
+      writeDashboardEditorSelection("app-quota", item.id);
       setAppQuotaForm(buildAppQuotaEditorState(item));
       focusAppLogs(item.appCode);
       openAuditFocus({

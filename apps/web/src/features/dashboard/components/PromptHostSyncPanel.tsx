@@ -14,6 +14,15 @@ const localize = (locale: "zh-CN" | "en-US", zhCN: string, enUS: string): string
 const formatDateTime = (value: string | null): string =>
   value === null ? "n/a" : value.replace("T", " ").replace(".000Z", "Z");
 
+const buildSummaryTileTestId = (name: string): string => `prompt-host-sync-summary-${name}`;
+const buildAppCardTestId = (appCode: AppBinding["appCode"]): string => `prompt-host-sync-card-${appCode}`;
+const buildImportButtonTestId = (appCode: AppBinding["appCode"]): string =>
+  `prompt-host-sync-import-button-${appCode}`;
+const buildApplyButtonTestId = (appCode: AppBinding["appCode"]): string =>
+  `prompt-host-sync-apply-button-${appCode}`;
+const buildRollbackButtonTestId = (appCode: AppBinding["appCode"]): string =>
+  `prompt-host-sync-rollback-button-${appCode}`;
+
 const previewText = (value: string, limit = 120): string => {
   const normalized = value.trim().replace(/\s+/g, " ");
   if (normalized.length <= limit) {
@@ -234,7 +243,7 @@ export const PromptHostSyncPanel = ({
   }).length;
 
   return (
-    <article className="panel panel-span-2">
+    <article className="panel panel-span-2" data-testid="prompt-host-sync-panel">
       <h2>{localize(locale, "Prompt 宿主机同步", "Prompt Host Sync")}</h2>
       <p className="panel-lead">
         {localize(
@@ -245,23 +254,38 @@ export const PromptHostSyncPanel = ({
       </p>
 
       <div className="preview-summary-grid">
-        <div className={`preview-summary-tile risk-${managedCapabilities.length > 0 ? "low" : "medium"}`}>
+        <div
+          className={`preview-summary-tile risk-${managedCapabilities.length > 0 ? "low" : "medium"}`}
+          data-testid={buildSummaryTileTestId("managed-apps")}
+        >
           <strong>{managedCapabilities.length}</strong>
           <span>{localize(locale, "可托管应用", "Managed Apps")}</span>
         </div>
-        <div className={`preview-summary-tile risk-${snapshot.promptHostSyncStates.length > 0 ? "medium" : "low"}`}>
+        <div
+          className={`preview-summary-tile risk-${snapshot.promptHostSyncStates.length > 0 ? "medium" : "low"}`}
+          data-testid={buildSummaryTileTestId("currently-applied")}
+        >
           <strong>{snapshot.promptHostSyncStates.length}</strong>
           <span>{localize(locale, "当前已下发", "Currently Applied")}</span>
         </div>
-        <div className={`preview-summary-tile risk-${batchReadyCount > 0 ? "medium" : "low"}`}>
+        <div
+          className={`preview-summary-tile risk-${batchReadyCount > 0 ? "medium" : "low"}`}
+          data-testid={buildSummaryTileTestId("batch-ready")}
+        >
           <strong>{batchReadyCount}</strong>
           <span>{localize(locale, "待整批同步", "Batch Ready")}</span>
         </div>
-        <div className={`preview-summary-tile risk-${blockedCount > 0 ? "high" : "low"}`}>
+        <div
+          className={`preview-summary-tile risk-${blockedCount > 0 ? "high" : "low"}`}
+          data-testid={buildSummaryTileTestId("blocked")}
+        >
           <strong>{blockedCount}</strong>
           <span>{localize(locale, "当前阻断", "Blocked")}</span>
         </div>
-        <div className={`preview-summary-tile risk-${plannedCapabilities.length > 0 ? "medium" : "low"}`}>
+        <div
+          className={`preview-summary-tile risk-${plannedCapabilities.length > 0 ? "medium" : "low"}`}
+          data-testid={buildSummaryTileTestId("planned-apps")}
+        >
           <strong>{plannedCapabilities.length}</strong>
           <span>{localize(locale, "规划中的应用", "Planned Apps")}</span>
         </div>
@@ -273,6 +297,7 @@ export const PromptHostSyncPanel = ({
           type="button"
           disabled={isWorking || batchReadyCount === 0}
           onClick={onApplyHostSyncAll}
+          data-testid="prompt-host-sync-apply-all-button"
         >
           {localize(locale, "整批同步到宿主机", "Apply All To Host")}
         </button>
@@ -281,7 +306,7 @@ export const PromptHostSyncPanel = ({
         </button>
       </div>
 
-      <div className="note-block">
+      <div className="note-block" data-testid="prompt-host-sync-batch-guidance">
         <strong>{localize(locale, "整批治理说明", "Batch Governance Guidance")}</strong>
         <p>
           {blockedCount > 0
@@ -364,7 +389,11 @@ export const PromptHostSyncPanel = ({
           });
 
           return (
-            <section key={capability.appCode} className="quickstart-step">
+            <section
+              key={capability.appCode}
+              className="quickstart-step"
+              data-testid={buildAppCardTestId(capability.appCode)}
+            >
               <div className="governance-notice-header">
                 <strong>{capability.appCode}</strong>
                 <span className="governance-notice-badge">
@@ -558,6 +587,7 @@ export const PromptHostSyncPanel = ({
                         (importPreview.status !== "ready-create" && importPreview.status !== "ready-match")
                       }
                       onClick={() => onImportFromHost(capability.appCode)}
+                      data-testid={buildImportButtonTestId(capability.appCode)}
                     >
                       {importPreview?.status === "ready-match"
                         ? localize(locale, "复用已有 Prompt", "Reuse Existing Prompt")
@@ -568,6 +598,7 @@ export const PromptHostSyncPanel = ({
                       type="button"
                       disabled={isWorking || applyPreview === null || !applyPreview.applyReady}
                       onClick={() => onApplyHostSync(capability.appCode)}
+                      data-testid={buildApplyButtonTestId(capability.appCode)}
                     >
                       {localize(locale, "同步到宿主机", "Apply To Host")}
                     </button>
@@ -576,6 +607,7 @@ export const PromptHostSyncPanel = ({
                       type="button"
                       disabled={isWorking || syncState === null}
                       onClick={() => onRollbackHostSync(capability.appCode)}
+                      data-testid={buildRollbackButtonTestId(capability.appCode)}
                     >
                       {localize(locale, "回滚宿主机文件", "Rollback Host File")}
                     </button>

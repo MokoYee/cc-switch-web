@@ -178,10 +178,31 @@ test("previews asset and policy governance impacts", () => {
   assert.equal(deletePreview.blockers[0], "Referenced by 1 session(s)");
   assert.equal(deletePreview.impact.riskLevel, "high");
 
+  const existingProvider = providerRepository.list()[0];
+  if (existingProvider === undefined) {
+    throw new Error("expected seeded provider");
+  }
   const importPreview = service.previewImportPackage({
     version: "0.1.0",
     exportedAt: "2026-03-21T00:00:00.000Z",
-    providers: [],
+    providers: [
+      {
+        ...existingProvider,
+        apiKey: ""
+      },
+      {
+        id: "provider-import-only",
+        name: "Provider Import Only",
+        providerType: "openai-compatible",
+        baseUrl: "https://provider-import-only.example.com/v1",
+        apiKeyMasked: "",
+        enabled: true,
+        timeoutMs: 30_000,
+        createdAt: "2026-03-21T00:00:00.000Z",
+        updatedAt: "2026-03-21T00:00:00.000Z",
+        apiKey: ""
+      }
+    ],
     promptTemplates: [],
     skills: [],
     workspaces: [],
@@ -200,6 +221,14 @@ test("previews asset and policy governance impacts", () => {
     appMcpBindings: [],
     snapshot: null
   });
+  assert.match(
+    importPreview.warnings.join(" "),
+    /omits plaintext credentials for enabled providers: provider-a, provider-import-only/
+  );
+  assert.match(
+    importPreview.warnings.join(" "),
+    /will require API key re-entry after import: provider-import-only/
+  );
   assert.equal(importPreview.impact.riskLevel, "high");
 
   const restorePreview = service.previewRestore(1, 2, {

@@ -578,7 +578,7 @@ export const TrafficObservabilityPanels = ({
 
   return (
     <>
-      <article className="panel panel-span-2">
+      <article className="panel panel-span-2" data-testid="usage-panel">
         <h2>{t("dashboard.panels.usage")}</h2>
         {(dominantFailureProviderId || dominantFailureAppCode || dominantQuotaRejectedAppCode || dominantFailoverAppCode || dominantWorkspaceId) ? (
           <div className="quick-action-row">
@@ -738,8 +738,9 @@ export const TrafficObservabilityPanels = ({
             ))}
           </div>
         ) : null}
-        <div className="request-log-toolbar">
+        <div className="request-log-toolbar" data-testid="usage-filter-toolbar">
           <select
+            data-testid="usage-filter-app"
             value={usageFilters.appCode}
             onChange={(event) =>
               setUsageFilters((current) => ({
@@ -757,6 +758,7 @@ export const TrafficObservabilityPanels = ({
             <option value="openclaw">openclaw</option>
           </select>
           <input
+            data-testid="usage-filter-provider"
             value={usageFilters.providerId}
             onChange={(event) =>
               setUsageFilters((current) => ({
@@ -768,6 +770,7 @@ export const TrafficObservabilityPanels = ({
             placeholder={t("dashboard.usage.filterProvider")}
           />
           <input
+            data-testid="usage-filter-model"
             value={usageFilters.model}
             onChange={(event) =>
               setUsageFilters((current) => ({
@@ -779,6 +782,7 @@ export const TrafficObservabilityPanels = ({
             placeholder={t("dashboard.usage.filterModel")}
           />
           <input
+            data-testid="usage-filter-start-at"
             type="datetime-local"
             aria-label={t("dashboard.usage.filterStartAt")}
             value={usageFilters.startAt}
@@ -791,6 +795,7 @@ export const TrafficObservabilityPanels = ({
             }
           />
           <input
+            data-testid="usage-filter-end-at"
             type="datetime-local"
             aria-label={t("dashboard.usage.filterEndAt")}
             value={usageFilters.endAt}
@@ -803,6 +808,7 @@ export const TrafficObservabilityPanels = ({
             }
           />
           <select
+            data-testid="usage-filter-bucket"
             value={usageFilters.bucket}
             onChange={(event) =>
               setUsageFilters((current) => ({
@@ -816,6 +822,7 @@ export const TrafficObservabilityPanels = ({
             <option value="hour">{t("dashboard.usage.bucket.hour")}</option>
           </select>
           <select
+            data-testid="usage-filter-limit"
             value={usageFilters.limit}
             onChange={(event) =>
               setUsageFilters((current) => ({
@@ -829,11 +836,18 @@ export const TrafficObservabilityPanels = ({
             <option value={20}>{t("dashboard.usage.filterLimit")}: 20</option>
             <option value={50}>{t("dashboard.usage.filterLimit")}: 50</option>
           </select>
-          <button className="inline-action" type="button" disabled={isWorking} onClick={() => refreshUsage()}>
+          <button
+            className="inline-action"
+            data-testid="usage-refresh-button"
+            type="button"
+            disabled={isWorking}
+            onClick={() => refreshUsage()}
+          >
             {t("common.refresh")}
           </button>
           <button
             className="inline-action"
+            data-testid="usage-clear-button"
             type="button"
             disabled={isWorking}
             onClick={() => {
@@ -855,7 +869,7 @@ export const TrafficObservabilityPanels = ({
           </button>
         </div>
         {usageFilterSummary.length > 0 ? (
-          <div className="quick-action-row">
+          <div className="quick-action-row" data-testid="usage-filter-summary">
             {usageFilterSummary.map((item) => (
               <span className="filter-summary-chip" key={`usage-filter-${item}`}>
                 {item}
@@ -868,29 +882,37 @@ export const TrafficObservabilityPanels = ({
           </p>
         )}
         <div className="metrics-grid usage-summary-grid">
-          <MetricCard
-            label={t("dashboard.usage.totalRequests")}
-            value={formatNumber(usageSummary?.totalRequests ?? 0)}
-            hint={t("dashboard.panels.usage")}
-          />
-          <MetricCard
-            label={t("dashboard.usage.totalTokens")}
-            value={formatNumber(usageSummary?.totalTokens ?? 0)}
-            hint={t("dashboard.metrics.usageHint")}
-          />
-          <MetricCard
-            label={t("dashboard.usage.inputTokens")}
-            value={formatNumber(usageSummary?.totalInputTokens ?? 0)}
-            hint={t("dashboard.panels.usage")}
-          />
-          <MetricCard
-            label={t("dashboard.usage.outputTokens")}
-            value={formatNumber(usageSummary?.totalOutputTokens ?? 0)}
-            hint={t("dashboard.panels.usage")}
-          />
+          <div data-testid="usage-summary-total-requests">
+            <MetricCard
+              label={t("dashboard.usage.totalRequests")}
+              value={formatNumber(usageSummary?.totalRequests ?? 0)}
+              hint={t("dashboard.panels.usage")}
+            />
+          </div>
+          <div data-testid="usage-summary-total-tokens">
+            <MetricCard
+              label={t("dashboard.usage.totalTokens")}
+              value={formatNumber(usageSummary?.totalTokens ?? 0)}
+              hint={t("dashboard.metrics.usageHint")}
+            />
+          </div>
+          <div data-testid="usage-summary-input-tokens">
+            <MetricCard
+              label={t("dashboard.usage.inputTokens")}
+              value={formatNumber(usageSummary?.totalInputTokens ?? 0)}
+              hint={t("dashboard.panels.usage")}
+            />
+          </div>
+          <div data-testid="usage-summary-output-tokens">
+            <MetricCard
+              label={t("dashboard.usage.outputTokens")}
+              value={formatNumber(usageSummary?.totalOutputTokens ?? 0)}
+              hint={t("dashboard.panels.usage")}
+            />
+          </div>
         </div>
         <div className="usage-breakdown-grid">
-          <div className="list">
+          <div className="list" data-testid="usage-timeseries">
             <strong>{t("dashboard.usage.timeseries")}</strong>
             <div className="usage-trend-list">
               {(usageTimeseries?.points ?? []).length === 0 ? (
@@ -923,10 +945,10 @@ export const TrafficObservabilityPanels = ({
               )}
             </div>
           </div>
-          <div className="list">
+          <div className="list" data-testid="usage-breakdown-by-app">
             <strong>{t("dashboard.usage.breakdownByApp")}</strong>
             {(usageSummary?.byApp ?? []).slice(0, 5).map((item) => (
-              <div className="list-row" key={`usage-app-${item.appCode}`}>
+              <div className="list-row" data-testid={`usage-breakdown-app-${item.appCode}`} key={`usage-app-${item.appCode}`}>
                 <div>
                   <strong>{item.appCode}</strong>
                   <p>{t("dashboard.usage.totalRequests")}: {formatNumber(item.requestCount)}</p>
@@ -934,7 +956,13 @@ export const TrafficObservabilityPanels = ({
                 <div className="row-meta">
                   <span>{t("dashboard.usage.totalTokens")}</span>
                   <code>{formatNumber(item.totalTokens)}</code>
-                  <button className="inline-action" type="button" disabled={isWorking} onClick={() => applyUsageFilter({ appCode: item.appCode })}>
+                  <button
+                    className="inline-action"
+                    data-testid={`usage-breakdown-app-filter-${item.appCode}`}
+                    type="button"
+                    disabled={isWorking}
+                    onClick={() => applyUsageFilter({ appCode: item.appCode })}
+                  >
                     {localize(locale, "筛选应用", "Filter App")}
                   </button>
                   <button className="inline-action" type="button" disabled={isWorking} onClick={() => applyRequestLogFilter({ appCode: item.appCode })}>
@@ -944,10 +972,14 @@ export const TrafficObservabilityPanels = ({
               </div>
             ))}
           </div>
-          <div className="list">
+          <div className="list" data-testid="usage-breakdown-by-provider">
             <strong>{t("dashboard.usage.breakdownByProvider")}</strong>
             {(usageSummary?.byProvider ?? []).slice(0, 5).map((item, index) => (
-              <div className="list-row" key={`usage-provider-${item.providerId ?? index}`}>
+              <div
+                className="list-row"
+                data-testid={`usage-breakdown-provider-${item.providerId ?? "unknown"}`}
+                key={`usage-provider-${item.providerId ?? index}`}
+              >
                 <div>
                   <strong>{item.providerId ?? t("common.notFound")}</strong>
                   <p>{t("dashboard.usage.totalRequests")}: {formatNumber(item.requestCount)}</p>
@@ -956,7 +988,13 @@ export const TrafficObservabilityPanels = ({
                   <span>{t("dashboard.usage.totalTokens")}</span>
                   <code>{formatNumber(item.totalTokens)}</code>
                   {item.providerId ? (
-                    <button className="inline-action" type="button" disabled={isWorking} onClick={() => applyUsageFilter({ providerId: item.providerId as string })}>
+                    <button
+                      className="inline-action"
+                      data-testid={`usage-breakdown-provider-filter-${item.providerId}`}
+                      type="button"
+                      disabled={isWorking}
+                      onClick={() => applyUsageFilter({ providerId: item.providerId as string })}
+                    >
                       {localize(locale, "筛选供应商", "Filter Provider")}
                     </button>
                   ) : null}
@@ -974,10 +1012,10 @@ export const TrafficObservabilityPanels = ({
               </div>
             ))}
           </div>
-          <div className="list">
+          <div className="list" data-testid="usage-breakdown-by-model">
             <strong>{t("dashboard.usage.breakdownByModel")}</strong>
             {(usageSummary?.byModel ?? []).slice(0, 5).map((item) => (
-              <div className="list-row" key={`usage-model-${item.model}`}>
+              <div className="list-row" data-testid={`usage-breakdown-model-${item.model}`} key={`usage-model-${item.model}`}>
                 <div>
                   <strong>{item.model}</strong>
                   <p>{t("dashboard.usage.totalRequests")}: {formatNumber(item.requestCount)}</p>
@@ -985,7 +1023,13 @@ export const TrafficObservabilityPanels = ({
                 <div className="row-meta">
                   <span>{t("dashboard.usage.totalTokens")}</span>
                   <code>{formatNumber(item.totalTokens)}</code>
-                  <button className="inline-action" type="button" disabled={isWorking} onClick={() => applyUsageFilter({ model: item.model })}>
+                  <button
+                    className="inline-action"
+                    data-testid={`usage-breakdown-model-filter-${item.model}`}
+                    type="button"
+                    disabled={isWorking}
+                    onClick={() => applyUsageFilter({ model: item.model })}
+                  >
                     {localize(locale, "筛选模型", "Filter Model")}
                   </button>
                 </div>
@@ -998,7 +1042,7 @@ export const TrafficObservabilityPanels = ({
             {t("dashboard.usage.totalRequests")}: {usageRecordPage?.total ?? snapshot.proxyRuntime.usageRecordCount}
           </span>
         </div>
-        <div className="list">
+        <div className="list" data-testid="usage-records-list">
           {visibleUsageRecords.length === 0 ? (
             <div className="list-row">
               <div>
@@ -1014,7 +1058,7 @@ export const TrafficObservabilityPanels = ({
               step={12}
               totalCount={usageRecordPage?.total ?? snapshot.proxyRuntime.usageRecordCount}
               renderItem={(record) => (
-                <div className="list-row" key={record.id}>
+                <div className="list-row" data-testid={`usage-record-${record.id}`} key={record.id}>
                   <div>
                     <strong>{record.model}</strong>
                     <p>{record.appCode} / {record.providerId ?? t("common.notFound")}</p>
@@ -1026,11 +1070,17 @@ export const TrafficObservabilityPanels = ({
                       {t("dashboard.usage.outputTokens")}: {formatNumber(record.outputTokens)}
                     </span>
                     <code>{formatNumber(record.totalTokens)}</code>
-                    <button className="inline-action" type="button" disabled={isWorking} onClick={() => applyUsageFilter({
-                      appCode: record.appCode,
-                      providerId: record.providerId ?? "",
-                      model: record.model
-                    })}>
+                    <button
+                      className="inline-action"
+                      data-testid={`usage-record-focus-${record.id}`}
+                      type="button"
+                      disabled={isWorking}
+                      onClick={() => applyUsageFilter({
+                        appCode: record.appCode,
+                        providerId: record.providerId ?? "",
+                        model: record.model
+                      })}
+                    >
                       {localize(locale, "聚焦用量", "Focus Usage")}
                     </button>
                     <button className="inline-action" type="button" disabled={isWorking} onClick={() => applyRequestLogFilter({
@@ -1093,6 +1143,7 @@ export const TrafficObservabilityPanels = ({
         <h2>{t("dashboard.panels.requestLogs")}</h2>
         <div className="request-log-toolbar">
           <select
+            data-testid="request-log-filter-app"
             value={requestLogFilters.appCode}
             onChange={(event) =>
               setRequestLogFilters((current) => ({

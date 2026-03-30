@@ -3,6 +3,8 @@
 `CC Switch Web` 是当前采用的对外名称，仓库名统一为 `cc-switch-web`。
 它参考 `cc-switch` 的能力模型，但交付形态是面向 Linux 宿主机的 `daemon-first + web console`。
 
+GitHub 仓库地址：`https://github.com/MokoYee/cc-switch-web`
+
 这是一个面向 `Codex`、`Claude Code`、`Gemini CLI` 等 AI 编码工具用户的本机控制面与代理入口。  
 目标不是再做一个“技术演示面板”，而是帮助用户在一台 Linux 宿主机上，把多种 AI CLI 的接入、切换、观察和后续代理能力统一起来。
 
@@ -57,6 +59,7 @@
 - `codex` 接管 / 回滚
 - `claude-code` 接管 / 回滚
 - `gemini-cli` / `opencode` / MCP 配置导入与同步能力矩阵
+- MCP Host Sync 整批预览 / 整批执行 / 整批回滚
 - Prompt Host Sync 与宿主机 Prompt 投放 / 回滚
 - Prompt Host Sync 整批预览 / 整批执行
 - Skill 交付能力矩阵与代理侧注入路径说明
@@ -68,23 +71,6 @@
 - OpenAI-compatible 直通、Anthropic 非流式 / 流式桥接
 - 请求日志、审计事件、usage 统计、应用级日配额治理
 - 工作区 / 会话有效上下文解析与请求级覆盖协议
-
-## 当前还没做完的部分
-
-当前重点已经从“演示页面”转到了“治理产品化”，还剩这些尾项没有完全收口：
-
-- 更复杂的协议边界兼容，例如多工具并发流、图片返回内容桥接、thinking 能力协商
-- 更完整的宿主机生态覆盖，尤其是 MCP 批量治理与更多 CLI 接管策略
-- Skill 宿主机原生文件投放与更深的批量工作流
-- 工作区 / 会话自动建档后的宿主机接管建议、团队共享与更细的审计闭环
-- 趋势图、治理报表、批量操作等产品化体验增强
-- 对外发布前的运行手册、Prometheus 抓取示例、告警模板和更多自动化验证
-
-所以它现在适合：
-
-- 作为可试跑的 Linux 宿主机 AI CLI 中台
-- 作为开源方向验证与能力沉淀基线
-- 作为后续真实代理网关控制面与宿主机治理面的基础
 
 ## 适合谁
 
@@ -100,7 +86,6 @@
 - 推荐短命令：`ccsw`
 - 兼容别名：`cc-switch-web`、`ai-cli-switch`、`aicli-switch`
 - 当前环境变量与 systemd 单元名仍沿用兼容前缀：`AICLI_SWITCH_*`、`ai-cli-switch.service`
-- 本次归档后，CLI 进入维护态；后续新增治理能力默认只在 Web 控制台交付，CLI 只保留 `daemon` / `daemon service` / `web` 等运行入口与兼容命令。
 
 开发模式：
 

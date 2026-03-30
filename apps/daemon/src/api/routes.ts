@@ -854,6 +854,14 @@ export const registerRoutes = async (
     })()
   }));
 
+  app.post("/api/v1/mcp/host-sync/rollback-all", async () => ({
+    item: (() => {
+      const item = mcpHostSyncService.rollbackAll();
+      invalidateDashboardBootstrap();
+      return item;
+    })()
+  }));
+
   app.get("/api/v1/mcp/host-sync/:appCode/preview-apply", async (request) => {
     const { appCode } = request.params as { appCode: Parameters<typeof mcpHostSyncService.previewApply>[0] };
     return {
@@ -1064,9 +1072,16 @@ export const registerRoutes = async (
     item: configGovernanceService.previewImportPackage(request.body)
   }));
 
-  app.get("/api/v1/import-export/export", async () =>
-    importExportService.exportCurrentConfig()
-  );
+  app.get("/api/v1/import-export/export", async (request) => {
+    const query = request.query as { includeSecrets?: string | boolean | number } | undefined;
+    const includeSecrets =
+      query?.includeSecrets === true ||
+      query?.includeSecrets === "true" ||
+      query?.includeSecrets === "1" ||
+      query?.includeSecrets === 1;
+
+    return importExportService.exportCurrentConfig(includeSecrets);
+  });
 
   app.post("/api/v1/import-export/import", async (request) => {
     const result = importExportService.importPackage(request.body, "import-package");

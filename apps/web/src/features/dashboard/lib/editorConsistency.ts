@@ -120,6 +120,16 @@ export const createDefaultSessionForm = (
 
 export const buildPreviewSignature = (value: unknown): string => JSON.stringify(value);
 
+const hasNonEmptyText = (value: string): boolean => value.trim().length > 0;
+
+export const canPreviewBindingUpsert = (
+  input: Pick<AppBindingUpsert, "providerId">
+): boolean => hasNonEmptyText(input.providerId);
+
+export const canPreviewFailoverChainUpsert = (
+  input: Pick<FailoverChainUpsert, "providerIds">
+): boolean => input.providerIds.some((providerId) => hasNonEmptyText(providerId));
+
 export const normalizeTagText = (rawValue: string): string[] =>
   rawValue
     .split(",")
@@ -321,11 +331,59 @@ export const isPreviewInSync = (
   currentValue: unknown
 ): boolean => preview !== null && previewSignature === buildPreviewSignature(currentValue);
 
+type TaggedEditorState<TForm extends { readonly tags: string[] }> = {
+  readonly form: TForm;
+  readonly tagsText: string;
+};
+
 const resolveByIdOrFallback = <T extends WithId>(
   items: readonly T[],
   currentId: string,
   fallback: (item: T) => boolean
 ): T | null => items.find((item) => item.id === currentId) ?? items.find(fallback) ?? null;
+
+const resolveByPreferredIdOrFallback = <T extends WithId>(
+  items: readonly T[],
+  preferredId: string | null,
+  currentId: string,
+  fallback: (item: T) => boolean
+): T | null => {
+  if (preferredId !== null) {
+    const preferred = items.find((item) => item.id === preferredId);
+    if (preferred !== undefined) {
+      return preferred;
+    }
+  }
+
+  return resolveByIdOrFallback(items, currentId, fallback);
+};
+
+const normalizeCurrentTaggedEditorState = <T extends { readonly tags: string[] }>(
+  form: T,
+  tagsText: string
+): TaggedEditorState<T> => {
+  const normalizedTagsText = formatTagsText(normalizeTagText(tagsText));
+
+  return {
+    form: withNormalizedTags(form, normalizedTagsText),
+    tagsText: normalizedTagsText
+  };
+};
+
+export const syncProviderFormWithBootstrap = (
+  current: ProviderUpsert,
+  providers: readonly Provider[],
+  preferredId: string | null
+): ProviderUpsert => {
+  const saved = resolveByPreferredIdOrFallback(
+    providers,
+    preferredId,
+    current.id,
+    () => false
+  );
+
+  return saved !== null ? buildProviderEditorState(saved) : current;
+};
 
 export const syncBindingFormWithBootstrap = (
   current: AppBindingUpsert,
@@ -354,6 +412,21 @@ export const syncBindingFormWithBootstrap = (
         ? current.providerId
         : (providers[0]?.id ?? "")
   };
+};
+
+export const syncAppQuotaFormWithBootstrap = (
+  current: AppQuotaUpsert,
+  appQuotas: readonly AppQuota[],
+  preferredId: string | null
+): AppQuotaUpsert => {
+  const saved = resolveByPreferredIdOrFallback(
+    appQuotas,
+    preferredId,
+    current.id,
+    (item) => item.appCode === current.appCode
+  );
+
+  return saved !== null ? buildAppQuotaEditorState(saved) : current;
 };
 
 export const syncMcpBindingFormWithBootstrap = (
@@ -413,6 +486,83 @@ export const syncFailoverFormWithBootstrap = (
       providers.some((provider) => provider.id === providerId)
     )
   };
+};
+
+export const syncPromptTemplateEditorWithBootstrap = (
+  current: PromptTemplateUpsert,
+  currentTagsText: string,
+  promptTemplates: readonly PromptTemplate[],
+  preferredId: string | null
+): TaggedEditorState<PromptTemplateUpsert> => {
+  const saved = resolveByPreferredIdOrFallback(
+    promptTemplates,
+    preferredId,
+    current.id,
+    (item) => item.appCode === current.appCode && item.locale === current.locale
+  );
+
+  if (saved !== null) {
+    return buildPromptTemplateEditorState(saved);
+  }
+
+  return normalizeCurrentTaggedEditorState(current, currentTagsText);
+};
+
+export const syncSkillEditorWithBootstrap = (
+  current: SkillUpsert,
+  currentTagsText: string,
+  skills: readonly Skill[],
+  preferredId: string | null
+): TaggedEditorState<SkillUpsert> => {
+  const saved = resolveByPreferredIdOrFallback(
+    skills,
+    preferredId,
+    current.id,
+    (item) => item.appCode === current.appCode
+  );
+
+  if (saved !== null) {
+    return buildSkillEditorState(saved);
+  }
+
+  return normalizeCurrentTaggedEditorState(current, currentTagsText);
+};
+
+export const syncWorkspaceEditorWithBootstrap = (
+  current: WorkspaceUpsert,
+  currentTagsText: string,
+  workspaces: readonly Workspace[],
+  preferredId: string | null
+): TaggedEditorState<WorkspaceUpsert> => {
+  const saved = resolveByPreferredIdOrFallback(
+    workspaces,
+    preferredId,
+    current.id,
+    (item) =>
+      item.rootPath === current.rootPath ||
+      (current.appCode !== null && item.appCode === current.appCode)
+  );
+
+  if (saved !== null) {
+    return buildWorkspaceEditorState(saved);
+  }
+
+  return normalizeCurrentTaggedEditorState(current, currentTagsText);
+};
+
+export const syncSessionFormWithBootstrap = (
+  current: SessionRecordUpsert,
+  sessions: readonly SessionRecord[],
+  preferredId: string | null
+): SessionRecordUpsert => {
+  const saved = resolveByPreferredIdOrFallback(
+    sessions,
+    preferredId,
+    current.id,
+    (item) => item.cwd === current.cwd || item.appCode === current.appCode
+  );
+
+  return saved !== null ? buildSessionEditorState(saved) : current;
 };
 
 export const resolveProxyPolicyFormFromBootstrap = (

@@ -47,11 +47,11 @@ export class ImportExportService {
     private readonly snapshotService: SnapshotService
   ) {}
 
-  exportCurrentConfig(): ExportPackage {
+  exportCurrentConfig(includeSecrets = false): ExportPackage {
     return {
       version: "0.1.0",
       exportedAt: new Date().toISOString(),
-      providers: this.providerRepository.list(),
+      providers: this.providerRepository.listExportable(includeSecrets),
       promptTemplates: this.promptTemplateRepository.list(),
       skills: this.skillRepository.list(),
       workspaces: this.workspaceRepository.list(),
@@ -78,7 +78,7 @@ export class ImportExportService {
       this.appQuotaRepository.replaceAll([]);
       this.failoverChainRepository.replaceAll([]);
       this.appMcpBindingRepository.replaceAll([]);
-      this.providerRepository.replaceAll(payload.providers);
+      this.providerRepository.replaceAllImported(payload.providers);
       this.promptTemplateRepository.replaceAll(payload.promptTemplates);
       this.skillRepository.replaceAll(payload.skills);
       this.workspaceRepository.replaceAll(payload.workspaces);

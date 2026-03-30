@@ -45,7 +45,7 @@ type RecoveryPanelProps = {
   readonly recentSnapshots: DashboardSnapshot["recentSnapshots"];
   readonly isWorking: boolean;
   readonly onImportTextChange: (value: string) => void;
-  readonly onExport: () => void;
+  readonly onExport: (options?: { readonly includeSecrets?: boolean }) => void;
   readonly onPreviewImport: () => void;
   readonly onImport: () => void;
   readonly onRestore: () => void;
@@ -314,6 +314,8 @@ export const RecoveryPanel = ({
   t
 }: RecoveryPanelProps): JSX.Element => {
   const { locale } = useI18n();
+  const [includeSensitiveExport, setIncludeSensitiveExport] = useState(false);
+  const [sensitiveExportConfirmed, setSensitiveExportConfirmed] = useState(false);
   const [importRiskConfirmed, setImportRiskConfirmed] = useState(false);
   const [restoreRiskConfirmed, setRestoreRiskConfirmed] = useState(false);
   const importRequiresConfirmation =
@@ -405,33 +407,81 @@ export const RecoveryPanel = ({
     <article className="panel panel-span-2">
       <h2>{t("dashboard.panels.recovery")}</h2>
       <div className="write-grid">
-        <section className="form-card">
+        <section className="form-card" data-testid="recovery-export-panel">
           <h3>{t("dashboard.forms.exportTitle")}</h3>
           <textarea
+            data-testid="recovery-export-textarea"
             className="json-editor"
             value={exportText}
             readOnly
             placeholder={`{\n  "version": "0.1.0"\n}`}
           />
-          <button className="auth-button" type="button" disabled={isWorking} onClick={onExport}>
+          <label className="checkbox-row">
+            <input
+              data-testid="recovery-export-include-secrets-checkbox"
+              checked={includeSensitiveExport}
+              onChange={(event) => {
+                setIncludeSensitiveExport(event.target.checked);
+                if (!event.target.checked) {
+                  setSensitiveExportConfirmed(false);
+                }
+              }}
+              type="checkbox"
+            />{" "}
+            {localize(
+              locale,
+              "导出含 Provider 凭证的恢复包",
+              "Export Recovery Bundle With Provider Credentials"
+            )}
+          </label>
+          {includeSensitiveExport ? (
+            <label className="danger-confirm-row checkbox-row">
+              <input
+                data-testid="recovery-export-secrets-confirm"
+                checked={sensitiveExportConfirmed}
+                onChange={(event) => setSensitiveExportConfirmed(event.target.checked)}
+                type="checkbox"
+              />{" "}
+              {localize(
+                locale,
+                "我已确认该导出包会包含敏感凭证，只能在受控环境中临时传输和保存。",
+                "I understand this export bundle includes sensitive credentials and must only be transferred or stored in a controlled environment."
+              )}
+            </label>
+          ) : null}
+          <button
+            className="auth-button"
+            data-testid="recovery-export-button"
+            type="button"
+            disabled={isWorking || (includeSensitiveExport && !sensitiveExportConfirmed)}
+            onClick={() => onExport({ includeSecrets: includeSensitiveExport })}
+          >
             {t("common.export")}
           </button>
         </section>
 
-        <section className="form-card">
+        <section className="form-card" data-testid="recovery-import-panel">
           <h3>{t("dashboard.forms.importTitle")}</h3>
           <textarea
+            data-testid="recovery-import-textarea"
             className="json-editor"
             value={importText}
             onChange={(event) => onImportTextChange(event.target.value)}
             placeholder={t("dashboard.forms.importPlaceholder")}
           />
           <div className="button-row">
-            <button className="inline-action" type="button" disabled={isWorking} onClick={onPreviewImport}>
+            <button
+              className="inline-action"
+              data-testid="recovery-preview-import-button"
+              type="button"
+              disabled={isWorking}
+              onClick={onPreviewImport}
+            >
               {t("common.refresh")}
             </button>
             <button
               className="auth-button"
+              data-testid="recovery-import-button"
               type="button"
               disabled={isWorking || !importPreviewIsCurrent || (importRequiresConfirmation && !importRiskConfirmed)}
               onClick={onImport}
@@ -440,6 +490,7 @@ export const RecoveryPanel = ({
             </button>
             <button
               className="inline-action"
+              data-testid="recovery-restore-button"
               type="button"
               disabled={isWorking || !restorePreviewIsCurrent || (restoreRequiresConfirmation && !restoreRiskConfirmed)}
               onClick={onRestore}
@@ -455,7 +506,7 @@ export const RecoveryPanel = ({
             <p className="form-hint">{t("dashboard.forms.restoreReviewRequired")}</p>
           ) : null}
           {importPreview ? (
-            <div className="preview-item">
+            <div className="preview-item" data-testid="recovery-import-preview">
               <strong>{t("dashboard.routing.impactTitle")}</strong>
               <GovernanceNoticeCard
                 locale={locale}
@@ -533,6 +584,7 @@ export const RecoveryPanel = ({
               {importRequiresConfirmation ? (
                 <label className="danger-confirm-row checkbox-row">
                   <input
+                    data-testid="recovery-import-confirm"
                     checked={importRiskConfirmed}
                     onChange={(event) => setImportRiskConfirmed(event.target.checked)}
                     type="checkbox"
@@ -547,14 +599,15 @@ export const RecoveryPanel = ({
             </div>
           ) : null}
           {recentSnapshots.length > 0 ? (
-            <div className="preview-item">
+            <div className="preview-item" data-testid="recovery-snapshot-list">
               <strong>{t("dashboard.snapshots.recentTitle")}</strong>
               {recentSnapshots.map((item) => (
-                <p key={`snapshot-${item.version}`}>
+                <p data-testid={`recovery-snapshot-${item.version}`} key={`snapshot-${item.version}`}>
                   v{item.version} / {item.reason} / {formatDateTime(item.createdAt)} / providers{" "}
                   {formatNumber(item.counts.providers)} / bindings {formatNumber(item.counts.bindings)}{" "}
                   <button
                     className="inline-action"
+                    data-testid={`recovery-snapshot-inspect-${item.version}`}
                     type="button"
                     disabled={isWorking}
                     onClick={() => onInspectSnapshot(item.version)}
@@ -565,6 +618,7 @@ export const RecoveryPanel = ({
                   </button>{" "}
                   <button
                     className="inline-action"
+                    data-testid={`recovery-snapshot-restore-${item.version}`}
                     type="button"
                     disabled={isWorking}
                     onClick={() => onPrepareRestoreSnapshot(item.version)}
@@ -576,7 +630,7 @@ export const RecoveryPanel = ({
             </div>
           ) : null}
           {effectiveSnapshotDiff ? (
-            <div className="preview-item">
+            <div className="preview-item" data-testid="recovery-restore-preview">
               <strong>{t("dashboard.snapshots.latestDiffTitle")}</strong>
               {restorePreview ? (
                 <>
@@ -660,6 +714,7 @@ export const RecoveryPanel = ({
               {restoreRequiresConfirmation ? (
                 <label className="danger-confirm-row checkbox-row">
                   <input
+                    data-testid="recovery-restore-confirm"
                     checked={restoreRiskConfirmed}
                     onChange={(event) => setRestoreRiskConfirmed(event.target.checked)}
                     type="checkbox"

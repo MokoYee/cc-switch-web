@@ -1,24 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type {
-  AppQuota,
-  AppQuotaUpsert,
-  AppBinding,
-  AppBindingUpsert,
-  AppMcpBinding,
-  AppMcpBindingUpsert,
-  FailoverChain,
-  FailoverChainUpsert,
-  McpServer,
-  McpServerUpsert,
-  PromptTemplate,
-  Provider,
-  ProviderUpsert,
-  ProxyPolicy,
-  SessionRecord,
-  Skill,
-  Workspace
+import {
+  providerSchema,
+  type AppQuota,
+  type AppQuotaUpsert,
+  type AppBinding,
+  type AppBindingUpsert,
+  type AppMcpBinding,
+  type AppMcpBindingUpsert,
+  type FailoverChain,
+  type FailoverChainUpsert,
+  type McpServer,
+  type McpServerUpsert,
+  type PromptTemplate,
+  type Provider,
+  type ProviderUpsert,
+  type ProxyPolicy,
+  type SessionRecord,
+  type Skill,
+  type Workspace
 } from "@cc-switch-web/shared";
 
 import {
@@ -34,6 +35,8 @@ import {
   buildMcpServerEditorInput,
   buildMcpServerEditorSignature,
   buildPreviewSignature,
+  canPreviewBindingUpsert,
+  canPreviewFailoverChainUpsert,
   buildWorkspaceEditorState,
   createDefaultAppQuotaForm,
   createDefaultBindingForm,
@@ -51,14 +54,22 @@ import {
   resolveProxyPolicyFormFromBootstrap,
   resolveDeleteEditorResetPlan,
   resolveVersionedEditorSyncPlan,
+  syncAppQuotaFormWithBootstrap,
   syncBindingFormWithBootstrap,
   syncFailoverFormWithBootstrap,
   syncMcpBindingFormWithBootstrap,
+  syncProviderFormWithBootstrap,
+  syncPromptTemplateEditorWithBootstrap,
+  syncSessionFormWithBootstrap,
+  syncSkillEditorWithBootstrap,
+  syncWorkspaceEditorWithBootstrap,
   withNormalizedTags
 } from "../src/features/dashboard/lib/editorConsistency.js";
 import {
   buildArchiveStaleSessionsFollowUpNotice,
   buildAssetGovernanceRepairFollowUpNotice,
+  buildBatchMcpConvergedFollowUpNotice,
+  buildBatchMcpConvergenceReviewFollowUpNotice,
   buildBatchMcpGovernanceAppliedFollowUpNotice,
   buildConfigImportedFollowUpNotice,
   buildDeleteCompletedFollowUpNotice,
@@ -97,6 +108,7 @@ import {
   isWorkspaceEditorStateInSync,
   isWorkspacePreviewInSync
 } from "../src/features/dashboard/lib/previewConsistency.js";
+import { createDashboardMcpHostActions } from "../src/features/dashboard/hooks/dashboardHostActions.js";
 import type { DashboardSnapshot } from "../src/shared/lib/api.js";
 
 const ISO_TIME = "2026-03-28T10:00:00.000Z";
@@ -254,6 +266,178 @@ const createStableDashboardSnapshot = (): DashboardSnapshot =>
     }
   }) as DashboardSnapshot;
 
+test("accepts providers whose masked credential is intentionally empty", () => {
+  const parsed = providerSchema.parse({
+    ...createProvider("provider-without-key"),
+    apiKeyMasked: ""
+  });
+
+  assert.equal(parsed.apiKeyMasked, "");
+});
+
+const MCP_IMPORT_OPTIONS = {
+  existingServerStrategy: "overwrite",
+  missingBindingStrategy: "create"
+} as const;
+
+const createMcpHostSyncBatchPreviewItem = (
+  input: Partial<{
+    appCode: AppBinding["appCode"];
+    configExists: boolean;
+    currentManagedServerIds: string[];
+    nextManagedServerIds: string[];
+    addedServerIds: string[];
+    removedServerIds: string[];
+    unchangedServerIds: string[];
+  }> = {}
+) => ({
+  appCode: input.appCode ?? "codex",
+  configPath: `/tmp/${input.appCode ?? "codex"}.json`,
+  configExists: input.configExists ?? true,
+  backupRequired: true,
+  rollbackAction: "restore" as const,
+  currentManagedServerIds: input.currentManagedServerIds ?? ["server-current"],
+  nextManagedServerIds: input.nextManagedServerIds ?? ["server-next"],
+  addedServerIds: input.addedServerIds ?? ["server-next"],
+  removedServerIds: input.removedServerIds ?? [],
+  unchangedServerIds: input.unchangedServerIds ?? [],
+  warnings: []
+});
+
+const createDashboardMcpHostActionHarness = (input: {
+  readonly locale?: "zh-CN" | "en-US";
+  readonly repairedAppCount?: number;
+  readonly hostPreviewItems?: ReturnType<typeof createMcpHostSyncBatchPreviewItem>[];
+  readonly appliedApps?: AppBinding["appCode"][];
+}) => {
+  let pendingTask: Promise<void> | null = null;
+  const successMessages: string[] = [];
+  const followUpNotices: unknown[] = [];
+  const auditCalls: unknown[] = [];
+  const apiCalls: string[] = [];
+  const locale = input.locale ?? "zh-CN";
+  const repairedAppCount = input.repairedAppCount ?? 1;
+  const hostPreviewItems = input.hostPreviewItems ?? [createMcpHostSyncBatchPreviewItem()];
+  const appliedApps = input.appliedApps ?? hostPreviewItems.map((item) => item.appCode);
+
+  const actions = createDashboardMcpHostActions({
+    locale,
+    t: (key) => key,
+    runAction: (task, successMessage) => {
+      successMessages.push(successMessage);
+      pendingTask = task();
+    },
+    setFollowUpNotice: (value) => {
+      followUpNotices.push(value);
+    },
+    openAuditFocus: (filters) => {
+      auditCalls.push(filters);
+    },
+    mcpImportOptions: MCP_IMPORT_OPTIONS,
+    mcpHostApi: {
+      applyHostMcpSync: async (appCode) => {
+        apiCalls.push(`apply:${appCode}`);
+        return {
+          appCode,
+          action: "apply" as const,
+          configPath: `/tmp/${appCode}.json`,
+          backupPath: `/tmp/${appCode}.bak`,
+          syncedServerIds: [],
+          message: "ok"
+        };
+      },
+      applyHostMcpSyncAll: async () => {
+        apiCalls.push("apply-all");
+        return {
+          totalApps: appliedApps.length,
+          appliedApps,
+          skippedApps: [],
+          syncedServerIds: [],
+          items: appliedApps.map((appCode) => ({
+            appCode,
+            action: "apply" as const,
+            configPath: `/tmp/${appCode}.json`,
+            backupPath: `/tmp/${appCode}.bak`,
+            syncedServerIds: [],
+            message: "ok"
+          })),
+          message: "ok"
+        };
+      },
+      applyMcpGovernanceRepair: async (appCode) => {
+        apiCalls.push(`repair:${appCode}`);
+        return {
+          appCode,
+          executedActions: [],
+          changedBindingIds: [],
+          changedServerIds: [],
+          statusAfter: "healthy" as const,
+          issueCodesAfter: [],
+          requiresHostSync: false,
+          message: "ok"
+        };
+      },
+      applyMcpGovernanceRepairAll: async () => {
+        apiCalls.push("repair-all");
+        return {
+          totalApps: repairedAppCount,
+          repairedApps: repairedAppCount,
+          changedBindingIds: [],
+          changedServerIds: [],
+          hostSyncRequiredApps: hostPreviewItems.map((item) => item.appCode),
+          items: [],
+          message: "ok"
+        };
+      },
+      importMcpFromHost: async (appCode) => {
+        apiCalls.push(`import:${appCode}`);
+      },
+      previewHostMcpSyncApplyAll: async () => {
+        apiCalls.push("preview-all");
+        return {
+          totalApps: hostPreviewItems.length,
+          syncableApps: hostPreviewItems.length,
+          items: hostPreviewItems,
+          warnings: []
+        };
+      },
+      rollbackHostMcpSync: async (appCode) => {
+        apiCalls.push(`rollback:${appCode}`);
+        return {
+          appCode,
+          action: "rollback" as const,
+          configPath: `/tmp/${appCode}.json`,
+          backupPath: `/tmp/${appCode}.bak`,
+          syncedServerIds: [],
+          message: "ok"
+        };
+      },
+      rollbackHostMcpSyncAll: async () => {
+        apiCalls.push("rollback-all");
+        return {
+          totalApps: 0,
+          rolledBackApps: [],
+          skippedApps: [],
+          restoredServerIds: [],
+          items: [],
+          message: "ok"
+        };
+      }
+    }
+  });
+
+  return {
+    actions,
+    successMessages,
+    followUpNotices,
+    auditCalls,
+    apiCalls,
+    runPending: async () => {
+      await pendingTask;
+    }
+  };
+};
+
 test("marks preview as current only when editor input still matches the preview signature", () => {
   const providerForm: ProviderUpsert = {
     id: "provider-b",
@@ -304,6 +488,17 @@ test("keeps the saved binding provider in the editor after bootstrap refresh ins
   assert.equal(synced.mode, "managed");
 });
 
+test("prefers the stored provider selection during bootstrap refresh", () => {
+  const synced = syncProviderFormWithBootstrap(
+    createDefaultProviderForm(),
+    [createProvider("provider-a"), createProvider("provider-b")],
+    "provider-b"
+  );
+
+  assert.equal(synced.id, "provider-b");
+  assert.equal(synced.baseUrl, "https://provider-b.example.com/v1");
+});
+
 test("falls back to the first available provider only when the current binding target no longer exists", () => {
   const current: AppBindingUpsert = {
     id: "binding-codex-draft",
@@ -319,6 +514,27 @@ test("falls back to the first available provider only when the current binding t
 
   assert.equal(synced.providerId, "provider-a");
   assert.equal(synced.id, "binding-codex-draft");
+});
+
+test("requires a concrete provider before previewing a binding draft", () => {
+  assert.equal(
+    canPreviewBindingUpsert({
+      providerId: ""
+    }),
+    false
+  );
+  assert.equal(
+    canPreviewBindingUpsert({
+      providerId: "   "
+    }),
+    false
+  );
+  assert.equal(
+    canPreviewBindingUpsert({
+      providerId: "provider-a"
+    }),
+    true
+  );
 });
 
 test("keeps the saved MCP binding server in the editor after bootstrap refresh", () => {
@@ -375,6 +591,149 @@ test("prefers the saved failover chain from bootstrap and otherwise filters remo
   assert.deepEqual(savedSynced.providerIds, ["provider-b", "provider-a"]);
   assert.equal(savedSynced.cooldownSeconds, 45);
   assert.equal(savedSynced.maxAttempts, 3);
+});
+
+test("prefers the stored app quota selection during bootstrap refresh", () => {
+  const synced = syncAppQuotaFormWithBootstrap(
+    createDefaultAppQuotaForm(),
+    [
+      createAppQuota({
+        id: "quota-codex",
+        appCode: "codex",
+        enabled: true,
+        period: "day",
+        maxRequests: 100,
+        maxTokens: 1000
+      }),
+      createAppQuota({
+        id: "quota-claude-code",
+        appCode: "claude-code",
+        enabled: false,
+        period: "day",
+        maxRequests: 50,
+        maxTokens: 500
+      })
+    ],
+    "quota-claude-code"
+  );
+
+  assert.equal(synced.id, "quota-claude-code");
+  assert.equal(synced.appCode, "claude-code");
+  assert.equal(synced.enabled, false);
+  assert.equal(synced.maxRequests, 50);
+});
+
+test("prefers the stored prompt selection during bootstrap refresh", () => {
+  const synced = syncPromptTemplateEditorWithBootstrap(
+    createDefaultPromptTemplateForm(),
+    "review",
+    [
+      createPromptTemplate({
+        id: "prompt-review-customer",
+        name: "Customer Review",
+        appCode: "codex",
+        locale: "zh-CN",
+        content: "请优先审查预览闭环。",
+        tags: ["customer", "review"],
+        enabled: true
+      })
+    ],
+    "prompt-review-customer"
+  );
+
+  assert.equal(synced.form.id, "prompt-review-customer");
+  assert.equal(synced.tagsText, "customer, review");
+});
+
+test("prefers the stored skill selection during bootstrap refresh", () => {
+  const synced = syncSkillEditorWithBootstrap(
+    createDefaultSkillForm(),
+    "review",
+    [
+      createSkill({
+        id: "skill-runtime-check",
+        name: "Runtime Check",
+        appCode: "codex",
+        promptTemplateId: null,
+        content: "先检查运行态证据。",
+        tags: ["runtime"],
+        enabled: true
+      })
+    ],
+    "skill-runtime-check"
+  );
+
+  assert.equal(synced.form.id, "skill-runtime-check");
+  assert.equal(synced.tagsText, "runtime");
+});
+
+test("prefers the stored workspace selection during bootstrap refresh", () => {
+  const synced = syncWorkspaceEditorWithBootstrap(
+    createDefaultWorkspaceForm(),
+    "backend",
+    [
+      createWorkspace({
+        id: "workspace-customer",
+        name: "Customer Workspace",
+        rootPath: "/srv/customer",
+        appCode: "codex",
+        defaultProviderId: "provider-a",
+        defaultPromptTemplateId: null,
+        defaultSkillId: null,
+        tags: ["customer"],
+        enabled: true
+      })
+    ],
+    "workspace-customer"
+  );
+
+  assert.equal(synced.form.id, "workspace-customer");
+  assert.equal(synced.tagsText, "customer");
+});
+
+test("prefers the stored session selection during bootstrap refresh", () => {
+  const synced = syncSessionFormWithBootstrap(
+    createDefaultSessionForm(ISO_TIME),
+    [
+      createSessionRecord({
+        id: "session-customer",
+        workspaceId: "workspace-customer",
+        appCode: "codex",
+        title: "Customer Session",
+        cwd: "/srv/customer",
+        providerId: null,
+        promptTemplateId: null,
+        skillId: null,
+        status: "active",
+        startedAt: ISO_TIME
+      })
+    ],
+    "session-customer"
+  );
+
+  assert.equal(synced.id, "session-customer");
+  assert.equal(synced.cwd, "/srv/customer");
+});
+
+test("requires at least one concrete provider before previewing a failover draft", () => {
+  assert.equal(
+    canPreviewFailoverChainUpsert({
+      providerIds: []
+    }),
+    false
+  );
+  assert.equal(
+    canPreviewFailoverChainUpsert({
+      providerIds: ["", "   "]
+    }),
+    false
+  );
+  assert.equal(
+    canPreviewFailoverChainUpsert({
+      providerIds: ["provider-a"]
+    }),
+    true
+  );
 });
 
 test("echoes the saved proxy policy from bootstrap back into the editor", () => {
@@ -703,6 +1062,134 @@ test("builds governance and host sync notices with branch-specific summaries", (
       section: "recovery"
     }
   ]);
+});
+
+test("builds batch MCP convergence notices for completed and review-required branches", () => {
+  const convergedNotice = buildBatchMcpConvergedFollowUpNotice("zh-CN", {
+    repairedAppCount: 2,
+    appliedAppCount: 1
+  });
+  assert.equal(convergedNotice.title, "整批 MCP 收敛已执行");
+  assert.match(convergedNotice.summary, /完成 1 个应用的宿主机同步/);
+  assert.deepEqual(convergedNotice.actions, [
+    {
+      id: "mcp-converged-batch-open-panel",
+      label: "打开 MCP 面板",
+      kind: "section",
+      section: "mcp"
+    },
+    {
+      id: "mcp-converged-batch-open-audit",
+      label: "查看 MCP 审计",
+      kind: "audit",
+      filters: {
+        source: "mcp"
+      }
+    }
+  ]);
+
+  const reviewNotice = buildBatchMcpConvergenceReviewFollowUpNotice("en-US", {
+    repairedAppCount: 1,
+    reviewRequiredApps: ["codex", "claude-code"]
+  });
+  assert.equal(reviewNotice.title, "Batch MCP Advanced To Host Review");
+  assert.match(reviewNotice.summary, /2 app\(s\) now have destructive host-sync removals/);
+  assert.equal(reviewNotice.actions[0]?.kind, "section");
+  assert.equal(reviewNotice.actions[1]?.kind, "audit");
+});
+
+test("mcp host actions continue batch convergence when destructive removals were already confirmed", async () => {
+  const harness = createDashboardMcpHostActionHarness({
+    hostPreviewItems: [
+      createMcpHostSyncBatchPreviewItem({
+        appCode: "codex",
+        currentManagedServerIds: ["server-old"],
+        nextManagedServerIds: ["server-new"],
+        addedServerIds: ["server-new"],
+        removedServerIds: ["server-old"]
+      })
+    ],
+    appliedApps: ["codex"]
+  });
+
+  harness.actions.convergeAll(["codex"]);
+  await harness.runPending();
+
+  assert.deepEqual(harness.successMessages, ["整批 MCP 收敛流程已推进"]);
+  assert.deepEqual(harness.apiCalls, ["repair-all", "preview-all", "apply-all"]);
+  assert.deepEqual(harness.auditCalls, [{ source: "mcp" }]);
+  assert.deepEqual(
+    harness.followUpNotices.at(-1),
+    buildBatchMcpConvergedFollowUpNotice("zh-CN", {
+      repairedAppCount: 1,
+      appliedAppCount: 1
+    })
+  );
+});
+
+test("mcp host actions stop batch convergence at host review when removals are not confirmed", async () => {
+  const harness = createDashboardMcpHostActionHarness({
+    locale: "en-US",
+    repairedAppCount: 2,
+    hostPreviewItems: [
+      createMcpHostSyncBatchPreviewItem({
+        appCode: "codex",
+        currentManagedServerIds: ["server-old"],
+        nextManagedServerIds: ["server-new"],
+        addedServerIds: ["server-new"],
+        removedServerIds: ["server-old"]
+      }),
+      createMcpHostSyncBatchPreviewItem({
+        appCode: "claude-code",
+        currentManagedServerIds: ["claude-old"],
+        nextManagedServerIds: ["claude-new"],
+        addedServerIds: ["claude-new"],
+        removedServerIds: ["claude-old"]
+      })
+    ]
+  });
+
+  harness.actions.convergeAll([]);
+  await harness.runPending();
+
+  assert.deepEqual(harness.successMessages, ["Batch MCP convergence advanced"]);
+  assert.deepEqual(harness.apiCalls, ["repair-all", "preview-all"]);
+  assert.deepEqual(harness.auditCalls, [{ source: "mcp" }]);
+  assert.deepEqual(
+    harness.followUpNotices.at(-1),
+    buildBatchMcpConvergenceReviewFollowUpNotice("en-US", {
+      repairedAppCount: 2,
+      reviewRequiredApps: ["codex", "claude-code"]
+    })
+  );
+});
+
+test("mcp host actions finish batch convergence without host sync when repair leaves no remaining host diff", async () => {
+  const harness = createDashboardMcpHostActionHarness({
+    hostPreviewItems: [
+      createMcpHostSyncBatchPreviewItem({
+        appCode: "codex",
+        currentManagedServerIds: ["server-stable"],
+        nextManagedServerIds: ["server-stable"],
+        addedServerIds: [],
+        removedServerIds: [],
+        unchangedServerIds: ["server-stable"]
+      })
+    ],
+    appliedApps: []
+  });
+
+  harness.actions.convergeAll([]);
+  await harness.runPending();
+
+  assert.deepEqual(harness.apiCalls, ["repair-all", "preview-all"]);
+  assert.deepEqual(
+    harness.followUpNotices.at(-1),
+    buildBatchMcpConvergedFollowUpNotice("zh-CN", {
+      repairedAppCount: 1,
+      appliedAppCount: 0
+    })
+  );
 });
 
 test("builds runtime, host takeover, and recovery notices without losing special-case actions", () => {

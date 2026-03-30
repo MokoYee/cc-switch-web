@@ -3,11 +3,20 @@
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MokoYee/cc-switch-web.git",
+    "directory": "apps/daemon"
+  },
+  "homepage": "https://github.com/MokoYee/cc-switch-web/tree/main/apps/daemon",
+  "bugs": {
+    "url": "https://github.com/MokoYee/cc-switch-web/issues"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "test": "npm run build --workspace @cc-switch-web/shared && tsx --test src/modules/proxy/protocol-bridge.test.ts src/modules/proxy/anthropic-sse-bridge.test.ts src/modules/proxy/provider-health-probe-service.test.ts src/modules/proxy/proxy-http-handler.test.ts src/modules/proxy/proxy-runtime-service.test.ts src/modules/proxy/usage-tracking.test.ts src/modules/audit/audit-event-service.test.ts src/modules/assets/asset-repositories.test.ts src/modules/assets/asset-version-service.test.ts src/modules/assets/skill-delivery-service.test.ts src/modules/dashboard/dashboard-bootstrap-service.test.ts src/modules/governance/config-governance-service.test.ts src/modules/host-discovery/host-discovery-service.test.ts src/modules/mcp/mcp-host-sync-service.test.ts src/modules/mcp/mcp-service.test.ts src/modules/mcp/mcp-verification-history-service.test.ts src/modules/quotas/app-quota-service.test.ts src/modules/routing/routing-governance-service.test.ts src/modules/routing/context-routing-explanation-service.test.ts src/modules/snapshots/snapshot-service.test.ts src/modules/system/metrics-service.test.ts src/modules/workspaces/workspace-repositories.test.ts src/modules/workspaces/workspace-context-service.test.ts src/modules/workspaces/active-context-policy-service.test.ts src/modules/workspaces/workspace-discovery-service.test.ts src/modules/workspaces/session-governance-service.test.ts src/modules/workspaces/session-lifecycle-service.test.ts src/modules/workspaces/runtime-context-observability-service.test.ts",
+    "test": "npm run build --workspace @cc-switch-web/shared && tsx --test src/modules/proxy/protocol-bridge.test.ts src/modules/proxy/anthropic-sse-bridge.test.ts src/modules/proxy/provider-health-probe-service.test.ts src/modules/proxy/proxy-http-handler.test.ts src/modules/proxy/proxy-runtime-service.test.ts src/modules/proxy/usage-tracking.test.ts src/modules/audit/audit-event-service.test.ts src/modules/assets/asset-repositories.test.ts src/modules/assets/asset-version-service.test.ts src/modules/assets/skill-delivery-service.test.ts src/modules/dashboard/dashboard-bootstrap-service.test.ts src/modules/governance/config-governance-service.test.ts src/modules/host-discovery/host-discovery-service.test.ts src/modules/mcp/mcp-host-sync-service.test.ts src/modules/mcp/mcp-service.test.ts src/modules/mcp/mcp-verification-history-service.test.ts src/modules/quotas/app-quota-service.test.ts src/modules/routing/routing-governance-service.test.ts src/modules/routing/context-routing-explanation-service.test.ts src/modules/snapshots/snapshot-service.test.ts src/modules/system/metrics-service.test.ts src/modules/system/system-service.test.ts src/modules/workspaces/workspace-repositories.test.ts src/modules/workspaces/workspace-context-service.test.ts src/modules/workspaces/active-context-policy-service.test.ts src/modules/workspaces/workspace-discovery-service.test.ts src/modules/workspaces/session-governance-service.test.ts src/modules/workspaces/session-lifecycle-service.test.ts src/modules/workspaces/runtime-context-observability-service.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 
 import type {
   AppBinding,
+  AppQuotaUpsert,
   AuditEventPage,
   ConfigDeletePreview,
   ConfigImportPreview,
   McpImportPreview,
   McpImportOptions,
   McpVerificationHistoryPage,
+  ProviderUpsert,
   ProviderDiagnosticDetail,
   ProxyRequestLogPage,
   UsageRecordPage,
@@ -60,10 +62,17 @@ import {
 } from "../../../shared/lib/api.js";
 import {
   resolveProxyPolicyFormFromBootstrap,
+  syncAppQuotaFormWithBootstrap,
+  syncProviderFormWithBootstrap,
   syncBindingFormWithBootstrap,
   syncFailoverFormWithBootstrap,
-  syncMcpBindingFormWithBootstrap
+  syncMcpBindingFormWithBootstrap,
+  syncPromptTemplateEditorWithBootstrap,
+  syncSessionFormWithBootstrap,
+  syncSkillEditorWithBootstrap,
+  syncWorkspaceEditorWithBootstrap
 } from "../lib/editorConsistency.js";
+import { readDashboardEditorSelection } from "../lib/editorBootstrapStorage.js";
 
 const toIsoDateTime = (value: string): string | undefined =>
   value.trim().length === 0 ? undefined : new Date(value).toISOString();
@@ -110,12 +119,14 @@ type UseDashboardDataRuntimeParams = {
   readonly setNoticeMessage: (message: string | null) => void;
   readonly importText: string;
   readonly mcpImportOptions: McpImportOptions;
+  readonly setProviderForm: React.Dispatch<React.SetStateAction<ProviderUpsert>>;
   readonly setBindingForm: React.Dispatch<React.SetStateAction<{
     id: string;
     appCode: AppBinding["appCode"];
     providerId: string;
     mode: "managed" | "observe";
   }>>;
+  readonly setAppQuotaForm: React.Dispatch<React.SetStateAction<AppQuotaUpsert>>;
   readonly setMcpBindingForm: React.Dispatch<React.SetStateAction<{
     id: string;
     appCode: AppBinding["appCode"];
@@ -136,6 +147,94 @@ type UseDashboardDataRuntimeParams = {
     enabled: boolean;
     requestTimeoutMs: number;
     failureThreshold: number;
+  }>>;
+  readonly promptTemplateForm: {
+    readonly id: string;
+    readonly name: string;
+    readonly appCode: AppBinding["appCode"] | null;
+    readonly locale: "zh-CN" | "en-US";
+    readonly content: string;
+    readonly tags: string[];
+    readonly enabled: boolean;
+  };
+  readonly promptTagsText: string;
+  readonly setPromptTemplateForm: React.Dispatch<React.SetStateAction<{
+    id: string;
+    name: string;
+    appCode: AppBinding["appCode"] | null;
+    locale: "zh-CN" | "en-US";
+    content: string;
+    tags: string[];
+    enabled: boolean;
+  }>>;
+  readonly setPromptTagsText: React.Dispatch<React.SetStateAction<string>>;
+  readonly skillForm: {
+    readonly id: string;
+    readonly name: string;
+    readonly appCode: AppBinding["appCode"] | null;
+    readonly promptTemplateId: string | null;
+    readonly content: string;
+    readonly tags: string[];
+    readonly enabled: boolean;
+  };
+  readonly skillTagsText: string;
+  readonly setSkillForm: React.Dispatch<React.SetStateAction<{
+    id: string;
+    name: string;
+    appCode: AppBinding["appCode"] | null;
+    promptTemplateId: string | null;
+    content: string;
+    tags: string[];
+    enabled: boolean;
+  }>>;
+  readonly setSkillTagsText: React.Dispatch<React.SetStateAction<string>>;
+  readonly workspaceForm: {
+    readonly id: string;
+    readonly name: string;
+    readonly rootPath: string;
+    readonly appCode: AppBinding["appCode"] | null;
+    readonly defaultProviderId: string | null;
+    readonly defaultPromptTemplateId: string | null;
+    readonly defaultSkillId: string | null;
+    readonly tags: string[];
+    readonly enabled: boolean;
+  };
+  readonly workspaceTagsText: string;
+  readonly setWorkspaceForm: React.Dispatch<React.SetStateAction<{
+    id: string;
+    readonly name: string;
+    readonly rootPath: string;
+    readonly appCode: AppBinding["appCode"] | null;
+    readonly defaultProviderId: string | null;
+    readonly defaultPromptTemplateId: string | null;
+    readonly defaultSkillId: string | null;
+    readonly tags: string[];
+    readonly enabled: boolean;
+  }>>;
+  readonly setWorkspaceTagsText: React.Dispatch<React.SetStateAction<string>>;
+  readonly sessionForm: {
+    readonly id: string;
+    readonly workspaceId: string | null;
+    readonly appCode: AppBinding["appCode"];
+    readonly title: string;
+    readonly cwd: string;
+    readonly providerId: string | null;
+    readonly promptTemplateId: string | null;
+    readonly skillId: string | null;
+    readonly status: "active" | "archived";
+    readonly startedAt: string;
+  };
+  readonly setSessionForm: React.Dispatch<React.SetStateAction<{
+    id: string;
+    workspaceId: string | null;
+    appCode: AppBinding["appCode"];
+    title: string;
+    cwd: string;
+    providerId: string | null;
+    promptTemplateId: string | null;
+    skillId: string | null;
+    status: "active" | "archived";
+    startedAt: string;
   }>>;
 };
 
@@ -169,10 +268,26 @@ export const useDashboardDataRuntime = ({
   setNoticeMessage,
   importText,
   mcpImportOptions,
+  setProviderForm,
   setBindingForm,
+  setAppQuotaForm,
   setMcpBindingForm,
   setFailoverForm,
-  setProxyForm
+  setProxyForm,
+  promptTemplateForm,
+  promptTagsText,
+  setPromptTemplateForm,
+  setPromptTagsText,
+  skillForm,
+  skillTagsText,
+  setSkillForm,
+  setSkillTagsText,
+  workspaceForm,
+  workspaceTagsText,
+  setWorkspaceForm,
+  setWorkspaceTagsText,
+  sessionForm,
+  setSessionForm
 }: UseDashboardDataRuntimeParams) => {
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [needsToken, setNeedsToken] = useState(false);
@@ -264,8 +379,22 @@ export const useDashboardDataRuntime = ({
             ? current
             : null
         );
+        setProviderForm((current) =>
+          syncProviderFormWithBootstrap(
+            current,
+            result.providers,
+            readDashboardEditorSelection("provider")
+          )
+        );
         setBindingForm((current) =>
           syncBindingFormWithBootstrap(current, result.bindings, result.providers)
+        );
+        setAppQuotaForm((current) =>
+          syncAppQuotaFormWithBootstrap(
+            current,
+            result.appQuotas,
+            readDashboardEditorSelection("app-quota")
+          )
         );
         setMcpBindingForm((current) =>
           syncMcpBindingFormWithBootstrap(current, result.appMcpBindings, result.mcpServers)
@@ -274,6 +403,37 @@ export const useDashboardDataRuntime = ({
           syncFailoverFormWithBootstrap(current, result.failoverChains, result.providers)
         );
         setProxyForm(resolveProxyPolicyFormFromBootstrap(result.latestSnapshot));
+        const promptEditorState = syncPromptTemplateEditorWithBootstrap(
+          promptTemplateForm,
+          promptTagsText,
+          result.promptTemplates,
+          readDashboardEditorSelection("prompt-template")
+        );
+        setPromptTemplateForm(promptEditorState.form);
+        setPromptTagsText(promptEditorState.tagsText);
+        const skillEditorState = syncSkillEditorWithBootstrap(
+          skillForm,
+          skillTagsText,
+          result.skills,
+          readDashboardEditorSelection("skill")
+        );
+        setSkillForm(skillEditorState.form);
+        setSkillTagsText(skillEditorState.tagsText);
+        const workspaceEditorState = syncWorkspaceEditorWithBootstrap(
+          workspaceForm,
+          workspaceTagsText,
+          result.workspaces,
+          readDashboardEditorSelection("workspace")
+        );
+        setWorkspaceForm(workspaceEditorState.form);
+        setWorkspaceTagsText(workspaceEditorState.tagsText);
+        setSessionForm(
+          syncSessionFormWithBootstrap(
+            sessionForm,
+            result.sessionRecords,
+            readDashboardEditorSelection("session")
+          )
+        );
       })
       .catch((error: unknown) => {
         if (error instanceof UnauthorizedApiError) {

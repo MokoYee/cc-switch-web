@@ -118,3 +118,71 @@ test("previews binding and failover routing impacts with execution plan", () => 
 
   database.close();
 });
+
+test("previewing an existing provider without re-entering api key reuses the stored credential, while a new provider still requires one", () => {
+  const database = openDatabase(":memory:");
+  const providerRepository = new ProviderRepository(database);
+  const bindingRepository = new BindingRepository(database);
+  const failoverChainRepository = new FailoverChainRepository(database);
+
+  providerRepository.upsert({
+    id: "provider-existing",
+    name: "Existing Provider",
+    providerType: "openai-compatible",
+    baseUrl: "https://existing.example.com/v1",
+    apiKey: "existing-secret",
+    enabled: true,
+    timeoutMs: 30_000
+  });
+
+  const proxyRuntimeService = new ProxyRuntimeService(
+    database,
+    providerRepository,
+    bindingRepository,
+    failoverChainRepository,
+    () => ({
+      runtimeState: "running",
+      policy: {
+        listenHost: "127.0.0.1",
+        listenPort: 8788,
+        enabled: true,
+        requestTimeoutMs: 60_000,
+        failureThreshold: 3
+      }
+    })
+  );
+  proxyRuntimeService.reload(null);
+
+  const service = new RoutingGovernanceService(
+    providerRepository,
+    bindingRepository,
+    failoverChainRepository,
+    proxyRuntimeService
+  );
+
+  const existingPreview = service.previewProviderUpsert({
+    id: "provider-existing",
+    name: "Existing Provider Updated",
+    providerType: "openai-compatible",
+    baseUrl: "https://existing-updated.example.com/v1",
+    apiKey: "",
+    enabled: true,
+    timeoutMs: 45_000
+  });
+  assert.equal(existingPreview.exists, true);
+  assert.equal(existingPreview.issueCodes.includes("credential-missing"), false);
+
+  const newPreview = service.previewProviderUpsert({
+    id: "provider-new",
+    name: "New Provider",
+    providerType: "openai-compatible",
+    baseUrl: "https://new.example.com/v1",
+    apiKey: "",
+    enabled: true,
+    timeoutMs: 30_000
+  });
+  assert.equal(newPreview.exists, false);
+  assert.equal(newPreview.issueCodes.includes("credential-missing"), true);
+
+  database.close();
+});

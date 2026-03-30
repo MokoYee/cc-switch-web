@@ -57,6 +57,8 @@ import {
   buildMcpServerEditorInput,
   buildMcpServerEditorSignature,
   buildPreviewSignature,
+  canPreviewBindingUpsert,
+  canPreviewFailoverChainUpsert,
   isPreviewInSync
 } from "../lib/editorConsistency.js";
 import {
@@ -113,6 +115,7 @@ export const useDashboardPreviewState = ({
   mcpBindingForm,
   mcpImportOptions
 }: UseDashboardPreviewStateParams) => {
+  const hasProviders = (snapshot?.providers.length ?? 0) > 0;
   const [promptTemplatePreview, setPromptTemplatePreview] = useState<PromptTemplateSavePreview | null>(null);
   const [promptTemplatePreviewSignature, setPromptTemplatePreviewSignature] = useState("");
   const [skillPreview, setSkillPreview] = useState<SkillSavePreview | null>(null);
@@ -515,6 +518,12 @@ export const useDashboardPreviewState = ({
   }, [providerForm]);
 
   useEffect(() => {
+    if (!hasProviders || !canPreviewBindingUpsert(bindingForm)) {
+      setBindingPreview(null);
+      setBindingPreviewSignature("");
+      return;
+    }
+
     let cancelled = false;
     const signature = buildPreviewSignature(bindingForm);
 
@@ -535,9 +544,15 @@ export const useDashboardPreviewState = ({
     return () => {
       cancelled = true;
     };
-  }, [bindingForm]);
+  }, [bindingForm, hasProviders]);
 
   useEffect(() => {
+    if (!hasProviders || !canPreviewFailoverChainUpsert(failoverForm)) {
+      setFailoverPreview(null);
+      setFailoverPreviewSignature("");
+      return;
+    }
+
     let cancelled = false;
     const signature = buildPreviewSignature(failoverForm);
 
@@ -558,7 +573,7 @@ export const useDashboardPreviewState = ({
     return () => {
       cancelled = true;
     };
-  }, [failoverForm]);
+  }, [failoverForm, hasProviders]);
 
   useEffect(() => {
     if (selectedSnapshotVersion === null) {

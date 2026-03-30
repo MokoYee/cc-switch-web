@@ -1414,6 +1414,7 @@ export const AssetContextFormsPanel = ({
 
       <form
         className="form-card"
+        data-testid="workspace-form"
         onSubmit={(event) => {
           event.preventDefault();
           onSaveWorkspace();
@@ -1421,21 +1422,25 @@ export const AssetContextFormsPanel = ({
       >
         <h3>{t("dashboard.forms.workspaceTitle")}</h3>
         <input
+          data-testid="workspace-id-input"
           value={workspaceForm.id}
           onChange={(event) => setWorkspaceForm({ ...workspaceForm, id: event.target.value })}
           placeholder={t("dashboard.forms.id")}
         />
         <input
+          data-testid="workspace-name-input"
           value={workspaceForm.name}
           onChange={(event) => setWorkspaceForm({ ...workspaceForm, name: event.target.value })}
           placeholder={t("dashboard.forms.name")}
         />
         <input
+          data-testid="workspace-root-input"
           value={workspaceForm.rootPath}
           onChange={(event) => setWorkspaceForm({ ...workspaceForm, rootPath: event.target.value })}
           placeholder={t("dashboard.forms.rootPath")}
         />
         <select
+          data-testid="workspace-app-select"
           value={workspaceForm.appCode ?? ""}
           onChange={(event) =>
             setWorkspaceForm({
@@ -1455,6 +1460,7 @@ export const AssetContextFormsPanel = ({
           ))}
         </select>
         <select
+          data-testid="workspace-provider-select"
           value={workspaceForm.defaultProviderId ?? ""}
           onChange={(event) =>
             setWorkspaceForm({
@@ -1471,6 +1477,7 @@ export const AssetContextFormsPanel = ({
           ))}
         </select>
         <select
+          data-testid="workspace-prompt-select"
           value={workspaceForm.defaultPromptTemplateId ?? ""}
           onChange={(event) =>
             setWorkspaceForm({
@@ -1487,6 +1494,7 @@ export const AssetContextFormsPanel = ({
           ))}
         </select>
         <select
+          data-testid="workspace-skill-select"
           value={workspaceForm.defaultSkillId ?? ""}
           onChange={(event) =>
             setWorkspaceForm({
@@ -1503,12 +1511,14 @@ export const AssetContextFormsPanel = ({
           ))}
         </select>
         <input
+          data-testid="workspace-tags-input"
           value={workspaceTagsText}
           onChange={(event) => setWorkspaceTagsText(event.target.value)}
           placeholder={t("dashboard.forms.tags")}
         />
         <label className="checkbox-row">
           <input
+            data-testid="workspace-enabled-checkbox"
             checked={workspaceForm.enabled}
             onChange={(event) => setWorkspaceForm({ ...workspaceForm, enabled: event.target.checked })}
             type="checkbox"
@@ -1518,13 +1528,14 @@ export const AssetContextFormsPanel = ({
         <button
           className="auth-button"
           type="submit"
+          data-testid="workspace-save-button"
           disabled={isWorking || !canSaveWorkspace || (workspaceRequiresDangerConfirm && !workspaceDangerConfirmed)}
         >
           {t("common.save")}
         </button>
         {!canSaveWorkspace ? <p className="form-hint">{t("dashboard.forms.previewRequired")}</p> : null}
         {workspacePreview ? (
-          <div className="preview-item">
+          <div className="preview-item" data-testid="workspace-preview">
             <strong>{t("dashboard.routing.impactTitle")}</strong>
             <p>{t("dashboard.impact.linkedSessionCount")}: {formatNumber(workspacePreview.sessionCount)}</p>
             <p>
@@ -1595,6 +1606,7 @@ export const AssetContextFormsPanel = ({
             {workspaceRequiresDangerConfirm ? (
               <label className="checkbox-row danger-confirm-row">
                 <input
+                  data-testid="workspace-danger-confirm"
                   checked={workspaceDangerConfirmed}
                   onChange={(event) => setWorkspaceDangerConfirmed(event.target.checked)}
                   type="checkbox"
@@ -1613,6 +1625,7 @@ export const AssetContextFormsPanel = ({
 
       <form
         className="form-card"
+        data-testid="session-form"
         onSubmit={(event) => {
           event.preventDefault();
           onSaveSession();
@@ -1620,21 +1633,25 @@ export const AssetContextFormsPanel = ({
       >
         <h3>{t("dashboard.forms.sessionTitle")}</h3>
         <input
+          data-testid="session-id-input"
           value={sessionForm.id}
           onChange={(event) => setSessionForm({ ...sessionForm, id: event.target.value })}
           placeholder={t("dashboard.forms.id")}
         />
         <input
+          data-testid="session-title-input"
           value={sessionForm.title}
           onChange={(event) => setSessionForm({ ...sessionForm, title: event.target.value })}
           placeholder={t("dashboard.workspace.sessionTitle")}
         />
         <input
+          data-testid="session-cwd-input"
           value={sessionForm.cwd}
           onChange={(event) => setSessionForm({ ...sessionForm, cwd: event.target.value })}
           placeholder={t("dashboard.forms.cwd")}
         />
         <select
+          data-testid="session-workspace-select"
           value={sessionForm.workspaceId ?? ""}
           onChange={(event) =>
             setSessionForm({
@@ -1651,6 +1668,7 @@ export const AssetContextFormsPanel = ({
           ))}
         </select>
         <select
+          data-testid="session-app-select"
           value={sessionForm.appCode}
           onChange={(event) =>
             setSessionForm({
@@ -1666,6 +1684,7 @@ export const AssetContextFormsPanel = ({
           ))}
         </select>
         <select
+          data-testid="session-provider-select"
           value={sessionForm.providerId ?? ""}
           onChange={(event) =>
             setSessionForm({
@@ -1682,6 +1701,7 @@ export const AssetContextFormsPanel = ({
           ))}
         </select>
         <select
+          data-testid="session-prompt-select"
           value={sessionForm.promptTemplateId ?? ""}
           onChange={(event) =>
             setSessionForm({
@@ -1698,6 +1718,7 @@ export const AssetContextFormsPanel = ({
           ))}
         </select>
         <select
+          data-testid="session-skill-select"
           value={sessionForm.skillId ?? ""}
           onChange={(event) =>
             setSessionForm({
@@ -1714,6 +1735,7 @@ export const AssetContextFormsPanel = ({
           ))}
         </select>
         <select
+          data-testid="session-status-select"
           value={sessionForm.status}
           onChange={(event) =>
             setSessionForm({
@@ -1728,13 +1750,14 @@ export const AssetContextFormsPanel = ({
         <button
           className="auth-button"
           type="submit"
+          data-testid="session-save-button"
           disabled={isWorking || !canSaveSession || (sessionRequiresDangerConfirm && !sessionDangerConfirmed)}
         >
           {t("common.save")}
         </button>
         {!canSaveSession ? <p className="form-hint">{t("dashboard.forms.previewRequired")}</p> : null}
         {sessionPreview ? (
-          <div className="preview-item">
+          <div className="preview-item" data-testid="session-preview">
             <strong>{t("dashboard.routing.impactTitle")}</strong>
             <p>
               {t("dashboard.impact.targetWorkspaceExists")}:{" "}
@@ -1847,6 +1870,7 @@ export const AssetContextFormsPanel = ({
             {sessionRequiresDangerConfirm ? (
               <label className="checkbox-row danger-confirm-row">
                 <input
+                  data-testid="session-danger-confirm"
                   checked={sessionDangerConfirmed}
                   onChange={(event) => setSessionDangerConfirmed(event.target.checked)}
                   type="checkbox"
@@ -1865,6 +1889,7 @@ export const AssetContextFormsPanel = ({
 
       <form
         className="form-card"
+        data-testid="prompt-form"
         onSubmit={(event) => {
           event.preventDefault();
           onSavePromptTemplate();
@@ -1872,6 +1897,7 @@ export const AssetContextFormsPanel = ({
       >
         <h3>{t("dashboard.forms.promptTemplateTitle")}</h3>
         <input
+          data-testid="prompt-id-input"
           value={promptTemplateForm.id}
           onChange={(event) =>
             setPromptTemplateForm({ ...promptTemplateForm, id: event.target.value })
@@ -1879,6 +1905,7 @@ export const AssetContextFormsPanel = ({
           placeholder={t("dashboard.forms.id")}
         />
         <input
+          data-testid="prompt-name-input"
           value={promptTemplateForm.name}
           onChange={(event) =>
             setPromptTemplateForm({ ...promptTemplateForm, name: event.target.value })
@@ -1886,6 +1913,7 @@ export const AssetContextFormsPanel = ({
           placeholder={t("dashboard.forms.name")}
         />
         <select
+          data-testid="prompt-app-select"
           value={promptTemplateForm.appCode ?? ""}
           onChange={(event) =>
             setPromptTemplateForm({
@@ -1905,6 +1933,7 @@ export const AssetContextFormsPanel = ({
           ))}
         </select>
         <select
+          data-testid="prompt-locale-select"
           value={promptTemplateForm.locale}
           onChange={(event) =>
             setPromptTemplateForm({
@@ -1917,12 +1946,14 @@ export const AssetContextFormsPanel = ({
           <option value="en-US">en-US</option>
         </select>
         <input
+          data-testid="prompt-tags-input"
           value={promptTagsText}
           onChange={(event) => setPromptTagsText(event.target.value)}
           placeholder={t("dashboard.forms.tags")}
         />
         <textarea
           className="json-editor compact"
+          data-testid="prompt-content-input"
           value={promptTemplateForm.content}
           onChange={(event) =>
             setPromptTemplateForm({ ...promptTemplateForm, content: event.target.value })
@@ -1931,6 +1962,7 @@ export const AssetContextFormsPanel = ({
         />
         <label className="checkbox-row">
           <input
+            data-testid="prompt-enabled-checkbox"
             checked={promptTemplateForm.enabled}
             onChange={(event) =>
               setPromptTemplateForm({ ...promptTemplateForm, enabled: event.target.checked })
@@ -1942,6 +1974,7 @@ export const AssetContextFormsPanel = ({
         <button
           className="auth-button"
           type="submit"
+          data-testid="prompt-save-button"
           disabled={isWorking || !canSavePromptTemplate || (promptRequiresDangerConfirm && !promptDangerConfirmed)}
         >
           {t("common.save")}
@@ -1950,7 +1983,7 @@ export const AssetContextFormsPanel = ({
           <p className="form-hint">{t("dashboard.forms.previewRequired")}</p>
         ) : null}
         {promptTemplatePreview ? (
-          <div className="preview-item">
+          <div className="preview-item" data-testid="prompt-preview">
             <strong>{t("dashboard.routing.impactTitle")}</strong>
             <p>
               {t("dashboard.impact.linkedSkills")}:{" "}
@@ -2018,6 +2051,7 @@ export const AssetContextFormsPanel = ({
             {promptRequiresDangerConfirm ? (
               <label className="checkbox-row danger-confirm-row">
                 <input
+                  data-testid="prompt-danger-confirm"
                   checked={promptDangerConfirmed}
                   onChange={(event) => setPromptDangerConfirmed(event.target.checked)}
                   type="checkbox"
@@ -2127,6 +2161,7 @@ export const AssetContextFormsPanel = ({
 
       <form
         className="form-card"
+        data-testid="skill-form"
         onSubmit={(event) => {
           event.preventDefault();
           onSaveSkill();
@@ -2134,16 +2169,19 @@ export const AssetContextFormsPanel = ({
       >
         <h3>{t("dashboard.forms.skillTitle")}</h3>
         <input
+          data-testid="skill-id-input"
           value={skillForm.id}
           onChange={(event) => setSkillForm({ ...skillForm, id: event.target.value })}
           placeholder={t("dashboard.forms.id")}
         />
         <input
+          data-testid="skill-name-input"
           value={skillForm.name}
           onChange={(event) => setSkillForm({ ...skillForm, name: event.target.value })}
           placeholder={t("dashboard.forms.name")}
         />
         <select
+          data-testid="skill-app-select"
           value={skillForm.appCode ?? ""}
           onChange={(event) =>
             setSkillForm({
@@ -2163,6 +2201,7 @@ export const AssetContextFormsPanel = ({
           ))}
         </select>
         <select
+          data-testid="skill-prompt-select"
           value={skillForm.promptTemplateId ?? ""}
           onChange={(event) =>
             setSkillForm({
@@ -2179,18 +2218,21 @@ export const AssetContextFormsPanel = ({
           ))}
         </select>
         <input
+          data-testid="skill-tags-input"
           value={skillTagsText}
           onChange={(event) => setSkillTagsText(event.target.value)}
           placeholder={t("dashboard.forms.tags")}
         />
         <textarea
           className="json-editor compact"
+          data-testid="skill-content-input"
           value={skillForm.content}
           onChange={(event) => setSkillForm({ ...skillForm, content: event.target.value })}
           placeholder={t("dashboard.forms.skillContent")}
         />
         <label className="checkbox-row">
           <input
+            data-testid="skill-enabled-checkbox"
             checked={skillForm.enabled}
             onChange={(event) => setSkillForm({ ...skillForm, enabled: event.target.checked })}
             type="checkbox"
@@ -2200,13 +2242,14 @@ export const AssetContextFormsPanel = ({
         <button
           className="auth-button"
           type="submit"
+          data-testid="skill-save-button"
           disabled={isWorking || !canSaveSkill || (skillRequiresDangerConfirm && !skillDangerConfirmed)}
         >
           {t("common.save")}
         </button>
         {!canSaveSkill ? <p className="form-hint">{t("dashboard.forms.previewRequired")}</p> : null}
         {skillPreview ? (
-          <div className="preview-item">
+          <div className="preview-item" data-testid="skill-preview">
             <strong>{t("dashboard.routing.impactTitle")}</strong>
             <p>
               {t("dashboard.impact.linkedPromptExists")}:{" "}
@@ -2283,6 +2326,7 @@ export const AssetContextFormsPanel = ({
             {skillRequiresDangerConfirm ? (
               <label className="checkbox-row danger-confirm-row">
                 <input
+                  data-testid="skill-danger-confirm"
                   checked={skillDangerConfirmed}
                   onChange={(event) => setSkillDangerConfirmed(event.target.checked)}
                   type="checkbox"

@@ -62,6 +62,7 @@ import {
   createDefaultSkillForm,
   createDefaultWorkspaceForm
 } from "../lib/editorConsistency.js";
+import { writeDashboardEditorSelection } from "../lib/editorBootstrapStorage.js";
 import {
   buildRequestPrimaryCause,
   renderRoutingPrimaryCauseLabel
@@ -1446,10 +1447,26 @@ export const DashboardPage = (): JSX.Element => {
     setNoticeMessage,
     importText,
     mcpImportOptions,
+    setProviderForm,
     setBindingForm,
+    setAppQuotaForm,
     setMcpBindingForm,
     setFailoverForm,
-    setProxyForm
+    setProxyForm,
+    promptTemplateForm,
+    promptTagsText,
+    setPromptTemplateForm,
+    setPromptTagsText,
+    skillForm,
+    skillTagsText,
+    setSkillForm,
+    setSkillTagsText,
+    workspaceForm,
+    workspaceTagsText,
+    setWorkspaceForm,
+    setWorkspaceTagsText,
+    sessionForm,
+    setSessionForm
   });
 
   useEffect(() => {
@@ -2012,6 +2029,7 @@ export const DashboardPage = (): JSX.Element => {
   };
 
   const editProviderAndFocus = (item: DashboardSnapshot["providers"][number]): void => {
+    writeDashboardEditorSelection("provider", item.id);
     setProviderForm(buildProviderEditorState(item));
     scrollToSection(routingFormsRef.current);
   };
@@ -2022,6 +2040,7 @@ export const DashboardPage = (): JSX.Element => {
   };
 
   const editAppQuotaAndFocus = (item: DashboardSnapshot["appQuotas"][number]): void => {
+    writeDashboardEditorSelection("app-quota", item.id);
     setAppQuotaForm(buildAppQuotaEditorState(item));
     scrollToSection(routingFormsRef.current);
   };
@@ -2545,7 +2564,7 @@ export const DashboardPage = (): JSX.Element => {
       ) : null}
 
       {followUpNotice ? (
-        <section className="panel success-panel follow-up-panel">
+        <section className="panel success-panel follow-up-panel" data-testid="follow-up-notice-panel">
           <h2>{followUpNotice.title}</h2>
           <p>{followUpNotice.summary}</p>
           {followUpVerdict ? (
@@ -2646,6 +2665,7 @@ export const DashboardPage = (): JSX.Element => {
                 className="inline-action"
                 type="button"
                 key={action.id}
+                data-testid={`follow-up-action-${action.id}`}
                 onClick={() => runFollowUpAction(action)}
               >
                 {action.label}
@@ -3165,10 +3185,12 @@ export const DashboardPage = (): JSX.Element => {
                   isWorking={isWorking}
                   onLoadImportPreview={loadMcpImportPreview}
                   onLoadMoreVerificationHistory={loadMoreMcpVerificationHistory}
+                  onConvergeAll={actions.mcpHost.convergeAll}
                   onRepairGovernanceAll={actions.mcpHost.repairGovernanceAll}
                   onRepairGovernance={actions.mcpHost.repairGovernance}
                   onImportFromHost={actions.mcpHost.importFromHost}
                   onApplyHostSyncAll={actions.mcpHost.applyHostSyncAll}
+                  onRollbackHostSyncAll={actions.mcpHost.rollbackHostSyncAll}
                   onApplyHostSync={actions.mcpHost.applyHostSync}
                   onRollbackHostSync={actions.mcpHost.rollbackHostSync}
                   onEditMcpServer={editMcpServerAndFocus}

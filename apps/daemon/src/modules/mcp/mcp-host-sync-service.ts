@@ -7,6 +7,7 @@ import {
   type AppCode,
   type AppMcpBinding,
   type McpHostSyncBatchPreview,
+  type McpHostSyncBatchRollbackResult,
   type McpHostSyncBatchResult,
   type McpHostSyncState,
   type McpHostSyncPreview,
@@ -577,6 +578,28 @@ export class McpHostSyncService {
         items.length === 0
           ? "No managed MCP host sync changes were applied."
           : `Applied MCP host sync for ${items.length} app(s).`
+    };
+  }
+
+  rollbackAll(): McpHostSyncBatchRollbackResult {
+    const rollbackableApps = managedAdapters
+      .map((adapter) => adapter.appCode)
+      .filter((appCode) => this.readState(appCode) !== null);
+    const items = rollbackableApps.map((appCode) => this.rollback(appCode));
+    const rolledBackApps = items.map((item) => item.appCode);
+
+    return {
+      totalApps: managedAdapters.length,
+      rolledBackApps,
+      skippedApps: managedAdapters
+        .map((adapter) => adapter.appCode)
+        .filter((appCode) => !rolledBackApps.includes(appCode)),
+      restoredServerIds: Array.from(new Set(items.flatMap((item) => item.syncedServerIds))).sort(),
+      items,
+      message:
+        items.length === 0
+          ? "No managed MCP host sync rollback state was found."
+          : `Rolled back MCP host sync for ${items.length} app(s).`
     };
   }
 

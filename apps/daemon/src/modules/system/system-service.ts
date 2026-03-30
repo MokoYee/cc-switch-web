@@ -40,7 +40,7 @@ export class SystemService {
   private readonly workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../..");
   private readonly cliEntry = resolve(this.workspaceRoot, "apps/cli/dist/index.js");
   private readonly systemdUnitPath = resolve(homedir(), ".config/systemd/user/ai-cli-switch.service");
-  private readonly systemdEnvPath = resolve(homedir(), ".config/ai-switch-web/daemon.env");
+  private readonly systemdEnvPath = resolve(homedir(), ".config/ai-cli-switch/daemon.env");
 
   constructor(
     private readonly env: DaemonEnv,
@@ -305,6 +305,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+WorkingDirectory=${this.workspaceRoot}
 EnvironmentFile=-${this.systemdEnvPath}
 ExecStart=${process.execPath} ${this.cliEntry} daemon start
 Restart=on-failure

@@ -27,6 +27,7 @@ import {
   buildSkillEditorState,
   buildWorkspaceEditorState
 } from "../lib/editorConsistency.js";
+import { writeDashboardEditorSelection } from "../lib/editorBootstrapStorage.js";
 
 type UseDashboardEditorsParams = {
   readonly setPromptTemplateForm: Dispatch<SetStateAction<PromptTemplateUpsert>>;
@@ -97,6 +98,7 @@ export const useDashboardEditors = ({
     item: DashboardSnapshot["promptTemplates"][number]
   ): void => {
     const editorState = buildPromptTemplateEditorState(item);
+    writeDashboardEditorSelection("prompt-template", item.id);
     setPromptTemplateForm(editorState.form);
     setPromptTagsText(editorState.tagsText);
     void loadPromptTemplateVersions(item.id)
@@ -110,6 +112,7 @@ export const useDashboardEditors = ({
 
   const loadSkillToEditor = (item: DashboardSnapshot["skills"][number]): void => {
     const editorState = buildSkillEditorState(item);
+    writeDashboardEditorSelection("skill", item.id);
     setSkillForm(editorState.form);
     setSkillTagsText(editorState.tagsText);
     void loadSkillVersions(item.id)
@@ -125,6 +128,7 @@ export const useDashboardEditors = ({
     item: DashboardSnapshot["workspaces"][number]
   ): void => {
     const editorState = buildWorkspaceEditorState(item);
+    writeDashboardEditorSelection("workspace", item.id);
     setWorkspaceForm(editorState.form);
     setWorkspaceTagsText(editorState.tagsText);
   };
@@ -132,6 +136,7 @@ export const useDashboardEditors = ({
   const loadSessionToEditor = (
     item: DashboardSnapshot["sessionRecords"][number]
   ): void => {
+    writeDashboardEditorSelection("session", item.id);
     setSessionForm(buildSessionEditorState(item));
   };
 

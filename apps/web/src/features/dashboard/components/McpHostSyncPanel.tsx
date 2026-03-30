@@ -30,6 +30,8 @@ import { joinDashboardWarnings } from "../lib/formatDashboardWarning.js";
 const joinPreviewValues = (items: string[], fallback: string): string =>
   items.length > 0 ? items.join(", ") : fallback;
 
+const unique = <T,>(items: readonly T[]): T[] => Array.from(new Set(items));
+
 const hasMaterialHostSyncDiff = (preview: McpHostSyncPreview | null | undefined): boolean =>
   preview !== null &&
   preview !== undefined &&
@@ -179,6 +181,24 @@ const renderMcpImportDiffValue = (
 const localize = (locale: "zh-CN" | "en-US", zhCN: string, enUS: string): string =>
   locale === "zh-CN" ? zhCN : enUS;
 
+const buildMcpSummaryTileTestId = (name: string): string => `mcp-host-sync-summary-${name}`;
+const buildMcpCapabilityCardTestId = (appCode: AppBinding["appCode"]): string =>
+  `mcp-host-sync-card-${appCode}`;
+const buildMcpDangerConfirmTestId = (appCode: AppBinding["appCode"]): string =>
+  `mcp-host-sync-danger-confirm-${appCode}`;
+const buildMcpApplyButtonTestId = (appCode: AppBinding["appCode"]): string =>
+  `mcp-host-sync-apply-button-${appCode}`;
+const buildMcpRollbackButtonTestId = (appCode: AppBinding["appCode"]): string =>
+  `mcp-host-sync-rollback-button-${appCode}`;
+const buildMcpImportPreviewButtonTestId = (appCode: AppBinding["appCode"]): string =>
+  `mcp-import-preview-button-${appCode}`;
+const buildMcpImportButtonTestId = (appCode: AppBinding["appCode"]): string =>
+  `mcp-import-button-${appCode}`;
+const buildMcpImportPreviewCardTestId = (appCode: string): string =>
+  `mcp-import-preview-card-${appCode}`;
+const buildMcpImportPreviewItemTestId = (appCode: string, serverId: string): string =>
+  `mcp-import-preview-item-${appCode}-${serverId}`;
+
 const renderGovernanceActionTitle = (
   action: McpGovernanceRepairPlanItem["action"],
   locale: "zh-CN" | "en-US"
@@ -323,10 +343,12 @@ type McpHostSyncPanelProps = {
   readonly isWorking: boolean;
   readonly onLoadImportPreview: (appCode: AppBinding["appCode"]) => void;
   readonly onLoadMoreVerificationHistory: (appCode: AppBinding["appCode"]) => void;
+  readonly onConvergeAll: (confirmedRemovalAppCodes: readonly AppBinding["appCode"][]) => void;
   readonly onRepairGovernanceAll: () => void;
   readonly onRepairGovernance: (appCode: AppBinding["appCode"]) => void;
   readonly onImportFromHost: (appCode: AppBinding["appCode"]) => void;
   readonly onApplyHostSyncAll: () => void;
+  readonly onRollbackHostSyncAll: () => void;
   readonly onApplyHostSync: (appCode: AppBinding["appCode"]) => void;
   readonly onRollbackHostSync: (appCode: AppBinding["appCode"]) => void;
   readonly onEditMcpServer: (item: DashboardSnapshot["mcpServers"][number]) => void;
@@ -583,10 +605,12 @@ export const McpHostSyncPanel = ({
   isWorking,
   onLoadImportPreview,
   onLoadMoreVerificationHistory,
+  onConvergeAll,
   onRepairGovernanceAll,
   onRepairGovernance,
   onImportFromHost,
   onApplyHostSyncAll,
+  onRollbackHostSyncAll,
   onApplyHostSync,
   onRollbackHostSync,
   onEditMcpServer,
@@ -786,11 +810,48 @@ export const McpHostSyncPanel = ({
     const preview = mcpHostSyncPreview[appCode];
     return (preview?.removedServerIds.length ?? 0) > 0;
   });
+  const batchRollbackCandidates = snapshot.mcpHostSyncCapabilities
+    .filter((item) => item.supportLevel === "managed")
+    .map((item) => item.appCode)
+    .filter((appCode) => mcpHostSyncStateByApp.has(appCode));
   const batchHostSyncDangerConfirmed = batchHostSyncRemovalApps.every(
     (appCode) => dangerConfirmByApp[appCode] ?? false
   );
   const batchHostSyncSummary = buildMcpBatchHostSyncSummary(snapshot, mcpHostSyncPreview, locale);
   const governanceBatchSummary = buildMcpGovernanceBatchSummary(snapshot, mcpGovernancePreview, locale);
+  const batchConvergencePreviewPendingApps = unique([
+    ...governanceEntries
+      .map((entry) => entry.appCode)
+      .filter((appCode) => mcpGovernancePreview[appCode] === undefined),
+    ...managedCapabilities
+      .map((item) => item.appCode)
+      .filter((appCode) => mcpHostSyncPreview[appCode] === undefined)
+  ]);
+  const batchConvergenceNeedsManualRepairApps = governanceEntries
+    .map((entry) => {
+      const preview = mcpGovernancePreview[entry.appCode];
+      if (preview === null || preview === undefined) {
+        return null;
+      }
+
+      return preview.predictedIssueCodesAfter.some((issueCode) => issueCode !== "host-drift")
+        ? entry.appCode
+        : null;
+    })
+    .filter((appCode): appCode is AppBinding["appCode"] => appCode !== null);
+  const batchConvergenceConfirmedRemovalApps = unique(
+    batchHostSyncRemovalApps.filter((appCode) => dangerConfirmByApp[appCode] ?? false)
+  );
+  const batchConvergenceCurrentRemovalReviewApps = batchHostSyncRemovalApps.filter(
+    (appCode) => !(dangerConfirmByApp[appCode] ?? false)
+  );
+  const batchConvergenceHasWork =
+    governanceBatchSummary.repairableApps.length > 0 || batchHostSyncCandidates.length > 0;
+  const batchConvergenceDisabled =
+    isWorking ||
+    !batchConvergenceHasWork ||
+    batchConvergencePreviewPendingApps.length > 0 ||
+    batchConvergenceNeedsManualRepairApps.length > 0;
   const verificationBatchSummary = buildMcpVerificationBatchSummary({
     snapshot,
     locale,
@@ -846,7 +907,7 @@ export const McpHostSyncPanel = ({
     );
 
   return (
-    <article className="panel panel-span-2">
+    <article className="panel panel-span-2" data-testid="mcp-host-sync-panel">
       <h2>{t("dashboard.panels.mcpHostSync")}</h2>
       {governanceEntries.length > 0 ? (
         <div className="list">
@@ -1065,16 +1126,74 @@ export const McpHostSyncPanel = ({
             <strong>{t("dashboard.mcp.importStrategyTitle")}</strong>
             <p>{t("dashboard.mcp.importStrategyHint")}</p>
             <p>{batchHostSyncSummary.summary}</p>
+            <p>
+              {locale === "zh-CN" ? "整批收敛状态" : "Batch Convergence Status"}:{" "}
+              {batchConvergencePreviewPendingApps.length > 0
+                ? localize(locale, "等待预览补齐", "Waiting For Preview State")
+                : batchConvergenceNeedsManualRepairApps.length > 0
+                  ? localize(locale, "仍有应用需人工修复", "Manual Repair Still Required")
+                  : batchConvergenceHasWork
+                    ? localize(locale, "可执行一键收敛", "Ready For One-Step Convergence")
+                    : localize(locale, "当前无需继续收敛", "Already Converged")}
+            </p>
+            {batchConvergencePreviewPendingApps.length > 0 ? (
+              <p>
+                {locale === "zh-CN" ? "仍在加载预览的应用" : "Apps Still Loading Preview"}:{" "}
+                {joinPreviewValues(batchConvergencePreviewPendingApps, t("common.notFound"))}
+              </p>
+            ) : null}
+            {batchConvergenceNeedsManualRepairApps.length > 0 ? (
+              <p>
+                {locale === "zh-CN"
+                  ? "一键治理后仍会保留非宿主机问题的应用"
+                  : "Apps Still Leaving Non-Host Issues After Guided Repair"}
+                :{" "}
+                {joinPreviewValues(batchConvergenceNeedsManualRepairApps, t("common.notFound"))}
+              </p>
+            ) : null}
+            {batchConvergenceCurrentRemovalReviewApps.length > 0 ? (
+              <p>
+                {locale === "zh-CN" ? "当前仍需确认移除项的应用" : "Apps Still Requiring Removal Review"}:{" "}
+                {joinPreviewValues(batchConvergenceCurrentRemovalReviewApps, t("common.notFound"))}
+              </p>
+            ) : null}
+            {batchConvergenceConfirmedRemovalApps.length > 0 ? (
+              <p>
+                {locale === "zh-CN" ? "已确认允许移除的应用" : "Apps Already Confirmed For Removal"}:{" "}
+                {joinPreviewValues(batchConvergenceConfirmedRemovalApps, t("common.notFound"))}
+              </p>
+            ) : null}
           </div>
           <div className="row-meta stack-actions">
+            <button
+              className="inline-action"
+              type="button"
+              disabled={batchConvergenceDisabled}
+              onClick={() => onConvergeAll(batchConvergenceConfirmedRemovalApps)}
+              data-testid="mcp-host-sync-converge-all-button"
+            >
+              {locale === "zh-CN" ? "整批收敛 MCP" : "Converge MCP Queue"}
+            </button>
             {batchHostSyncCandidates.length > 0 ? (
               <button
                 className="inline-action"
                 type="button"
                 disabled={isWorking || (batchHostSyncRemovalApps.length > 0 && !batchHostSyncDangerConfirmed)}
                 onClick={onApplyHostSyncAll}
+                data-testid="mcp-host-sync-apply-all-button"
               >
                 {locale === "zh-CN" ? "整批同步宿主机" : "Apply Host Sync For Queue"}
+              </button>
+            ) : null}
+            {batchRollbackCandidates.length > 0 ? (
+              <button
+                className="inline-action"
+                type="button"
+                disabled={isWorking}
+                onClick={onRollbackHostSyncAll}
+                data-testid="mcp-host-sync-rollback-all-button"
+              >
+                {locale === "zh-CN" ? "整批回滚宿主机" : "Rollback Host Sync For Queue"}
               </button>
             ) : null}
             <select
@@ -1106,19 +1225,31 @@ export const McpHostSyncPanel = ({
         <div className="preview-item">
           <strong>{locale === "zh-CN" ? "整批宿主机同步摘要" : "Batch Host Sync Summary"}</strong>
           <div className="preview-summary-grid">
-            <div className={`preview-summary-tile risk-${batchHostSyncSummary.syncableApps.length > 0 ? "medium" : "low"}`}>
+            <div
+              className={`preview-summary-tile risk-${batchHostSyncSummary.syncableApps.length > 0 ? "medium" : "low"}`}
+              data-testid={buildMcpSummaryTileTestId("apps-to-sync")}
+            >
               <strong>{batchHostSyncSummary.syncableApps.length}</strong>
               <span>{locale === "zh-CN" ? "待同步应用" : "Apps To Sync"}</span>
             </div>
-            <div className={`preview-summary-tile risk-${batchHostSyncSummary.totalAddedServers > 0 ? "low" : "medium"}`}>
+            <div
+              className={`preview-summary-tile risk-${batchHostSyncSummary.totalAddedServers > 0 ? "low" : "medium"}`}
+              data-testid={buildMcpSummaryTileTestId("added-entries")}
+            >
               <strong>{batchHostSyncSummary.totalAddedServers}</strong>
               <span>{locale === "zh-CN" ? "新增托管项" : "Added Entries"}</span>
             </div>
-            <div className={`preview-summary-tile risk-${batchHostSyncSummary.totalRemovedServers > 0 ? "high" : "low"}`}>
+            <div
+              className={`preview-summary-tile risk-${batchHostSyncSummary.totalRemovedServers > 0 ? "high" : "low"}`}
+              data-testid={buildMcpSummaryTileTestId("removed-entries")}
+            >
               <strong>{batchHostSyncSummary.totalRemovedServers}</strong>
               <span>{locale === "zh-CN" ? "移除托管项" : "Removed Entries"}</span>
             </div>
-            <div className="preview-summary-tile risk-low">
+            <div
+              className="preview-summary-tile risk-low"
+              data-testid={buildMcpSummaryTileTestId("unchanged-entries")}
+            >
               <strong>{batchHostSyncSummary.totalUnchangedServers}</strong>
               <span>{locale === "zh-CN" ? "保持不变" : "Unchanged"}</span>
             </div>
@@ -1130,6 +1261,10 @@ export const McpHostSyncPanel = ({
           <p>
             {locale === "zh-CN" ? "包含移除的应用" : "Apps With Removals"}:{" "}
             {joinPreviewValues(batchHostSyncSummary.removalApps, t("common.notFound"))}
+          </p>
+          <p>
+            {locale === "zh-CN" ? "当前可整批回滚的应用" : "Apps Ready For Batch Rollback"}:{" "}
+            {joinPreviewValues(batchRollbackCandidates, t("common.notFound"))}
           </p>
           {batchHostSyncSummary.suggestions.map((item) => (
             <p key={`batch-host-sync-summary-${item}`}>{item}</p>
@@ -1400,6 +1535,7 @@ export const McpHostSyncPanel = ({
             <div
               className="list-row"
               key={capability.appCode}
+              data-testid={buildMcpCapabilityCardTestId(capability.appCode)}
               ref={(node) => {
                 capabilityRowRefs.current[capability.appCode] = node;
               }}
@@ -1630,6 +1766,7 @@ export const McpHostSyncPanel = ({
                     {requiresDangerConfirm ? (
                       <label className="checkbox-row danger-confirm-row">
                         <input
+                          data-testid={buildMcpDangerConfirmTestId(capability.appCode)}
                           checked={dangerConfirmed}
                           onChange={(event) =>
                             setDangerConfirmByApp((current) => ({
@@ -1876,6 +2013,7 @@ export const McpHostSyncPanel = ({
                         type="button"
                         disabled={isWorking}
                         onClick={() => onLoadImportPreview(capability.appCode)}
+                        data-testid={buildMcpImportPreviewButtonTestId(capability.appCode)}
                       >
                         {t("dashboard.mcp.previewAction")}
                       </button>
@@ -1884,6 +2022,7 @@ export const McpHostSyncPanel = ({
                         type="button"
                         disabled={isWorking}
                         onClick={() => onImportFromHost(capability.appCode)}
+                        data-testid={buildMcpImportButtonTestId(capability.appCode)}
                       >
                         {t("dashboard.mcp.importAction")}
                       </button>
@@ -1896,6 +2035,7 @@ export const McpHostSyncPanel = ({
                         type="button"
                         disabled={isWorking || (requiresDangerConfirm && !dangerConfirmed)}
                         onClick={() => onApplyHostSync(capability.appCode)}
+                        data-testid={buildMcpApplyButtonTestId(capability.appCode)}
                       >
                         {t("dashboard.mcp.applyAction")}
                       </button>
@@ -1904,6 +2044,7 @@ export const McpHostSyncPanel = ({
                         type="button"
                         disabled={isWorking}
                         onClick={() => onRollbackHostSync(capability.appCode)}
+                        data-testid={buildMcpRollbackButtonTestId(capability.appCode)}
                       >
                         {t("dashboard.mcp.rollbackAction")}
                       </button>
@@ -1919,7 +2060,7 @@ export const McpHostSyncPanel = ({
         <div className="list mcp-preview-list">
           {Object.entries(mcpImportPreview).map(([appCode, preview]) =>
             preview === null ? null : (
-              <div className="list-row" key={appCode}>
+              <div className="list-row" key={appCode} data-testid={buildMcpImportPreviewCardTestId(appCode)}>
                 <div>
                   <strong>
                     {appCode} / {t("dashboard.mcp.previewTitle")}
@@ -1933,7 +2074,11 @@ export const McpHostSyncPanel = ({
                           snapshot.mcpServers.find((server) => server.id === item.serverId) ?? null;
 
                         return (
-                          <div className="preview-item" key={`${appCode}-${item.serverId}`}>
+                          <div
+                            className="preview-item"
+                            key={`${appCode}-${item.serverId}`}
+                            data-testid={buildMcpImportPreviewItemTestId(appCode, item.serverId)}
+                          >
                             <strong>{item.serverId}</strong>
                             <p>
                               {renderMcpPreviewStatus(item.status, t)} / {renderMcpPreviewBindingStatus(item.bindingStatus, t)}

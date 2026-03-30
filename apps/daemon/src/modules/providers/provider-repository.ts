@@ -1,4 +1,4 @@
-import { nowIso, type Provider, type ProviderUpsert } from "@cc-switch-web/shared";
+import { nowIso, type ExportProvider, type Provider, type ProviderUpsert } from "@cc-switch-web/shared";
 
 import type { SqliteDatabase } from "../../db/database.js";
 
@@ -44,6 +44,17 @@ export class ProviderRepository {
     return rows.map((row) => this.toPublicProvider(row));
   }
 
+  listExportable(includeSecrets = false): ExportProvider[] {
+    if (!includeSecrets) {
+      return this.list();
+    }
+
+    return this.listRuntime().map(({ apiKeyPlaintext, ...provider }) => ({
+      ...provider,
+      ...(apiKeyPlaintext.trim().length > 0 ? { apiKey: apiKeyPlaintext } : {})
+    }));
+  }
+
   listRuntime(): RuntimeProvider[] {
     const rows = this.database
       .prepare(`
@@ -68,6 +79,38 @@ export class ProviderRepository {
       ...this.toPublicProvider(row),
       apiKeyPlaintext: row.api_key_plaintext
     }));
+  }
+
+  getRuntime(id: string): RuntimeProvider | null {
+    const row = this.database
+      .prepare(`
+        SELECT id, name, provider_type, base_url, api_key_masked, api_key_plaintext, enabled, timeout_ms, created_at, updated_at
+        FROM providers
+        WHERE id = ?
+      `)
+      .get(id) as
+      | {
+          id: string;
+          name: string;
+          provider_type: Provider["providerType"];
+          base_url: string;
+          api_key_masked: string;
+          api_key_plaintext: string;
+          enabled: number;
+          timeout_ms: number;
+          created_at: string;
+          updated_at: string;
+        }
+      | undefined;
+
+    if (row === undefined) {
+      return null;
+    }
+
+    return {
+      ...this.toPublicProvider(row),
+      apiKeyPlaintext: row.api_key_plaintext
+    };
   }
 
   exists(id: string): boolean {
@@ -154,6 +197,43 @@ export class ProviderRepository {
         ...item,
         apiKeyPlaintext: "",
         enabled: item.enabled ? 1 : 0
+      });
+    }
+  }
+
+  replaceAllImported(items: ExportProvider[]): void {
+    const existingSecrets = new Map(
+      this.listRuntime().map((item) => [item.id, item.apiKeyPlaintext])
+    );
+
+    this.database.prepare("DELETE FROM providers").run();
+
+    const insertProvider = this.database.prepare(`
+      INSERT INTO providers (
+        id, name, provider_type, base_url, api_key_masked, api_key_plaintext, enabled, timeout_ms, created_at, updated_at
+      ) VALUES (
+        @id, @name, @providerType, @baseUrl, @apiKeyMasked, @apiKeyPlaintext, @enabled, @timeoutMs, @createdAt, @updatedAt
+      )
+    `);
+
+    for (const item of items) {
+      const importedApiKey = item.apiKey?.trim() ?? "";
+      const preservedApiKey = existingSecrets.get(item.id)?.trim() ?? "";
+      const nextApiKeyPlaintext = importedApiKey || preservedApiKey;
+      const nextApiKeyMasked =
+        nextApiKeyPlaintext.length > 0 ? maskSecret(nextApiKeyPlaintext) : item.apiKeyMasked;
+
+      insertProvider.run({
+        id: item.id,
+        name: item.name,
+        providerType: item.providerType,
+        baseUrl: item.baseUrl,
+        apiKeyMasked: nextApiKeyMasked,
+        apiKeyPlaintext: nextApiKeyPlaintext,
+        enabled: item.enabled ? 1 : 0,
+        timeoutMs: item.timeoutMs,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt
       });
     }
   }

@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MokoYee/cc-switch-web.git",
+    "directory": "apps/web"
+  },
+  "homepage": "https://github.com/MokoYee/cc-switch-web/tree/main/apps/web",
+  "bugs": {
+    "url": "https://github.com/MokoYee/cc-switch-web/issues"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build",
     "dev": "vite",

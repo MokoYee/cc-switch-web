@@ -18,6 +18,15 @@ const APP_CODES: AppCode[] = ["codex", "claude-code"];
 
 const buildQuickPromptId = (appCode: AppCode): string => `prompt-quick-${appCode}`;
 const buildQuickSkillId = (appCode: AppCode): string => `skill-quick-${appCode}`;
+const buildQuickAssetCardTestId = (appCode: AppCode): string => `quick-asset-card-${appCode}`;
+const buildQuickPromptSectionTestId = (appCode: AppCode): string => `quick-prompt-section-${appCode}`;
+const buildQuickPromptStatusTestId = (appCode: AppCode): string => `quick-prompt-status-${appCode}`;
+const buildQuickPromptImportButtonTestId = (appCode: AppCode): string =>
+  `quick-prompt-import-button-${appCode}`;
+const buildQuickPromptPublishButtonTestId = (appCode: AppCode): string =>
+  `quick-prompt-publish-button-${appCode}`;
+const buildQuickPromptRollbackButtonTestId = (appCode: AppCode): string =>
+  `quick-prompt-rollback-button-${appCode}`;
 
 const localize = (locale: LocaleCode, zhCN: string, enUS: string): string =>
   locale === "zh-CN" ? zhCN : enUS;
@@ -185,7 +194,7 @@ export const QuickAssetDeliveryWorkbench = ({
   onQuickContextApplied
 }: QuickAssetDeliveryWorkbenchProps): JSX.Element => {
   return (
-    <div className="quick-asset-shell">
+    <div className="quick-asset-shell" data-testid="quick-asset-delivery">
       <div className="quick-asset-header">
         <div>
           <p className="eyebrow">{localize(locale, "资产发布", "Asset Delivery")}</p>
@@ -256,7 +265,11 @@ export const QuickAssetDeliveryWorkbench = ({
           const previousVerificationBaseline = mcpVerificationHistory.items[1] ?? null;
 
           return (
-            <article className="quick-asset-card" key={`quick-asset-${appCode}`}>
+            <article
+              className="quick-asset-card"
+              key={`quick-asset-${appCode}`}
+              data-testid={buildQuickAssetCardTestId(appCode)}
+            >
               <div className="quick-asset-card-header">
                 <div>
                   <h4>{appCode}</h4>
@@ -274,12 +287,18 @@ export const QuickAssetDeliveryWorkbench = ({
               </div>
 
               <div className="write-grid">
-                <div className={`quick-asset-section risk-${promptRiskLevel}`}>
+                <div
+                  className={`quick-asset-section risk-${promptRiskLevel}`}
+                  data-testid={buildQuickPromptSectionTestId(appCode)}
+                >
                   <div className="quick-asset-section-header">
                     <strong>{localize(locale, "Prompt / Skill", "Prompt / Skill")}</strong>
                     <span>{renderRiskLevel(locale, promptRiskLevel)}</span>
                   </div>
-                  <ul className="governance-suggestion-list">
+                  <ul
+                    className="governance-suggestion-list"
+                    data-testid={buildQuickPromptStatusTestId(appCode)}
+                  >
                     <li>
                       {localize(locale, "当前 Prompt", "Effective Prompt")}:{" "}
                       {effectiveContext?.promptTemplate.id ?? localize(locale, "未设置", "Not Set")}
@@ -344,6 +363,7 @@ export const QuickAssetDeliveryWorkbench = ({
                       className="ghost-button"
                       onClick={() => onImportPromptFromHost(appCode)}
                       disabled={disabled}
+                      data-testid={buildQuickPromptImportButtonTestId(appCode)}
                     >
                       {localize(locale, "导入宿主机 Prompt", "Import Host Prompt")}
                     </button>
@@ -351,6 +371,7 @@ export const QuickAssetDeliveryWorkbench = ({
                       type="button"
                       onClick={() => onApplyPromptHostSync(appCode)}
                       disabled={disabled || promptPreview === null || !promptPreview.applyReady}
+                      data-testid={buildQuickPromptPublishButtonTestId(appCode)}
                     >
                       {localize(locale, "发布 Prompt", "Publish Prompt")}
                     </button>
@@ -359,6 +380,7 @@ export const QuickAssetDeliveryWorkbench = ({
                       className="ghost-button"
                       onClick={() => onRollbackPromptHostSync(appCode)}
                       disabled={disabled || promptSyncState === null}
+                      data-testid={buildQuickPromptRollbackButtonTestId(appCode)}
                     >
                       {localize(locale, "回滚 Prompt", "Rollback Prompt")}
                     </button>

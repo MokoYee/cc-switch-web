@@ -1,24 +1,10 @@
-# docs 目录说明
+# 文档索引
 
-当前目录存放 `CC Switch Web` 的公开设计与说明文档。
+当前目录存放 `CC Switch Web` 的公开设计与运行文档。
 
-## 当前约束
+## 文档列表
 
-- 所有新增用户可见功能默认按中英双语设计。
-- 当前公开文档先以中文版为主，后续补齐英文版。
-- 文档入口需保持稳定，便于开源用户理解产品形态与运行模型。
-
-## 公开文档列表
-
-- `linux-web-console-design.md`：总体设计、当前已落地能力、宿主机接管支持矩阵、剩余重点功能清单。
-- `linux-operations-runbook.md`：Linux 运行手册、Prometheus 抓取示例、首批告警建议、部署与回滚 runbook。
+- `linux-web-console-design.md`：产品目标、运行模型、代理上下文协议与当前已落地能力。
+- `linux-operations-runbook.md`：Linux 部署、验证、Prometheus 抓取、告警建议与回滚操作。
 - `examples/prometheus/scrape.yml`：Prometheus 抓取配置示例。
 - `examples/prometheus/alerts.yml`：Prometheus 告警规则示例。
-
-## 说明
-
-- 面向代理会话的临时交接、规划和启动提示文档不属于公开仓库文档范围。
-- 对外文档应优先描述产品能力、运行模型与开发约束，而不是会话上下文。
-- 当前公开文档已经同步到 `phase-2` 真实状态，包含 Active Context 与请求级 Workspace / Session 覆盖协议对代理运行策略的实际接入结果，可作为新会话和开源贡献者的基线入口。
-- 当前公开文档还包含面向运维交付的 `/metrics`、`Service Doctor`、快照回滚与宿主机接管回滚说明，可直接作为自托管交接材料基础版本。
-- 本次归档后，产品演进重点切换到 `cc-switch-web` 控制台本体；CLI 仅保留运行入口与兼容命令，不再作为新增治理能力的主交付面。

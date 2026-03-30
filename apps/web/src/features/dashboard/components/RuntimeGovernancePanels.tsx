@@ -1344,7 +1344,7 @@ export const RuntimeGovernancePanels = ({
         </div>
       </article>
 
-      <article className="panel">
+      <article className="panel" data-testid="context-runtime-panel">
         <h2>{t("dashboard.panels.contextRuntime")}</h2>
         <div className="list">
           <ProgressiveList
@@ -1354,7 +1354,11 @@ export const RuntimeGovernancePanels = ({
             step={10}
             totalCount={snapshot.runtimeContexts.workspaces.length}
             renderItem={(workspace) => (
-              <div className="list-row" key={`workspace-runtime-${workspace.workspaceId}`}>
+              <div
+                className="list-row"
+                data-testid={`workspace-runtime-row-${workspace.workspaceId}`}
+                key={`workspace-runtime-${workspace.workspaceId}`}
+              >
                 <div>
                   <strong>{workspace.workspaceName}</strong>
                   <p>{workspace.workspaceId} / {workspace.appCode ?? t("common.notFound")}</p>
@@ -1364,7 +1368,13 @@ export const RuntimeGovernancePanels = ({
                 <div className="row-meta">
                   <span>{workspace.lastProviderId ?? t("common.notFound")}</span>
                   <code>{workspace.lastRequestAt ?? "none"}</code>
-                  <button className="inline-action" type="button" disabled={isWorking} onClick={() => refreshWorkspaceRuntimeDetail(workspace.workspaceId)}>
+                  <button
+                    className="inline-action"
+                    data-testid={`workspace-runtime-view-detail-${workspace.workspaceId}`}
+                    type="button"
+                    disabled={isWorking}
+                    onClick={() => refreshWorkspaceRuntimeDetail(workspace.workspaceId)}
+                  >
                     {t("dashboard.contextRuntime.viewDetail")}
                   </button>
                   <button className="inline-action" type="button" disabled={isWorking} onClick={() => focusWorkspaceLogs(workspace.workspaceId)}>
@@ -1384,7 +1394,11 @@ export const RuntimeGovernancePanels = ({
             step={10}
             totalCount={snapshot.runtimeContexts.sessions.length}
             renderItem={(session) => (
-              <div className="list-row" key={`session-runtime-${session.sessionId}`}>
+              <div
+                className="list-row"
+                data-testid={`session-runtime-row-${session.sessionId}`}
+                key={`session-runtime-${session.sessionId}`}
+              >
                 <div>
                   <strong>{session.title}</strong>
                   <p>{session.sessionId} / {session.appCode} / {session.status}</p>
@@ -1394,7 +1408,13 @@ export const RuntimeGovernancePanels = ({
                 <div className="row-meta">
                   <span>{session.lastProviderId ?? t("common.notFound")}</span>
                   <code>{session.lastRequestAt ?? "none"}</code>
-                  <button className="inline-action" type="button" disabled={isWorking} onClick={() => refreshSessionRuntimeDetail(session.sessionId)}>
+                  <button
+                    className="inline-action"
+                    data-testid={`session-runtime-view-detail-${session.sessionId}`}
+                    type="button"
+                    disabled={isWorking}
+                    onClick={() => refreshSessionRuntimeDetail(session.sessionId)}
+                  >
                     {t("dashboard.contextRuntime.viewDetail")}
                   </button>
                   <button className="inline-action" type="button" disabled={isWorking} onClick={() => focusSessionLogs(session.sessionId)}>
@@ -1411,7 +1431,10 @@ export const RuntimeGovernancePanels = ({
       </article>
 
       {selectedWorkspaceRuntimeDetail ? (
-        <article className="panel">
+        <article
+          className="panel"
+          data-testid={`workspace-runtime-detail-${selectedWorkspaceRuntimeDetail.summary.workspaceId}`}
+        >
           <h2>{t("dashboard.contextRuntime.workspaceDetailTitle")}</h2>
           <div className="list">
             <div className="list-row">
@@ -1420,10 +1443,24 @@ export const RuntimeGovernancePanels = ({
                 <p>{selectedWorkspaceRuntimeDetail.summary.rootPath}</p>
                 <p>{t("dashboard.contextRuntime.requests")}: {formatNumber(selectedWorkspaceRuntimeDetail.summary.requestCount)} / {t("dashboard.contextRuntime.errors")}: {formatNumber(selectedWorkspaceRuntimeDetail.summary.errorCount)} / {t("dashboard.contextRuntime.tokens")}: {formatNumber(selectedWorkspaceRuntimeDetail.summary.totalTokens)}</p>
                 <p>{t("dashboard.contextRuntime.activeState")}: {selectedWorkspaceRuntimeDetail.isActive ? t("dashboard.contextRuntime.active") : t("dashboard.contextRuntime.inactive")}</p>
-                <p>{t("dashboard.contextRuntime.effectiveProvider")}: {selectedWorkspaceRuntimeDetail.resolvedContext.provider.id ?? t("common.notFound")}</p>
+                <p data-testid={`workspace-runtime-effective-provider-${selectedWorkspaceRuntimeDetail.summary.workspaceId}`}>
+                  {t("dashboard.contextRuntime.effectiveProvider")}: {selectedWorkspaceRuntimeDetail.resolvedContext.provider.id ?? t("common.notFound")}
+                </p>
+                <p data-testid={`workspace-runtime-effective-prompt-${selectedWorkspaceRuntimeDetail.summary.workspaceId}`}>
+                  {t("dashboard.workspace.effectivePrompt")}: {selectedWorkspaceRuntimeDetail.resolvedContext.promptTemplate.id ?? t("common.notFound")}
+                </p>
+                <p data-testid={`workspace-runtime-effective-skill-${selectedWorkspaceRuntimeDetail.summary.workspaceId}`}>
+                  {t("dashboard.workspace.effectiveSkill")}: {selectedWorkspaceRuntimeDetail.resolvedContext.skill.id ?? t("common.notFound")}
+                </p>
               </div>
               <div className="row-meta">
-                <button className="inline-action" type="button" disabled={isWorking || selectedWorkspaceRuntimeDetail.isActive} onClick={() => onActivateWorkspace(selectedWorkspaceRuntimeDetail.summary.workspaceId)}>
+                <button
+                  className="inline-action"
+                  data-testid={`workspace-runtime-activate-${selectedWorkspaceRuntimeDetail.summary.workspaceId}`}
+                  type="button"
+                  disabled={isWorking || selectedWorkspaceRuntimeDetail.isActive}
+                  onClick={() => onActivateWorkspace(selectedWorkspaceRuntimeDetail.summary.workspaceId)}
+                >
                   {t("dashboard.workspace.activateAction")}
                 </button>
                 <button className="inline-action" type="button" disabled={isWorking} onClick={() => onEditWorkspace(selectedWorkspaceRuntimeDetail.summary.workspaceId)}>
@@ -1538,7 +1575,10 @@ export const RuntimeGovernancePanels = ({
       ) : null}
 
       {selectedSessionRuntimeDetail ? (
-        <article className="panel">
+        <article
+          className="panel"
+          data-testid={`session-runtime-detail-${selectedSessionRuntimeDetail.summary.sessionId}`}
+        >
           <h2>{t("dashboard.contextRuntime.sessionDetailTitle")}</h2>
           <div className="list">
             <div className="list-row">
@@ -1547,10 +1587,24 @@ export const RuntimeGovernancePanels = ({
                 <p>{selectedSessionRuntimeDetail.summary.cwd}</p>
                 <p>{t("dashboard.contextRuntime.requests")}: {formatNumber(selectedSessionRuntimeDetail.summary.requestCount)} / {t("dashboard.contextRuntime.errors")}: {formatNumber(selectedSessionRuntimeDetail.summary.errorCount)} / {t("dashboard.contextRuntime.tokens")}: {formatNumber(selectedSessionRuntimeDetail.summary.totalTokens)}</p>
                 <p>{t("dashboard.contextRuntime.activeState")}: {selectedSessionRuntimeDetail.isActive ? t("dashboard.contextRuntime.active") : t("dashboard.contextRuntime.inactive")} / {selectedSessionRuntimeDetail.isStale ? t("dashboard.contextRuntime.stale") : t("dashboard.contextRuntime.fresh")}</p>
-                <p>{t("dashboard.contextRuntime.effectiveProvider")}: {selectedSessionRuntimeDetail.resolvedContext.provider.id ?? t("common.notFound")}</p>
+                <p data-testid={`session-runtime-effective-provider-${selectedSessionRuntimeDetail.summary.sessionId}`}>
+                  {t("dashboard.contextRuntime.effectiveProvider")}: {selectedSessionRuntimeDetail.resolvedContext.provider.id ?? t("common.notFound")}
+                </p>
+                <p data-testid={`session-runtime-effective-prompt-${selectedSessionRuntimeDetail.summary.sessionId}`}>
+                  {t("dashboard.workspace.effectivePrompt")}: {selectedSessionRuntimeDetail.resolvedContext.promptTemplate.id ?? t("common.notFound")}
+                </p>
+                <p data-testid={`session-runtime-effective-skill-${selectedSessionRuntimeDetail.summary.sessionId}`}>
+                  {t("dashboard.workspace.effectiveSkill")}: {selectedSessionRuntimeDetail.resolvedContext.skill.id ?? t("common.notFound")}
+                </p>
               </div>
               <div className="row-meta">
-                <button className="inline-action" type="button" disabled={isWorking || selectedSessionRuntimeDetail.isActive || selectedSessionRuntimeDetail.summary.status !== "active"} onClick={() => onActivateSession(selectedSessionRuntimeDetail.summary.sessionId)}>
+                <button
+                  className="inline-action"
+                  data-testid={`session-runtime-activate-${selectedSessionRuntimeDetail.summary.sessionId}`}
+                  type="button"
+                  disabled={isWorking || selectedSessionRuntimeDetail.isActive || selectedSessionRuntimeDetail.summary.status !== "active"}
+                  onClick={() => onActivateSession(selectedSessionRuntimeDetail.summary.sessionId)}
+                >
                   {t("dashboard.workspace.activateAction")}
                 </button>
                 <button className="inline-action" type="button" disabled={isWorking || selectedSessionRuntimeDetail.summary.status !== "active"} onClick={() => onArchiveSession(selectedSessionRuntimeDetail.summary.sessionId)}>
@@ -1756,7 +1810,11 @@ export const RuntimeGovernancePanels = ({
       <article className="panel panel-span-2">
         <h2>{t("dashboard.panels.auditEvents")}</h2>
         <div className="request-log-toolbar">
-          <select value={auditFilters.source} onChange={(event) => setAuditFilters((current) => ({ ...current, source: event.target.value, offset: 0 }))}>
+          <select
+            data-testid="audit-filter-source"
+            value={auditFilters.source}
+            onChange={(event) => setAuditFilters((current) => ({ ...current, source: event.target.value, offset: 0 }))}
+          >
             <option value="">{t("dashboard.audit.filterSource")}</option>
             <option value="host-integration">{renderAuditSource("host-integration", t)}</option>
             <option value="provider-health">{renderAuditSource("provider-health", t)}</option>
@@ -1765,7 +1823,11 @@ export const RuntimeGovernancePanels = ({
             <option value="config-snapshot">{renderAuditSource("config-snapshot", t)}</option>
             <option value="quota">{renderAuditSource("quota", t)}</option>
           </select>
-          <select value={auditFilters.appCode} onChange={(event) => setAuditFilters((current) => ({ ...current, appCode: event.target.value, offset: 0 }))}>
+          <select
+            data-testid="audit-filter-app"
+            value={auditFilters.appCode}
+            onChange={(event) => setAuditFilters((current) => ({ ...current, appCode: event.target.value, offset: 0 }))}
+          >
             <option value="">{t("dashboard.requestLogs.filterApp")}</option>
             <option value="codex">codex</option>
             <option value="claude-code">claude-code</option>
@@ -2181,7 +2243,10 @@ export const RuntimeGovernancePanels = ({
         />
 
         {startupRecovery !== null ? (
-          <div className={`governance-notice governance-${startupRecoveryLevel}`}>
+          <div
+            className={`governance-notice governance-${startupRecoveryLevel}`}
+            data-testid="service-startup-recovery-notice"
+          >
             <div className="governance-notice-header">
               <strong>{localize(locale, "启动自动恢复", "Startup Auto-Recovery")}</strong>
               <span className="governance-notice-badge">

@@ -9,12 +9,17 @@ import {
   applyPromptHostSyncAll,
   importMcpFromHost,
   importPromptFromHost,
+  previewHostMcpSyncApplyAll,
   rollbackHostMcpSync,
+  rollbackHostMcpSyncAll,
   rollbackPromptHostSync
 } from "../api/load-dashboard-snapshot.js";
 import {
+  buildBatchMcpConvergedFollowUpNotice,
+  buildBatchMcpConvergenceReviewFollowUpNotice,
   buildBatchMcpGovernanceAppliedFollowUpNotice,
   buildBatchMcpHostSyncAppliedFollowUpNotice,
+  buildBatchMcpHostSyncRolledBackFollowUpNotice,
   buildBatchPromptHostSyncAppliedFollowUpNotice,
   buildMcpGovernanceRepairFollowUpNotice,
   buildMcpHostSyncAppliedFollowUpNotice,
@@ -45,7 +50,27 @@ type CreateDashboardMcpHostActionsParams = {
   readonly setFollowUpNotice: DashboardActionSetFollowUpNotice;
   readonly openAuditFocus: DashboardActionOpenAuditFocus;
   readonly mcpImportOptions: McpImportOptions;
+  readonly mcpHostApi?: {
+    readonly applyHostMcpSync: typeof applyHostMcpSync;
+    readonly applyHostMcpSyncAll: typeof applyHostMcpSyncAll;
+    readonly applyMcpGovernanceRepair: typeof applyMcpGovernanceRepair;
+    readonly applyMcpGovernanceRepairAll: typeof applyMcpGovernanceRepairAll;
+    readonly importMcpFromHost: typeof importMcpFromHost;
+    readonly previewHostMcpSyncApplyAll: typeof previewHostMcpSyncApplyAll;
+    readonly rollbackHostMcpSync: typeof rollbackHostMcpSync;
+    readonly rollbackHostMcpSyncAll: typeof rollbackHostMcpSyncAll;
+  };
 };
+
+const hasMaterialHostSyncDiff = (preview: {
+  readonly addedServerIds: readonly string[];
+  readonly removedServerIds: readonly string[];
+  readonly configExists: boolean;
+  readonly nextManagedServerIds: readonly string[];
+}): boolean =>
+  preview.addedServerIds.length > 0 ||
+  preview.removedServerIds.length > 0 ||
+  (!preview.configExists && preview.nextManagedServerIds.length > 0);
 
 export const createDashboardMcpHostActions = ({
   locale,
@@ -53,11 +78,21 @@ export const createDashboardMcpHostActions = ({
   runAction,
   setFollowUpNotice,
   openAuditFocus,
-  mcpImportOptions
+  mcpImportOptions,
+  mcpHostApi = {
+    applyHostMcpSync,
+    applyHostMcpSyncAll,
+    applyMcpGovernanceRepair,
+    applyMcpGovernanceRepairAll,
+    importMcpFromHost,
+    previewHostMcpSyncApplyAll,
+    rollbackHostMcpSync,
+    rollbackHostMcpSyncAll
+  }
 }: CreateDashboardMcpHostActionsParams) => ({
   repairGovernanceAll: () =>
     runAction(async () => {
-      const result = await applyMcpGovernanceRepairAll();
+      const result = await mcpHostApi.applyMcpGovernanceRepairAll();
       openAuditFocus({
         source: "mcp"
       });
@@ -70,7 +105,7 @@ export const createDashboardMcpHostActions = ({
     }, localizeDashboardAction(locale, "整批 MCP 治理已执行", "Batch MCP governance applied")),
   repairGovernance: (appCode: AppBinding["appCode"]) =>
     runAction(async () => {
-      const result = await applyMcpGovernanceRepair(appCode);
+      const result = await mcpHostApi.applyMcpGovernanceRepair(appCode);
       openAuditFocus({
         source: "mcp",
         appCode
@@ -84,7 +119,7 @@ export const createDashboardMcpHostActions = ({
     }, localizeDashboardAction(locale, "MCP 治理修复已执行", "MCP governance repair applied")),
   importFromHost: (appCode: AppBinding["appCode"]) =>
     runAction(async () => {
-      await importMcpFromHost(appCode, mcpImportOptions);
+      await mcpHostApi.importMcpFromHost(appCode, mcpImportOptions);
       openAuditFocus({
         source: "mcp",
         appCode
@@ -93,7 +128,7 @@ export const createDashboardMcpHostActions = ({
     }, t("dashboard.mcp.importSuccess")),
   applyHostSync: (appCode: AppBinding["appCode"]) =>
     runAction(async () => {
-      await applyHostMcpSync(appCode);
+      await mcpHostApi.applyHostMcpSync(appCode);
       openAuditFocus({
         source: "mcp",
         appCode
@@ -102,15 +137,72 @@ export const createDashboardMcpHostActions = ({
     }, t("dashboard.mcp.applySuccess")),
   applyHostSyncAll: () =>
     runAction(async () => {
-      const result = await applyHostMcpSyncAll();
+      const result = await mcpHostApi.applyHostMcpSyncAll();
       openAuditFocus({
         source: "mcp"
       });
       setFollowUpNotice(buildBatchMcpHostSyncAppliedFollowUpNotice(locale, result.appliedApps.length));
     }, localizeDashboardAction(locale, "整批宿主机同步已执行", "Batch host sync applied")),
+  convergeAll: (confirmedRemovalAppCodes: readonly AppBinding["appCode"][] = []) =>
+    runAction(
+      async () => {
+        const repairResult = await mcpHostApi.applyMcpGovernanceRepairAll();
+        const hostPreview = await mcpHostApi.previewHostMcpSyncApplyAll();
+        const reviewRequiredApps = hostPreview.items
+          .filter((item) => hasMaterialHostSyncDiff(item))
+          .filter(
+            (item) =>
+              item.removedServerIds.length > 0 &&
+              !confirmedRemovalAppCodes.includes(item.appCode)
+          )
+          .map((item) => item.appCode);
+
+        openAuditFocus({
+          source: "mcp"
+        });
+
+        if (reviewRequiredApps.length > 0) {
+          setFollowUpNotice(
+            buildBatchMcpConvergenceReviewFollowUpNotice(locale, {
+              repairedAppCount: repairResult.repairedApps,
+              reviewRequiredApps
+            })
+          );
+          return;
+        }
+
+        const syncableItems = hostPreview.items.filter((item) => hasMaterialHostSyncDiff(item));
+        if (syncableItems.length === 0) {
+          setFollowUpNotice(
+            buildBatchMcpConvergedFollowUpNotice(locale, {
+              repairedAppCount: repairResult.repairedApps,
+              appliedAppCount: 0
+            })
+          );
+          return;
+        }
+
+        const syncResult = await mcpHostApi.applyHostMcpSyncAll();
+        setFollowUpNotice(
+          buildBatchMcpConvergedFollowUpNotice(locale, {
+            repairedAppCount: repairResult.repairedApps,
+            appliedAppCount: syncResult.appliedApps.length
+          })
+        );
+      },
+      localizeDashboardAction(locale, "整批 MCP 收敛流程已推进", "Batch MCP convergence advanced")
+    ),
+  rollbackHostSyncAll: () =>
+    runAction(async () => {
+      const result = await mcpHostApi.rollbackHostMcpSyncAll();
+      openAuditFocus({
+        source: "mcp"
+      });
+      setFollowUpNotice(buildBatchMcpHostSyncRolledBackFollowUpNotice(locale, result.rolledBackApps.length));
+    }, localizeDashboardAction(locale, "整批宿主机 MCP 已回滚", "Batch host MCP rolled back")),
   rollbackHostSync: (appCode: AppBinding["appCode"]) =>
     runAction(async () => {
-      await rollbackHostMcpSync(appCode);
+      await mcpHostApi.rollbackHostMcpSync(appCode);
       openAuditFocus({
         source: "mcp",
         appCode

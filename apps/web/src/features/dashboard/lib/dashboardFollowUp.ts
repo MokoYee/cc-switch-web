@@ -991,6 +991,130 @@ export const buildBatchMcpHostSyncAppliedFollowUpNotice = (
   ]
 });
 
+export const buildBatchMcpConvergedFollowUpNotice = (
+  locale: "zh-CN" | "en-US",
+  input: {
+    readonly repairedAppCount: number;
+    readonly appliedAppCount: number;
+  }
+): DashboardFollowUpNotice => ({
+  category: "mcp",
+  title: localize(locale, "整批 MCP 收敛已执行", "Batch MCP Converged"),
+  summary:
+    input.repairedAppCount === 0 && input.appliedAppCount === 0
+      ? localize(
+          locale,
+          "当前没有额外 MCP 控制台修复或宿主机同步需要执行，治理队列与宿主机托管状态看起来已经基本一致。",
+          "There is no additional MCP console repair or host sync work to execute right now. The governance queue and managed host state already look aligned."
+        )
+      : input.appliedAppCount === 0
+        ? localize(
+            locale,
+            `已先收敛 ${input.repairedAppCount} 个应用的控制台治理，当前没有额外宿主机同步差异需要继续下发。`,
+            `Console-side governance converged for ${input.repairedAppCount} app(s), and there is no additional host sync diff to apply afterward.`
+          )
+        : localize(
+            locale,
+            `已先收敛 ${input.repairedAppCount} 个应用的控制台治理，并完成 ${input.appliedAppCount} 个应用的宿主机同步。下一步应确认 runtime、漂移状态和 MCP 审计是否一起收敛。`,
+            `Console-side governance converged for ${input.repairedAppCount} app(s), and host sync completed for ${input.appliedAppCount} app(s). Next, confirm runtime, drift state, and MCP audit converge together.`
+          ),
+  actions: [
+    {
+      id: "mcp-converged-batch-open-panel",
+      label: localize(locale, "打开 MCP 面板", "Open MCP Panel"),
+      kind: "section",
+      section: "mcp"
+    },
+    {
+      id: "mcp-converged-batch-open-audit",
+      label: localize(locale, "查看 MCP 审计", "Open MCP Audit"),
+      kind: "audit",
+      filters: {
+        source: "mcp"
+      }
+    }
+  ]
+});
+
+export const buildBatchMcpConvergenceReviewFollowUpNotice = (
+  locale: "zh-CN" | "en-US",
+  input: {
+    readonly repairedAppCount: number;
+    readonly reviewRequiredApps: readonly AppBinding["appCode"][];
+  }
+): DashboardFollowUpNotice => ({
+  category: "mcp",
+  title: localize(
+    locale,
+    "整批 MCP 已推进到宿主机确认",
+    "Batch MCP Advanced To Host Review"
+  ),
+  summary:
+    input.repairedAppCount === 0
+      ? localize(
+          locale,
+          `当前没有额外控制台修复动作，但 ${input.reviewRequiredApps.length} 个应用的 Host Sync 涉及移除项，需先确认后再继续下发。`,
+          `${input.reviewRequiredApps.length} app(s) now have destructive host-sync removals that must be confirmed before continuing, even though no extra console repair action was needed.`
+        )
+      : localize(
+          locale,
+          `已先收敛 ${input.repairedAppCount} 个应用的控制台治理，但 ${input.reviewRequiredApps.length} 个应用的 Host Sync 涉及移除项，流程已停在确认阶段。`,
+          `Console-side governance converged for ${input.repairedAppCount} app(s), but ${input.reviewRequiredApps.length} app(s) now have destructive host-sync removals, so the flow stopped at the review step.`
+        ),
+  actions: [
+    {
+      id: "mcp-converged-review-open-panel",
+      label: localize(locale, "返回 MCP 面板确认移除项", "Return To MCP Panel"),
+      kind: "section",
+      section: "mcp"
+    },
+    {
+      id: "mcp-converged-review-open-audit",
+      label: localize(locale, "查看 MCP 审计", "Open MCP Audit"),
+      kind: "audit",
+      filters: {
+        source: "mcp"
+      }
+    }
+  ]
+});
+
+export const buildBatchMcpHostSyncRolledBackFollowUpNotice = (
+  locale: "zh-CN" | "en-US",
+  rolledBackAppCount: number
+): DashboardFollowUpNotice => ({
+  category: "mcp",
+  title: localize(locale, "整批宿主机 MCP 已回滚", "Batch Host MCP Rolled Back"),
+  summary:
+    rolledBackAppCount === 0
+      ? localize(
+          locale,
+          "当前没有可回滚的宿主机 MCP 托管状态，说明最近没有可恢复的托管落盘残留。",
+          "There is no managed host MCP state available to roll back right now, so no recoverable managed host residue was found."
+        )
+      : localize(
+          locale,
+          `已回滚 ${rolledBackAppCount} 个应用的宿主机 MCP 托管状态。下一步应确认宿主机文件、MCP 漂移和审计都回到预期基线。`,
+          `Managed host MCP state was rolled back for ${rolledBackAppCount} app(s). Next, confirm host files, MCP drift, and audit all return to the expected baseline.`
+        ),
+  actions: [
+    {
+      id: "mcp-host-rollback-batch-open-panel",
+      label: localize(locale, "打开 MCP 面板", "Open MCP Panel"),
+      kind: "section",
+      section: "mcp"
+    },
+    {
+      id: "mcp-host-rollback-batch-open-audit",
+      label: localize(locale, "查看 MCP 审计", "Open MCP Audit"),
+      kind: "audit",
+      filters: {
+        source: "mcp"
+      }
+    }
+  ]
+});
+
 export const buildMcpHostSyncRolledBackFollowUpNotice = (
   locale: "zh-CN" | "en-US",
   appCode: AppBinding["appCode"]

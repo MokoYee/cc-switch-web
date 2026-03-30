@@ -16,3 +16,5 @@ GEMINI.md
 .windsurf/
 .history/
 *.tsbuildinfo
+playwright-report
+test-results

@@ -26,16 +26,19 @@ export class RoutingGovernanceService {
   ) {}
 
   previewProviderUpsert(input: ProviderUpsert): ProviderRoutingPreview {
+    const existingProvider = this.providerRepository.getRuntime(input.id);
     const bindings = this.bindingRepository.list().filter((item) => item.providerId === input.id);
     const chains = this.failoverChainRepository
       .list()
       .filter((item) => item.providerIds.includes(input.id));
     const issueCodes: RoutingPreviewIssueCode[] = [];
     const warnings: string[] = [];
+    const hasCredential =
+      input.apiKey.trim().length > 0 || (existingProvider?.apiKeyPlaintext.trim().length ?? 0) > 0;
 
-    if (input.enabled && (input.apiKey?.trim().length ?? 0) === 0) {
+    if (input.enabled && !hasCredential) {
       issueCodes.push("credential-missing");
-      warnings.push(`Enabled provider ${input.id} has no new credential input. Existing credential fallback may be required.`);
+      warnings.push(`Enabled provider ${input.id} has no stored credential and no new credential input.`);
     }
 
     if (!input.enabled && bindings.length > 0) {
@@ -49,7 +52,7 @@ export class RoutingGovernanceService {
 
     return {
       providerId: input.id,
-      exists: this.providerRepository.exists(input.id),
+      exists: existingProvider !== null,
       boundAppCodes: Array.from(new Set(bindings.map((item) => item.appCode))).sort(),
       failoverAppCodes: Array.from(new Set(chains.map((item) => item.appCode))).sort(),
       issueCodes: Array.from(new Set(issueCodes)),

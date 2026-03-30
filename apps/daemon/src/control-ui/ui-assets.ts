@@ -1,7 +1,9 @@
 import { readFile } from "node:fs/promises";
-import { extname, join, normalize, resolve } from "node:path";
+import { dirname, extname, join, normalize, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const WEB_DIST_DIR = resolve(process.cwd(), "apps/web/dist");
+// 使用模块相对路径定位内置 UI，避免 systemd 或 release bundle 下的 cwd 漂移。
+const WEB_DIST_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../apps/web/dist");
 
 const contentTypeByExt: Record<string, string> = {
   ".css": "text/css; charset=utf-8",

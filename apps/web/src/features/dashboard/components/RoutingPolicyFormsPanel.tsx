@@ -126,9 +126,10 @@ const FailoverPriorityEditor = ({
   };
 
   return (
-    <div className="priority-editor">
+    <div className="priority-editor" data-testid="failover-priority-editor">
       <div className="priority-editor-toolbar">
         <select
+          data-testid="failover-candidate-select"
           value={candidateProviderId}
           onChange={(event) => setCandidateProviderId(event.target.value)}
           disabled={isWorking || availableProviders.length === 0}
@@ -144,6 +145,7 @@ const FailoverPriorityEditor = ({
         </select>
         <button
           className="inline-action"
+          data-testid="failover-add-provider-button"
           type="button"
           disabled={isWorking || candidateProviderId.length === 0}
           onClick={() => addProviderToChain(candidateProviderId)}
@@ -152,6 +154,7 @@ const FailoverPriorityEditor = ({
         </button>
         <button
           className="inline-action"
+          data-testid="failover-use-enabled-button"
           type="button"
           disabled={isWorking || providers.length === 0}
           onClick={applyEnabledProviders}
@@ -168,6 +171,7 @@ const FailoverPriorityEditor = ({
           </span>
           <button
             className="inline-action"
+            data-testid="failover-set-primary-button"
             type="button"
             disabled={isWorking}
             onClick={applyBoundPrimaryFirst}
@@ -476,8 +480,9 @@ export const RoutingPolicyFormsPanel = ({
   const providerRequiresDangerConfirm =
     providerPreview?.issueCodes.includes("credential-missing") === true ||
     providerPreview?.issueCodes.includes("circuit-open") === true;
+  const bindingHasBlockingIssue =
+    bindingPreview?.issueCodes.includes("duplicate-app-binding") === true;
   const bindingRequiresDangerConfirm =
-    bindingPreview?.issueCodes.includes("duplicate-app-binding") === true ||
     bindingPreview?.issueCodes.includes("no-routable-provider") === true;
   const failoverRequiresDangerConfirm =
     failoverPreview?.issueCodes.includes("failover-provider-missing") === true ||
@@ -492,6 +497,7 @@ export const RoutingPolicyFormsPanel = ({
     <>
       <form
         className="form-card"
+        data-testid="provider-form"
         onSubmit={(event) => {
           event.preventDefault();
           onSaveProvider();
@@ -499,16 +505,19 @@ export const RoutingPolicyFormsPanel = ({
       >
         <h3>{t("dashboard.forms.providerTitle")}</h3>
         <input
+          data-testid="provider-id-input"
           value={providerForm.id}
           onChange={(event) => setProviderForm({ ...providerForm, id: event.target.value })}
           placeholder={t("dashboard.forms.id")}
         />
         <input
+          data-testid="provider-name-input"
           value={providerForm.name}
           onChange={(event) => setProviderForm({ ...providerForm, name: event.target.value })}
           placeholder={t("dashboard.forms.name")}
         />
         <select
+          data-testid="provider-type-select"
           value={providerForm.providerType}
           onChange={(event) =>
             setProviderForm({
@@ -524,17 +533,20 @@ export const RoutingPolicyFormsPanel = ({
           <option value="custom">custom</option>
         </select>
         <input
+          data-testid="provider-base-url-input"
           value={providerForm.baseUrl}
           onChange={(event) => setProviderForm({ ...providerForm, baseUrl: event.target.value })}
           placeholder={t("dashboard.forms.baseUrl")}
         />
         <input
           type="password"
+          data-testid="provider-api-key-input"
           value={providerForm.apiKey}
           onChange={(event) => setProviderForm({ ...providerForm, apiKey: event.target.value })}
           placeholder={t("dashboard.forms.apiKey")}
         />
         <input
+          data-testid="provider-timeout-input"
           value={providerForm.timeoutMs}
           onChange={(event) =>
             setProviderForm({
@@ -546,6 +558,7 @@ export const RoutingPolicyFormsPanel = ({
         />
         <label className="checkbox-row">
           <input
+            data-testid="provider-enabled-checkbox"
             checked={providerForm.enabled}
             onChange={(event) => setProviderForm({ ...providerForm, enabled: event.target.checked })}
             type="checkbox"
@@ -554,6 +567,7 @@ export const RoutingPolicyFormsPanel = ({
         </label>
         <button
           className="auth-button"
+          data-testid="provider-save-button"
           type="submit"
           disabled={isWorking || !canSaveProvider || (providerRequiresDangerConfirm && !providerDangerConfirmed)}
         >
@@ -561,7 +575,7 @@ export const RoutingPolicyFormsPanel = ({
         </button>
         {!canSaveProvider ? <p className="form-hint">{t("dashboard.forms.previewRequired")}</p> : null}
         {providerPreview ? (
-          <div className="preview-item">
+          <div className="preview-item" data-testid="provider-preview">
             <strong>{t("dashboard.routing.providerPreviewTitle")}</strong>
             <p>
               {t("dashboard.routing.boundApps")}:{" "}
@@ -589,6 +603,7 @@ export const RoutingPolicyFormsPanel = ({
               <div className="quick-action-row">
                 <button
                   className="inline-action"
+                  data-testid="provider-disable-first-button"
                   type="button"
                   disabled={isWorking}
                   onClick={() => setProviderForm({ ...providerForm, enabled: false })}
@@ -600,6 +615,7 @@ export const RoutingPolicyFormsPanel = ({
             {providerRequiresDangerConfirm ? (
               <label className="checkbox-row danger-confirm-row">
                 <input
+                  data-testid="provider-danger-confirm"
                   checked={providerDangerConfirmed}
                   onChange={(event) => setProviderDangerConfirmed(event.target.checked)}
                   type="checkbox"
@@ -619,6 +635,7 @@ export const RoutingPolicyFormsPanel = ({
 
       <form
         className="form-card"
+        data-testid="binding-form"
         onSubmit={(event) => {
           event.preventDefault();
           onSaveBinding();
@@ -626,11 +643,13 @@ export const RoutingPolicyFormsPanel = ({
       >
         <h3>{t("dashboard.forms.bindingTitle")}</h3>
         <input
+          data-testid="binding-id-input"
           value={bindingForm.id}
           onChange={(event) => setBindingForm({ ...bindingForm, id: event.target.value })}
           placeholder={t("dashboard.forms.id")}
         />
         <select
+          data-testid="binding-app-select"
           value={bindingForm.appCode}
           onChange={(event) =>
             setBindingForm({
@@ -646,6 +665,7 @@ export const RoutingPolicyFormsPanel = ({
           <option value="openclaw">openclaw</option>
         </select>
         <select
+          data-testid="binding-provider-select"
           value={bindingForm.providerId}
           onChange={(event) => setBindingForm({ ...bindingForm, providerId: event.target.value })}
           disabled={!hasProviders}
@@ -657,6 +677,7 @@ export const RoutingPolicyFormsPanel = ({
           ))}
         </select>
         <select
+          data-testid="binding-mode-select"
           value={bindingForm.mode}
           onChange={(event) =>
             setBindingForm({
@@ -670,8 +691,14 @@ export const RoutingPolicyFormsPanel = ({
         </select>
         <button
           className="auth-button"
+          data-testid="binding-save-button"
           type="submit"
-          disabled={isWorking || !canSaveBinding || (bindingRequiresDangerConfirm && !bindingDangerConfirmed)}
+          disabled={
+            isWorking ||
+            !canSaveBinding ||
+            bindingHasBlockingIssue ||
+            (bindingRequiresDangerConfirm && !bindingDangerConfirmed)
+          }
         >
           {t("common.save")}
         </button>
@@ -679,9 +706,17 @@ export const RoutingPolicyFormsPanel = ({
           <p className="form-hint">{t("dashboard.onboarding.bindingRequiresProvider")}</p>
         ) : !canSaveBinding ? (
           <p className="form-hint">{t("dashboard.forms.previewRequired")}</p>
+        ) : bindingHasBlockingIssue ? (
+          <p className="form-hint">
+            {localize(
+              locale,
+              "当前 App 已存在 Binding，请改为编辑现有 Binding，而不是新增重复路由。",
+              "This app already has a binding. Edit the existing binding instead of creating a duplicate route."
+            )}
+          </p>
         ) : null}
         {bindingPreview ? (
-          <div className="preview-item">
+          <div className="preview-item" data-testid="binding-preview">
             <strong>{t("dashboard.routing.bindingPreviewTitle")}</strong>
             <p>
               {t("dashboard.routing.issueCodes")}:{" "}
@@ -732,6 +767,7 @@ export const RoutingPolicyFormsPanel = ({
             {bindingRequiresDangerConfirm ? (
               <label className="checkbox-row danger-confirm-row">
                 <input
+                  data-testid="binding-danger-confirm"
                   checked={bindingDangerConfirmed}
                   onChange={(event) => setBindingDangerConfirmed(event.target.checked)}
                   type="checkbox"
@@ -760,6 +796,7 @@ export const RoutingPolicyFormsPanel = ({
 
       <form
         className="form-card"
+        data-testid="app-quota-form"
         onSubmit={(event) => {
           event.preventDefault();
           onSaveAppQuota();
@@ -767,11 +804,13 @@ export const RoutingPolicyFormsPanel = ({
       >
         <h3>{t("dashboard.forms.appQuotaTitle")}</h3>
         <input
+          data-testid="app-quota-id-input"
           value={appQuotaForm.id}
           onChange={(event) => setAppQuotaForm({ ...appQuotaForm, id: event.target.value })}
           placeholder={t("dashboard.forms.id")}
         />
         <select
+          data-testid="app-quota-app-select"
           value={appQuotaForm.appCode}
           onChange={(event) =>
             setAppQuotaForm({
@@ -787,6 +826,7 @@ export const RoutingPolicyFormsPanel = ({
           <option value="openclaw">openclaw</option>
         </select>
         <select
+          data-testid="app-quota-period-select"
           value={appQuotaForm.period}
           onChange={(event) =>
             setAppQuotaForm({
@@ -798,6 +838,7 @@ export const RoutingPolicyFormsPanel = ({
           <option value="day">day</option>
         </select>
         <input
+          data-testid="app-quota-max-requests-input"
           value={appQuotaForm.maxRequests ?? ""}
           onChange={(event) =>
             setAppQuotaForm({
@@ -808,6 +849,7 @@ export const RoutingPolicyFormsPanel = ({
           placeholder={t("dashboard.forms.maxRequests")}
         />
         <input
+          data-testid="app-quota-max-tokens-input"
           value={appQuotaForm.maxTokens ?? ""}
           onChange={(event) =>
             setAppQuotaForm({
@@ -819,18 +861,24 @@ export const RoutingPolicyFormsPanel = ({
         />
         <label className="checkbox-row">
           <input
+            data-testid="app-quota-enabled-checkbox"
             checked={appQuotaForm.enabled}
             onChange={(event) => setAppQuotaForm({ ...appQuotaForm, enabled: event.target.checked })}
             type="checkbox"
           />{" "}
           {t("common.enabled")}
         </label>
-        <button className="auth-button" type="submit" disabled={isWorking || !canSaveAppQuota}>
+        <button
+          className="auth-button"
+          data-testid="app-quota-save-button"
+          type="submit"
+          disabled={isWorking || !canSaveAppQuota}
+        >
           {t("common.save")}
         </button>
         {!canSaveAppQuota ? <p className="form-hint">{t("dashboard.forms.previewRequired")}</p> : null}
         {appQuotaPreview ? (
-          <div className="preview-item">
+          <div className="preview-item" data-testid="app-quota-preview">
             <strong>{t("dashboard.routing.impactTitle")}</strong>
             <p>{t("dashboard.impact.appScope")}: {appQuotaPreview.appCode}</p>
             <p>
@@ -844,6 +892,7 @@ export const RoutingPolicyFormsPanel = ({
 
       <form
         className="form-card"
+        data-testid="proxy-policy-form"
         onSubmit={(event) => {
           event.preventDefault();
           onSaveProxyPolicy();
@@ -851,11 +900,13 @@ export const RoutingPolicyFormsPanel = ({
       >
         <h3>{t("dashboard.forms.proxyTitle")}</h3>
         <input
+          data-testid="proxy-policy-listen-host-input"
           value={proxyForm.listenHost}
           onChange={(event) => setProxyForm({ ...proxyForm, listenHost: event.target.value })}
           placeholder={t("dashboard.forms.listenHost")}
         />
         <input
+          data-testid="proxy-policy-listen-port-input"
           value={proxyForm.listenPort}
           onChange={(event) =>
             setProxyForm({ ...proxyForm, listenPort: Number(event.target.value) })
@@ -863,6 +914,7 @@ export const RoutingPolicyFormsPanel = ({
           placeholder={t("dashboard.forms.listenPort")}
         />
         <input
+          data-testid="proxy-policy-timeout-input"
           value={proxyForm.requestTimeoutMs}
           onChange={(event) =>
             setProxyForm({ ...proxyForm, requestTimeoutMs: Number(event.target.value) })
@@ -870,6 +922,7 @@ export const RoutingPolicyFormsPanel = ({
           placeholder={t("dashboard.forms.requestTimeoutMs")}
         />
         <input
+          data-testid="proxy-policy-failure-threshold-input"
           value={proxyForm.failureThreshold}
           onChange={(event) =>
             setProxyForm({ ...proxyForm, failureThreshold: Number(event.target.value) })
@@ -878,18 +931,24 @@ export const RoutingPolicyFormsPanel = ({
         />
         <label className="checkbox-row">
           <input
+            data-testid="proxy-policy-enabled-checkbox"
             checked={proxyForm.enabled}
             onChange={(event) => setProxyForm({ ...proxyForm, enabled: event.target.checked })}
             type="checkbox"
           />{" "}
           {t("common.enabled")}
         </label>
-        <button className="auth-button" type="submit" disabled={isWorking || !canSaveProxyPolicy}>
+        <button
+          className="auth-button"
+          data-testid="proxy-policy-save-button"
+          type="submit"
+          disabled={isWorking || !canSaveProxyPolicy}
+        >
           {t("common.save")}
         </button>
         {!canSaveProxyPolicy ? <p className="form-hint">{t("dashboard.forms.previewRequired")}</p> : null}
         {proxyPolicyPreview ? (
-          <div className="preview-item">
+          <div className="preview-item" data-testid="proxy-policy-preview">
             <strong>{t("dashboard.routing.impactTitle")}</strong>
             <p>
               {t("dashboard.impact.warnings")}:{" "}
@@ -902,6 +961,7 @@ export const RoutingPolicyFormsPanel = ({
 
       <form
         className="form-card"
+        data-testid="failover-form"
         onSubmit={(event) => {
           event.preventDefault();
           onSaveFailover();
@@ -909,11 +969,13 @@ export const RoutingPolicyFormsPanel = ({
       >
         <h3>{t("dashboard.forms.failoverTitle")}</h3>
         <input
+          data-testid="failover-id-input"
           value={failoverForm.id}
           onChange={(event) => setFailoverForm({ ...failoverForm, id: event.target.value })}
           placeholder={t("dashboard.forms.id")}
         />
         <select
+          data-testid="failover-app-select"
           value={failoverForm.appCode}
           onChange={(event) =>
             setFailoverForm({
@@ -942,6 +1004,7 @@ export const RoutingPolicyFormsPanel = ({
           }
         />
         <input
+          data-testid="failover-cooldown-input"
           value={failoverForm.cooldownSeconds}
           onChange={(event) =>
             setFailoverForm({
@@ -952,6 +1015,7 @@ export const RoutingPolicyFormsPanel = ({
           placeholder={t("dashboard.forms.cooldownSeconds")}
         />
         <input
+          data-testid="failover-max-attempts-input"
           value={failoverForm.maxAttempts}
           onChange={(event) =>
             setFailoverForm({
@@ -973,6 +1037,7 @@ export const RoutingPolicyFormsPanel = ({
         </label>
         <button
           className="auth-button"
+          data-testid="failover-save-button"
           type="submit"
           disabled={isWorking || !canSaveFailover || (failoverRequiresDangerConfirm && !failoverDangerConfirmed)}
         >
@@ -984,7 +1049,7 @@ export const RoutingPolicyFormsPanel = ({
           <p className="form-hint">{t("dashboard.forms.previewRequired")}</p>
         ) : null}
         {failoverPreview ? (
-          <div className="preview-item">
+          <div className="preview-item" data-testid="failover-preview">
             <strong>{t("dashboard.routing.failoverPreviewTitle")}</strong>
             <p>
               {t("dashboard.routing.normalizedProviders")}:{" "}
@@ -1041,6 +1106,7 @@ export const RoutingPolicyFormsPanel = ({
             {failoverRequiresDangerConfirm ? (
               <label className="checkbox-row danger-confirm-row">
                 <input
+                  data-testid="failover-danger-confirm"
                   checked={failoverDangerConfirmed}
                   onChange={(event) => setFailoverDangerConfirmed(event.target.checked)}
                   type="checkbox"

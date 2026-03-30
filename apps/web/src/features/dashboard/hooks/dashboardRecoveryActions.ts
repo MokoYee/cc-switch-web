@@ -64,9 +64,9 @@ export const createDashboardRecoveryActions = ({
     setImportPreview(null);
     setImportPreviewSourceText("");
   },
-  exportConfig: () =>
+  exportConfig: (options?: { readonly includeSecrets?: boolean }) =>
     runAction(async () => {
-      const configPackage = await exportCurrentConfig();
+      const configPackage = await exportCurrentConfig(options);
       setExportText(toJsonString(configPackage));
     }, t("dashboard.forms.exportSuccess")),
   previewImport: () => loadImportPreview(t("dashboard.snapshots.selectedVersionNotice")),
