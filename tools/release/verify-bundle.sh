@@ -65,17 +65,18 @@ actual_checksum="$(ccsw_release_checksum "${artifact_path}")"
 
 [[ "${expected_checksum}" == "${actual_checksum}" ]] || ccsw_release_fatal "Checksum mismatch for ${artifact_path}"
 
-manifest_entry="$(tar -tf "${artifact_path}" | awk '/(^|\/)release\/manifest\.json$/ { print; exit }')"
-[[ -n "${manifest_entry}" ]] || ccsw_release_fatal "Embedded release/manifest.json not found in ${artifact_path}"
-
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_dir}"' EXIT
 manifest_path="${tmp_dir}/manifest.json"
 entries_path="${tmp_dir}/entries.txt"
+tar -tf "${artifact_path}" > "${entries_path}"
+
+manifest_entry="$(awk '/(^|\/)release\/manifest\.json$/ { print; exit }' "${entries_path}")"
+[[ -n "${manifest_entry}" ]] || ccsw_release_fatal "Embedded release/manifest.json not found in ${artifact_path}"
+
 bundle_root="${manifest_entry%/release/manifest.json}"
 
 tar -xOf "${artifact_path}" "${manifest_entry}" > "${manifest_path}"
-tar -tf "${artifact_path}" > "${entries_path}"
 
 verify_summary="$(
   BUNDLE_ROOT="${bundle_root}" \
