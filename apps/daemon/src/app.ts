@@ -80,7 +80,7 @@ export const buildDaemon = async (runtime: DaemonRuntime): Promise<FastifyInstan
     const needsProtectedSurface =
       pathname.startsWith("/api/") ||
       pathname.startsWith("/assets/") ||
-      pathname === "/ai-cli-switch-runtime.js" ||
+      pathname === "/cc-switch-web-runtime.js" ||
       pathname.startsWith(`${env.controlUiMountPath}/`) ||
       pathname === env.controlUiMountPath;
 
@@ -102,10 +102,10 @@ export const buildDaemon = async (runtime: DaemonRuntime): Promise<FastifyInstan
     reply.type("text/html; charset=utf-8").send(renderControlLoginPage(env.controlUiMountPath));
   });
 
-  app.get("/ai-cli-switch-runtime.js", async (_request, reply) => {
+  app.get("/cc-switch-web-runtime.js", async (_request, reply) => {
     reply
       .type("text/javascript; charset=utf-8")
-      .send(`window.AICLI_SWITCH_API_BASE_URL = ""; window.AICLI_SWITCH_CONTROL_UI_MOUNT_PATH = "${env.controlUiMountPath}";`);
+      .send(`window.CCSW_API_BASE_URL = ""; window.CCSW_CONTROL_UI_MOUNT_PATH = "${env.controlUiMountPath}";`);
   });
 
   app.get("/assets/:assetName", async (request, reply) => {
@@ -127,10 +127,10 @@ export const buildDaemon = async (runtime: DaemonRuntime): Promise<FastifyInstan
     reply.type("text/html; charset=utf-8").send(await readUiIndex());
   });
 
-  app.get(`${env.controlUiMountPath}/ai-cli-switch-runtime.js`, async (_request, reply) => {
+  app.get(`${env.controlUiMountPath}/cc-switch-web-runtime.js`, async (_request, reply) => {
     reply
       .type("text/javascript; charset=utf-8")
-      .send(`window.AICLI_SWITCH_API_BASE_URL = ""; window.AICLI_SWITCH_CONTROL_UI_MOUNT_PATH = "${env.controlUiMountPath}";`);
+      .send(`window.CCSW_API_BASE_URL = ""; window.CCSW_CONTROL_UI_MOUNT_PATH = "${env.controlUiMountPath}";`);
   });
 
   app.get(`${env.controlUiMountPath}/assets/:assetName`, async (request, reply) => {

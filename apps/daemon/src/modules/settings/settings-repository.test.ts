@@ -8,7 +8,7 @@ import { openDatabase } from "../../db/database.js";
 import { SettingsRepository } from "./settings-repository.js";
 
 test("reports database control token runtime view with masking and rotation support", () => {
-  const dataDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-settings-"));
+  const dataDir = mkdtempSync(join(tmpdir(), "cc-switch-web-settings-"));
   const database = openDatabase(join(dataDir, "test.sqlite"));
   const repository = new SettingsRepository(database);
 
@@ -26,7 +26,7 @@ test("reports database control token runtime view with masking and rotation supp
 });
 
 test("reports env control token runtime view and blocks rotation", () => {
-  const dataDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-settings-"));
+  const dataDir = mkdtempSync(join(tmpdir(), "cc-switch-web-settings-"));
   const database = openDatabase(join(dataDir, "test.sqlite"));
   const repository = new SettingsRepository(database);
 

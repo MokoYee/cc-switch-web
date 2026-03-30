@@ -42,8 +42,8 @@ const currentModuleFilePath =
 export class SystemService {
   private readonly workspaceRoot = resolve(dirname(currentModuleFilePath), "../../../../..");
   private readonly cliEntry = resolve(this.workspaceRoot, "apps/cli/dist/index.js");
-  private readonly systemdUnitPath = resolve(homedir(), ".config/systemd/user/ai-cli-switch.service");
-  private readonly systemdEnvPath = resolve(homedir(), ".config/ai-cli-switch/daemon.env");
+  private readonly systemdUnitPath = resolve(homedir(), ".config/systemd/user/cc-switch-web.service");
+  private readonly systemdEnvPath = resolve(homedir(), ".config/cc-switch-web/daemon.env");
 
   constructor(
     private readonly env: DaemonEnv,
@@ -91,13 +91,13 @@ export class SystemService {
         ? await this.runCaptured("systemctl", [
             "--user",
             "show",
-            "ai-cli-switch.service",
+            "cc-switch-web.service",
             "--property=LoadState,ActiveState,SubState,UnitFileState,FragmentPath,ExecMainPID"
           ])
         : null;
     const activeResult =
       systemdAvailable && existsSync(this.systemdUnitPath)
-        ? await this.runCaptured("systemctl", ["--user", "is-active", "ai-cli-switch.service"])
+        ? await this.runCaptured("systemctl", ["--user", "is-active", "cc-switch-web.service"])
         : null;
     const statusProperties =
       serviceStatusResult?.code === 0
@@ -117,29 +117,29 @@ export class SystemService {
     const runtimeDifferences = [
       {
         field: "runMode",
-        desired: desiredEnv.AICLI_SWITCH_RUN_MODE ?? "foreground",
+        desired: desiredEnv.CCSW_RUN_MODE ?? "foreground",
         actual: runtime.runMode
       },
       {
         field: "daemonHost",
-        desired: desiredEnv.AICLI_SWITCH_DAEMON_HOST ?? null,
+        desired: desiredEnv.CCSW_DAEMON_HOST ?? null,
         actual: runtime.daemonHost
       },
       {
         field: "daemonPort",
-        desired: desiredEnv.AICLI_SWITCH_DAEMON_PORT
-          ? Number.parseInt(desiredEnv.AICLI_SWITCH_DAEMON_PORT, 10)
+        desired: desiredEnv.CCSW_DAEMON_PORT
+          ? Number.parseInt(desiredEnv.CCSW_DAEMON_PORT, 10)
           : null,
         actual: runtime.daemonPort
       },
       {
         field: "dataDir",
-        desired: desiredEnv.AICLI_SWITCH_DATA_DIR ?? null,
+        desired: desiredEnv.CCSW_DATA_DIR ?? null,
         actual: runtime.dataDir
       },
       {
         field: "dbPath",
-        desired: desiredEnv.AICLI_SWITCH_DB_PATH ?? null,
+        desired: desiredEnv.CCSW_DB_PATH ?? null,
         actual: runtime.dbPath
       }
     ].filter((item) => item.desired !== item.actual);
@@ -152,7 +152,7 @@ export class SystemService {
       );
     }
     if (!existsSync(this.systemdUnitPath)) {
-      recommendedActions.push("install the user service to create ai-cli-switch.service");
+      recommendedActions.push("install the user service to create cc-switch-web.service");
     }
     if (!envFile.exists) {
       recommendedActions.push("sync the service environment file before enabling systemd service");
@@ -163,14 +163,14 @@ export class SystemService {
       recommendedActions.push("current daemon runs in foreground mode; install and start systemd user service for unattended startup");
     }
     if (systemdAvailable && existsSync(this.systemdUnitPath) && activeResult?.stdout.trim() !== "active") {
-      recommendedActions.push("start or restart ai-cli-switch.service after environment sync");
+      recommendedActions.push("start or restart cc-switch-web.service after environment sync");
     }
     if (recommendedActions.length === 0) {
       recommendedActions.push("service configuration and daemon runtime are aligned");
     }
 
     return {
-      service: "ai-cli-switch.service",
+      service: "cc-switch-web.service",
       fallback: this.getServiceFallbackHint(),
       checks: {
         systemd: {
@@ -243,7 +243,7 @@ export class SystemService {
     const systemdProbe = await this.runCaptured("systemctl", ["--user", "show-environment"]);
     if (systemdProbe.code === 0) {
       await this.runSystemctlUser(["daemon-reload"]);
-      await this.runSystemctlUser(["enable", "ai-cli-switch.service"]);
+      await this.runSystemctlUser(["enable", "cc-switch-web.service"]);
     }
 
     this.systemServiceEventRepository.append({
@@ -288,13 +288,13 @@ export class SystemService {
     const controlToken = this.settingsRepository.getControlToken(this.env.envControlToken);
     const lines = [
       "# CC Switch Web user service environment",
-      "AICLI_SWITCH_RUN_MODE=systemd-user",
-      `AICLI_SWITCH_DAEMON_HOST=${this.escapeEnvValue(this.env.host)}`,
-      `AICLI_SWITCH_DAEMON_PORT=${this.env.port}`,
-      `AICLI_SWITCH_ALLOWED_ORIGINS=${this.escapeEnvValue(this.env.allowedOrigins.join(","))}`,
-      `AICLI_SWITCH_DATA_DIR=${this.escapeEnvValue(this.storagePaths.dataDir)}`,
-      `AICLI_SWITCH_DB_PATH=${this.escapeEnvValue(this.storagePaths.dbPath)}`,
-      `AICLI_SWITCH_CONTROL_TOKEN=${this.escapeEnvValue(controlToken.value)}`
+      "CCSW_RUN_MODE=systemd-user",
+      `CCSW_DAEMON_HOST=${this.escapeEnvValue(this.env.host)}`,
+      `CCSW_DAEMON_PORT=${this.env.port}`,
+      `CCSW_ALLOWED_ORIGINS=${this.escapeEnvValue(this.env.allowedOrigins.join(","))}`,
+      `CCSW_DATA_DIR=${this.escapeEnvValue(this.storagePaths.dataDir)}`,
+      `CCSW_DB_PATH=${this.escapeEnvValue(this.storagePaths.dbPath)}`,
+      `CCSW_CONTROL_TOKEN=${this.escapeEnvValue(controlToken.value)}`
     ];
 
     return `${lines.join("\n")}\n`;

@@ -218,7 +218,7 @@ const createService = (
         allowAnyOrigin: false,
         healthProbeIntervalMs: 15_000,
         dataDir: "/tmp/ccsw",
-        dbPath: "/tmp/ccsw/ai-cli-switch.sqlite",
+        dbPath: "/tmp/ccsw/cc-switch-web.sqlite",
         latestSnapshotVersion: overrides.latestSnapshotVersion ?? 12
       })
     },

@@ -9,9 +9,9 @@ export interface DaemonStoragePaths {
 
 export const resolveDaemonStoragePaths = (): DaemonStoragePaths => {
   const dataDir = resolve(
-    process.env.AICLI_SWITCH_DATA_DIR ?? join(homedir(), ".ai-cli-switch")
+    process.env.CCSW_DATA_DIR ?? join(homedir(), ".cc-switch-web")
   );
-  const dbPath = resolve(process.env.AICLI_SWITCH_DB_PATH ?? join(dataDir, "ai-cli-switch.sqlite"));
+  const dbPath = resolve(process.env.CCSW_DB_PATH ?? join(dataDir, "cc-switch-web.sqlite"));
 
   mkdirSync(dataDir, { recursive: true });
 

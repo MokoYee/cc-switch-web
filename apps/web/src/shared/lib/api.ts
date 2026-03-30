@@ -149,14 +149,14 @@ import {
 
 declare global {
   interface Window {
-    AICLI_SWITCH_API_BASE_URL?: string;
+    CCSW_API_BASE_URL?: string;
   }
 }
 
-const CONTROL_TOKEN_STORAGE_KEY = "ai-cli-switch.control-token";
+const CONTROL_TOKEN_STORAGE_KEY = "cc-switch-web.control-token";
 
 export const resolveApiBaseUrl = (): string =>
-  window.AICLI_SWITCH_API_BASE_URL ?? import.meta.env.VITE_AICLI_SWITCH_API_BASE_URL ?? "http://127.0.0.1:8787";
+  window.CCSW_API_BASE_URL ?? import.meta.env.VITE_CCSW_API_BASE_URL ?? "http://127.0.0.1:8787";
 
 export const buildDaemonAbsoluteUrl = (path: string): string => {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;

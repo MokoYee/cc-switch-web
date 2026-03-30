@@ -28,7 +28,7 @@ export const zhCNMessages = {
     runtimeTitle: "运行时信息",
     controlTokenTitle: "控制令牌",
     controlTokenDescription: "当前 daemon 已开启控制台认证。请输入控制令牌后重新加载数据。",
-    controlTokenPlaceholder: "输入 AICLI_SWITCH_CONTROL_TOKEN",
+    controlTokenPlaceholder: "输入 CCSW_CONTROL_TOKEN",
     controlTokenSave: "保存令牌",
     metrics: {
       serviceStatus: "服务状态",

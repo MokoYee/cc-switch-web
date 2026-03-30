@@ -3,8 +3,8 @@ import { accessSync, constants } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-const host = process.env.AICLI_SWITCH_HOST ?? "127.0.0.1";
-const port = Number.parseInt(process.env.AICLI_SWITCH_PORT ?? "8787", 10);
+const host = process.env.CCSW_HOST ?? "127.0.0.1";
+const port = Number.parseInt(process.env.CCSW_PORT ?? "8787", 10);
 
 const providers = [
   {
@@ -240,7 +240,7 @@ export const server = createServer(async (request, response) => {
   sendNotFound(response);
 });
 
-if (process.env.AICLI_SWITCH_DRY_RUN === "1") {
+if (process.env.CCSW_DRY_RUN === "1") {
   console.log("CC Switch Web standalone dry-run ready");
 } else {
   server.listen(port, host, () => {

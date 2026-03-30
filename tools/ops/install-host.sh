@@ -16,7 +16,7 @@ What it does:
   4. Record the deployed git ref in the local release state file when git metadata exists
 
 State file:
-  ${XDG_STATE_HOME:-$HOME/.local/state}/ai-cli-switch/release-state.env
+  ${XDG_STATE_HOME:-$HOME/.local/state}/cc-switch-web/release-state.env
 EOF
 }
 

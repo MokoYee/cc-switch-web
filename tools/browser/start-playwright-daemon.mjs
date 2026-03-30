@@ -24,10 +24,10 @@ const seedHostFiles = async () => {
     [
       'model_provider = "custom"',
       "",
-      "# BEGIN AI CLI Switch MCP",
+      "# BEGIN CC Switch Web MCP",
       "[mcp_servers.old]",
       'command = "npx"',
-      "# END AI CLI Switch MCP"
+      "# END CC Switch Web MCP"
     ].join("\n"),
     "utf8"
   );
@@ -44,12 +44,12 @@ const childProcess = spawn(process.execPath, [DAEMON_ENTRY], {
     ...process.env,
     HOME: homeDir,
     USERPROFILE: homeDir,
-    AICLI_SWITCH_CONTROL_TOKEN: controlToken,
-    AICLI_SWITCH_CONTROL_UI_PATH: "/ui",
-    AICLI_SWITCH_DATA_DIR: dataDir,
-    AICLI_SWITCH_DAEMON_HOST: daemonHost,
-    AICLI_SWITCH_DAEMON_PORT: daemonPort,
-    AICLI_SWITCH_RUN_MODE: "foreground"
+    CCSW_CONTROL_TOKEN: controlToken,
+    CCSW_CONTROL_UI_PATH: "/ui",
+    CCSW_DATA_DIR: dataDir,
+    CCSW_DAEMON_HOST: daemonHost,
+    CCSW_DAEMON_PORT: daemonPort,
+    CCSW_RUN_MODE: "foreground"
   },
   stdio: "inherit"
 });

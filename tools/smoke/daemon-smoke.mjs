@@ -202,8 +202,8 @@ const runHostTakeoverSmoke = async (baseUrl, token, homeDir) => {
 
   const appliedConfig = await readFile(codexConfigPath, "utf8");
   assert(
-    appliedConfig.includes('model_provider = "ai_cli_switch"'),
-    "expected codex host config to point at ai_cli_switch"
+    appliedConfig.includes('model_provider = "cc_switch_web"'),
+    "expected codex host config to point at cc_switch_web"
   );
   assert(
     appliedConfig.includes('base_url = "http://127.0.0.1:'),
@@ -373,12 +373,12 @@ const runMcpGovernanceSmoke = async (baseUrl, token, homeDir) => {
 
   const syncedGeminiConfig = JSON.parse(await readFile(geminiConfigPath, "utf8"));
   assertIncludes(
-    syncedGeminiConfig.aiCliSwitchManagedMcpServers,
+    syncedGeminiConfig.ccSwitchWebManagedMcpServers,
     "filesystem",
     "expected gemini host sync config to record filesystem as managed"
   );
   assert(
-    syncedGeminiConfig.aiCliSwitchManagedMcpServers.length === 1,
+    syncedGeminiConfig.ccSwitchWebManagedMcpServers.length === 1,
     "expected gemini host sync config to persist only one managed server"
   );
   assert(
@@ -523,12 +523,12 @@ const main = async () => {
       ...process.env,
       HOME: homeDir,
       USERPROFILE: homeDir,
-      AICLI_SWITCH_CONTROL_TOKEN: controlToken,
-      AICLI_SWITCH_CONTROL_UI_PATH: "/ui",
-      AICLI_SWITCH_DATA_DIR: dataDir,
-      AICLI_SWITCH_DAEMON_HOST: "127.0.0.1",
-      AICLI_SWITCH_DAEMON_PORT: String(port),
-      AICLI_SWITCH_RUN_MODE: "foreground"
+      CCSW_CONTROL_TOKEN: controlToken,
+      CCSW_CONTROL_UI_PATH: "/ui",
+      CCSW_DATA_DIR: dataDir,
+      CCSW_DAEMON_HOST: "127.0.0.1",
+      CCSW_DAEMON_PORT: String(port),
+      CCSW_RUN_MODE: "foreground"
     },
     stdio: ["ignore", "pipe", "pipe"]
   });
@@ -600,7 +600,7 @@ const main = async () => {
       "expected authenticated /ui/ response to serve the built web shell"
     );
 
-    await readProtectedText(baseUrl, "/ai-cli-switch-runtime.js", controlToken);
+    await readProtectedText(baseUrl, "/cc-switch-web-runtime.js", controlToken);
     await runHostTakeoverSmoke(baseUrl, controlToken, homeDir);
     await runMcpGovernanceSmoke(baseUrl, controlToken, homeDir);
     await runSnapshotRestoreSmoke(baseUrl, controlToken);

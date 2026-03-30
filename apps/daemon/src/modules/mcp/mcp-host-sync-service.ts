@@ -39,8 +39,6 @@ interface HostMcpStateRecord {
 
 const MANAGED_BLOCK_START = "# BEGIN CC Switch Web MCP";
 const MANAGED_BLOCK_END = "# END CC Switch Web MCP";
-const LEGACY_MANAGED_BLOCK_START = "# BEGIN AI CLI Switch MCP";
-const LEGACY_MANAGED_BLOCK_END = "# END AI CLI Switch MCP";
 
 const ensureParentDir = (path: string): void => {
   mkdirSync(dirname(path), { recursive: true });
@@ -49,19 +47,14 @@ const ensureParentDir = (path: string): void => {
 const findManagedBlockRange = (
   content: string
 ): { readonly startIndex: number; readonly endIndex: number; readonly endMarkerLength: number } | null => {
-  for (const [startMarker, endMarker] of [
-    [MANAGED_BLOCK_START, MANAGED_BLOCK_END],
-    [LEGACY_MANAGED_BLOCK_START, LEGACY_MANAGED_BLOCK_END]
-  ] as const) {
-    const startIndex = content.indexOf(startMarker);
-    const endIndex = content.indexOf(endMarker);
-    if (startIndex !== -1 && endIndex !== -1 && endIndex >= startIndex) {
-      return {
-        startIndex,
-        endIndex,
-        endMarkerLength: endMarker.length
-      };
-    }
+  const startIndex = content.indexOf(MANAGED_BLOCK_START);
+  const endIndex = content.indexOf(MANAGED_BLOCK_END);
+  if (startIndex !== -1 && endIndex !== -1 && endIndex >= startIndex) {
+    return {
+      startIndex,
+      endIndex,
+      endMarkerLength: MANAGED_BLOCK_END.length
+    };
   }
 
   return null;
@@ -176,7 +169,7 @@ const claudeCodeMcpAdapter: ManagedHostMcpAdapter = {
   resolveConfigPath: (homeDir) => resolve(homeDir, ".claude.json"),
   readManagedServerIds: (configPath) => {
     const parsed = readJsonObject(configPath);
-    const managed = parsed.aiCliSwitchManagedMcpServers;
+    const managed = parsed.ccSwitchWebManagedMcpServers;
     return Array.isArray(managed) ? managed.filter((item): item is string => typeof item === "string") : [];
   },
   buildManagedConfig: (existingContent, servers) => {
@@ -188,8 +181,8 @@ const claudeCodeMcpAdapter: ManagedHostMcpAdapter = {
       typeof parsed.mcpServers === "object" && parsed.mcpServers !== null && !Array.isArray(parsed.mcpServers)
         ? ({ ...(parsed.mcpServers as Record<string, unknown>) } as Record<string, unknown>)
         : {};
-    const managedServerIds = Array.isArray(parsed.aiCliSwitchManagedMcpServers)
-      ? (parsed.aiCliSwitchManagedMcpServers as unknown[]).filter(
+    const managedServerIds = Array.isArray(parsed.ccSwitchWebManagedMcpServers)
+      ? (parsed.ccSwitchWebManagedMcpServers as unknown[]).filter(
           (item): item is string => typeof item === "string"
         )
       : [];
@@ -217,7 +210,7 @@ const claudeCodeMcpAdapter: ManagedHostMcpAdapter = {
     const nextConfig: Record<string, unknown> = {
       ...parsed,
       mcpServers: currentMap,
-      aiCliSwitchManagedMcpServers: servers.map((server) => server.id)
+      ccSwitchWebManagedMcpServers: servers.map((server) => server.id)
     };
 
     return `${JSON.stringify(nextConfig, null, 2)}\n`;
@@ -232,7 +225,7 @@ const geminiCliMcpAdapter: ManagedHostMcpAdapter = {
   resolveConfigPath: (homeDir) => resolve(homeDir, ".gemini/settings.json"),
   readManagedServerIds: (configPath) => {
     const parsed = readJsonObject(configPath);
-    const managed = parsed.aiCliSwitchManagedMcpServers;
+    const managed = parsed.ccSwitchWebManagedMcpServers;
     return Array.isArray(managed) ? managed.filter((item): item is string => typeof item === "string") : [];
   },
   buildManagedConfig: (existingContent, servers) => {
@@ -244,8 +237,8 @@ const geminiCliMcpAdapter: ManagedHostMcpAdapter = {
       typeof parsed.mcpServers === "object" && parsed.mcpServers !== null && !Array.isArray(parsed.mcpServers)
         ? ({ ...(parsed.mcpServers as Record<string, unknown>) } as Record<string, unknown>)
         : {};
-    const managedServerIds = Array.isArray(parsed.aiCliSwitchManagedMcpServers)
-      ? (parsed.aiCliSwitchManagedMcpServers as unknown[]).filter(
+    const managedServerIds = Array.isArray(parsed.ccSwitchWebManagedMcpServers)
+      ? (parsed.ccSwitchWebManagedMcpServers as unknown[]).filter(
           (item): item is string => typeof item === "string"
         )
       : [];
@@ -274,7 +267,7 @@ const geminiCliMcpAdapter: ManagedHostMcpAdapter = {
       {
         ...parsed,
         mcpServers: currentMap,
-        aiCliSwitchManagedMcpServers: servers.map((server) => server.id)
+        ccSwitchWebManagedMcpServers: servers.map((server) => server.id)
       },
       null,
       2
@@ -290,7 +283,7 @@ const opencodeMcpAdapter: ManagedHostMcpAdapter = {
   resolveConfigPath: (homeDir) => resolve(homeDir, ".config/opencode/opencode.json"),
   readManagedServerIds: (configPath) => {
     const parsed = readJsonObject(configPath);
-    const managed = parsed.aiCliSwitchManagedMcpServers;
+    const managed = parsed.ccSwitchWebManagedMcpServers;
     return Array.isArray(managed) ? managed.filter((item): item is string => typeof item === "string") : [];
   },
   buildManagedConfig: (existingContent, servers) => {
@@ -302,8 +295,8 @@ const opencodeMcpAdapter: ManagedHostMcpAdapter = {
       typeof parsed.mcp === "object" && parsed.mcp !== null && !Array.isArray(parsed.mcp)
         ? ({ ...(parsed.mcp as Record<string, unknown>) } as Record<string, unknown>)
         : {};
-    const managedServerIds = Array.isArray(parsed.aiCliSwitchManagedMcpServers)
-      ? (parsed.aiCliSwitchManagedMcpServers as unknown[]).filter(
+    const managedServerIds = Array.isArray(parsed.ccSwitchWebManagedMcpServers)
+      ? (parsed.ccSwitchWebManagedMcpServers as unknown[]).filter(
           (item): item is string => typeof item === "string"
         )
       : [];
@@ -335,7 +328,7 @@ const opencodeMcpAdapter: ManagedHostMcpAdapter = {
       {
         ...parsed,
         mcp: currentMap,
-        aiCliSwitchManagedMcpServers: servers.map((server) => server.id)
+        ccSwitchWebManagedMcpServers: servers.map((server) => server.id)
       },
       null,
       2

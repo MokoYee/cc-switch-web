@@ -33,7 +33,7 @@
 
 - `daemon service` 以 `systemd --user` 为主。
 - `web` 命令目前保留为调试/旁路控制台模式，不是主交付形态。
-- 当前默认 CLI 短命令为 `ccsw`，旧命令别名仍可兼容。
+- 当前稳定 CLI 命令为 `ccsw`，并提供同品牌全名命令 `cc-switch-web`。
 
 ### 2.3 默认安全边界
 
@@ -42,15 +42,15 @@
 - `/metrics` 当前不走控制台登录态，默认依赖本机监听边界或反向代理 ACL 做额外保护
 - 允许跨域来源可通过环境变量配置
 - 监听地址和端口均可通过环境变量覆盖
-- 环境变量与 `systemd` 单元名当前仍保留兼容前缀：`AICLI_SWITCH_*`、`ai-cli-switch.service`
+- 环境变量与 `systemd` 单元名统一采用：`CCSW_*`、`cc-switch-web.service`
 
 ### 2.4 请求级上下文协议
 
 - 代理入口已支持按请求显式指定上下文，而不只依赖全局激活状态。
 - 当前最小协议头：
-  - `x-ai-cli-switch-workspace: <workspaceId>`
-  - `x-ai-cli-switch-session: <sessionId>`
-  - `x-ai-cli-switch-cwd: <currentWorkingDirectory>`
+  - `x-cc-switch-web-workspace: <workspaceId>`
+  - `x-cc-switch-web-session: <sessionId>`
+  - `x-cc-switch-web-cwd: <currentWorkingDirectory>`
 - 优先级：
   - 请求级 `session`
   - 请求级 `workspace`

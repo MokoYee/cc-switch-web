@@ -10,25 +10,25 @@ import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 
-const DAEMON_HOST = process.env.AICLI_SWITCH_DAEMON_HOST ?? process.env.AICLI_SWITCH_HOST ?? "127.0.0.1";
+const DAEMON_HOST = process.env.CCSW_DAEMON_HOST ?? process.env.CCSW_HOST ?? "127.0.0.1";
 const DAEMON_PORT = Number.parseInt(
-  process.env.AICLI_SWITCH_DAEMON_PORT ?? process.env.AICLI_SWITCH_PORT ?? "8787",
+  process.env.CCSW_DAEMON_PORT ?? process.env.CCSW_PORT ?? "8787",
   10
 );
-const WEB_HOST = process.env.AICLI_SWITCH_WEB_HOST ?? "127.0.0.1";
-const WEB_PORT = Number.parseInt(process.env.AICLI_SWITCH_WEB_PORT ?? "8788", 10);
-const CONTROL_TOKEN = process.env.AICLI_SWITCH_CONTROL_TOKEN?.trim();
-const DATA_DIR = resolve(process.env.AICLI_SWITCH_DATA_DIR ?? join(homedir(), ".ai-cli-switch"));
-const DB_PATH = resolve(process.env.AICLI_SWITCH_DB_PATH ?? join(DATA_DIR, "ai-cli-switch.sqlite"));
+const WEB_HOST = process.env.CCSW_WEB_HOST ?? "127.0.0.1";
+const WEB_PORT = Number.parseInt(process.env.CCSW_WEB_PORT ?? "8788", 10);
+const CONTROL_TOKEN = process.env.CCSW_CONTROL_TOKEN?.trim();
+const DATA_DIR = resolve(process.env.CCSW_DATA_DIR ?? join(homedir(), ".cc-switch-web"));
+const DB_PATH = resolve(process.env.CCSW_DB_PATH ?? join(DATA_DIR, "cc-switch-web.sqlite"));
 const cliEntry = fileURLToPath(import.meta.url);
 const cliDistDir = dirname(cliEntry);
 const workspaceRoot = resolve(cliDistDir, "../../..");
 const daemonEntry = resolve(workspaceRoot, "apps/daemon/dist/index.cjs");
 const webDistDir = resolve(workspaceRoot, "apps/web/dist");
 const systemdUserDir = resolve(homedir(), ".config/systemd/user");
-const aiCliSwitchConfigDir = resolve(homedir(), ".config/ai-cli-switch");
-const systemdUnitPath = resolve(systemdUserDir, "ai-cli-switch.service");
-const systemdEnvPath = resolve(aiCliSwitchConfigDir, "daemon.env");
+const ccSwitchWebConfigDir = resolve(homedir(), ".config/cc-switch-web");
+const systemdUnitPath = resolve(systemdUserDir, "cc-switch-web.service");
+const systemdEnvPath = resolve(ccSwitchWebConfigDir, "daemon.env");
 
 type ControlAuthRuntimeView = {
   readonly source: "env" | "database";
@@ -52,10 +52,8 @@ const printUsage = (): void => {
 Default Command:
   ${DEFAULT_COMMAND_NAME}                Recommended short command
 
-Compatible Aliases:
+Also Available:
   cc-switch-web
-  ai-cli-switch
-  aicli-switch
 
 Commands:
   ${DEFAULT_COMMAND_NAME} daemon start    Start the daemon in foreground
@@ -133,11 +131,11 @@ Commands:
   ${DEFAULT_COMMAND_NAME} auth rotate-token
 
 Environment:
-  AICLI_SWITCH_DAEMON_HOST / AICLI_SWITCH_DAEMON_PORT
-  AICLI_SWITCH_WEB_HOST / AICLI_SWITCH_WEB_PORT
-  AICLI_SWITCH_CONTROL_TOKEN
-  AICLI_SWITCH_DATA_DIR / AICLI_SWITCH_DB_PATH
-  AICLI_SWITCH_ALLOWED_ORIGINS / ALLOWED_ORIGINS
+  CCSW_DAEMON_HOST / CCSW_DAEMON_PORT
+  CCSW_WEB_HOST / CCSW_WEB_PORT
+  CCSW_CONTROL_TOKEN
+  CCSW_DATA_DIR / CCSW_DB_PATH
+  CCSW_ALLOWED_ORIGINS / ALLOWED_ORIGINS
 `);
 };
 
@@ -174,7 +172,7 @@ const getLocalControlToken = (): string => {
 
 const rotateLocalControlToken = (): string => {
   if (CONTROL_TOKEN) {
-    throw new Error("AICLI_SWITCH_CONTROL_TOKEN is set in environment; rotate token via environment config");
+    throw new Error("CCSW_CONTROL_TOKEN is set in environment; rotate token via environment config");
   }
 
   if (!existsSync(DB_PATH)) {
@@ -239,25 +237,25 @@ const getSystemdEnvContent = (): string => {
   const desiredToken = readDesiredControlToken();
   const lines = [
     "# CC Switch Web user service environment",
-    "AICLI_SWITCH_RUN_MODE=systemd-user",
-    `AICLI_SWITCH_DAEMON_HOST=${escapeEnvValue(DAEMON_HOST)}`,
-    `AICLI_SWITCH_DAEMON_PORT=${DAEMON_PORT}`,
-    `AICLI_SWITCH_ALLOWED_ORIGINS=${escapeEnvValue(process.env.AICLI_SWITCH_ALLOWED_ORIGINS ?? process.env.ALLOWED_ORIGINS ?? "http://127.0.0.1:8788,http://localhost:8788")}`,
-    `AICLI_SWITCH_DATA_DIR=${escapeEnvValue(DATA_DIR)}`,
-    `AICLI_SWITCH_DB_PATH=${escapeEnvValue(DB_PATH)}`
+    "CCSW_RUN_MODE=systemd-user",
+    `CCSW_DAEMON_HOST=${escapeEnvValue(DAEMON_HOST)}`,
+    `CCSW_DAEMON_PORT=${DAEMON_PORT}`,
+    `CCSW_ALLOWED_ORIGINS=${escapeEnvValue(process.env.CCSW_ALLOWED_ORIGINS ?? process.env.ALLOWED_ORIGINS ?? "http://127.0.0.1:8788,http://localhost:8788")}`,
+    `CCSW_DATA_DIR=${escapeEnvValue(DATA_DIR)}`,
+    `CCSW_DB_PATH=${escapeEnvValue(DB_PATH)}`
   ];
 
   if (desiredToken) {
-    lines.push(`AICLI_SWITCH_CONTROL_TOKEN=${escapeEnvValue(desiredToken)}`);
+    lines.push(`CCSW_CONTROL_TOKEN=${escapeEnvValue(desiredToken)}`);
   } else {
-    lines.push("# AICLI_SWITCH_CONTROL_TOKEN=");
+    lines.push("# CCSW_CONTROL_TOKEN=");
   }
 
   return `${lines.join("\n")}\n`;
 };
 
 const ensureSystemdEnvFile = (): void => {
-  mkdirSync(aiCliSwitchConfigDir, { recursive: true });
+  mkdirSync(ccSwitchWebConfigDir, { recursive: true });
 
   if (existsSync(systemdEnvPath)) {
     return;
@@ -267,7 +265,7 @@ const ensureSystemdEnvFile = (): void => {
 };
 
 const syncSystemdEnvFile = (): void => {
-  mkdirSync(aiCliSwitchConfigDir, { recursive: true });
+  mkdirSync(ccSwitchWebConfigDir, { recursive: true });
   writeFileSync(systemdEnvPath, getSystemdEnvContent(), "utf-8");
 };
 
@@ -435,10 +433,10 @@ const printUserServiceStatus = async (): Promise<void> => {
     runCaptured("systemctl", [
       "--user",
       "show",
-      "ai-cli-switch.service",
+      "cc-switch-web.service",
       "--property=LoadState,ActiveState,SubState,UnitFileState,FragmentPath,ExecMainPID"
     ]),
-    runCaptured("systemctl", ["--user", "is-active", "ai-cli-switch.service"])
+    runCaptured("systemctl", ["--user", "is-active", "cc-switch-web.service"])
   ]);
 
   if (showResult.code !== 0) {
@@ -447,7 +445,7 @@ const printUserServiceStatus = async (): Promise<void> => {
       showResult.stdout.trim() ||
       showResult.error?.message ||
       "unknown systemctl show error";
-    throw new Error(`unable to inspect ai-cli-switch.service: ${detail}`);
+    throw new Error(`unable to inspect cc-switch-web.service: ${detail}`);
   }
 
   const properties = Object.fromEntries(
@@ -464,7 +462,7 @@ const printUserServiceStatus = async (): Promise<void> => {
   console.log(
     JSON.stringify(
       {
-        service: "ai-cli-switch.service",
+        service: "cc-switch-web.service",
         systemdAvailable: true,
         active: activeResult.stdout.trim() === "active",
         activeState: properties.ActiveState ?? "unknown",
@@ -498,13 +496,13 @@ const printUserServiceDoctor = async (): Promise<void> => {
       ? await runCaptured("systemctl", [
           "--user",
           "show",
-          "ai-cli-switch.service",
+          "cc-switch-web.service",
           "--property=LoadState,ActiveState,SubState,UnitFileState,FragmentPath,ExecMainPID"
         ])
       : null;
   const activeResult =
     systemdAvailable && existsSync(systemdUnitPath)
-      ? await runCaptured("systemctl", ["--user", "is-active", "ai-cli-switch.service"])
+      ? await runCaptured("systemctl", ["--user", "is-active", "cc-switch-web.service"])
       : null;
 
   let runtimeCheck:
@@ -548,29 +546,29 @@ const printUserServiceDoctor = async (): Promise<void> => {
       const differences = [
         {
           field: "runMode",
-          desired: desiredEnv.AICLI_SWITCH_RUN_MODE ?? "foreground",
+          desired: desiredEnv.CCSW_RUN_MODE ?? "foreground",
           actual: runtime.runMode
         },
         {
           field: "daemonHost",
-          desired: desiredEnv.AICLI_SWITCH_DAEMON_HOST ?? null,
+          desired: desiredEnv.CCSW_DAEMON_HOST ?? null,
           actual: runtime.daemonHost
         },
         {
           field: "daemonPort",
-          desired: desiredEnv.AICLI_SWITCH_DAEMON_PORT
-            ? Number.parseInt(desiredEnv.AICLI_SWITCH_DAEMON_PORT, 10)
+          desired: desiredEnv.CCSW_DAEMON_PORT
+            ? Number.parseInt(desiredEnv.CCSW_DAEMON_PORT, 10)
             : null,
           actual: runtime.daemonPort
         },
         {
           field: "dataDir",
-          desired: desiredEnv.AICLI_SWITCH_DATA_DIR ?? null,
+          desired: desiredEnv.CCSW_DATA_DIR ?? null,
           actual: runtime.dataDir
         },
         {
           field: "dbPath",
-          desired: desiredEnv.AICLI_SWITCH_DB_PATH ?? null,
+          desired: desiredEnv.CCSW_DB_PATH ?? null,
           actual: runtime.dbPath
         }
       ].filter((item) => item.desired !== item.actual);
@@ -621,7 +619,7 @@ const printUserServiceDoctor = async (): Promise<void> => {
   console.log(
     JSON.stringify(
       {
-        service: "ai-cli-switch.service",
+        service: "cc-switch-web.service",
         fallback: getServiceFallbackHint(),
         checks: {
           systemd: {
@@ -675,7 +673,7 @@ const installUserService = async (): Promise<void> => {
   syncSystemdEnvFile();
   writeFileSync(systemdUnitPath, getSystemdUnitContent(), "utf-8");
   await runSystemctlUser("daemon-reload");
-  await runSystemctlUser("enable", "--now", "ai-cli-switch.service");
+  await runSystemctlUser("enable", "--now", "cc-switch-web.service");
   console.log(`installed user service: ${systemdUnitPath}`);
   console.log(`environment file: ${systemdEnvPath}`);
 };
@@ -683,7 +681,7 @@ const installUserService = async (): Promise<void> => {
 const uninstallUserService = async (): Promise<void> => {
   if (existsSync(systemdUnitPath)) {
     try {
-      await runSystemctlUser("disable", "--now", "ai-cli-switch.service");
+      await runSystemctlUser("disable", "--now", "cc-switch-web.service");
     } catch {
       // 如果服务尚未启用，仍然继续删除本地 unit 文件。
     }
@@ -775,13 +773,13 @@ const startWebServer = async (): Promise<void> => {
   const server = createServer(async (request, response) => {
     const requestPath = request.url === "/" ? "/index.html" : request.url ?? "/index.html";
 
-    if (requestPath === "/ai-cli-switch-runtime.js") {
+    if (requestPath === "/cc-switch-web-runtime.js") {
       response.writeHead(200, {
         "Content-Type": "text/javascript; charset=utf-8",
         "Cache-Control": "no-store"
       });
       response.end(
-        `window.AICLI_SWITCH_API_BASE_URL = "http://${DAEMON_HOST}:${DAEMON_PORT}";`
+        `window.CCSW_API_BASE_URL = "http://${DAEMON_HOST}:${DAEMON_PORT}";`
       );
       return;
     }
@@ -844,11 +842,11 @@ const printStatus = async (): Promise<void> => {
   } catch {
     runtime = {
       unavailable: true,
-      reason: "Protected runtime endpoint requires AICLI_SWITCH_CONTROL_TOKEN or an authenticated UI session"
+      reason: "Protected runtime endpoint requires CCSW_CONTROL_TOKEN or an authenticated UI session"
     };
     proxyRuntime = {
       unavailable: true,
-      reason: "Protected proxy runtime endpoint requires AICLI_SWITCH_CONTROL_TOKEN or an authenticated UI session"
+      reason: "Protected proxy runtime endpoint requires CCSW_CONTROL_TOKEN or an authenticated UI session"
     };
   }
 
@@ -1694,7 +1692,7 @@ const run = async (): Promise<void> => {
         await printUserServiceStatus();
         return;
       }
-      await runSystemctlUser(serviceAction, "ai-cli-switch.service");
+      await runSystemctlUser(serviceAction, "cc-switch-web.service");
       return;
     }
   }

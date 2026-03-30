@@ -137,7 +137,7 @@ test("aggregates host, health, proxy, mcp, quota, snapshot, and system service e
       "success",
       "Service environment file synchronized",
       JSON.stringify({
-        envPath: "/Users/demo/.config/ai-cli-switch/daemon.env",
+        envPath: "/Users/demo/.config/cc-switch-web/daemon.env",
         daemonPort: "8787"
       }),
       "2026-03-21T06:26:00.000Z"
@@ -201,7 +201,7 @@ test("aggregates host, health, proxy, mcp, quota, snapshot, and system service e
     offset: 0
   });
   assert.equal(systemOnly.total, 1);
-  assert.equal(systemOnly.items[0]?.metadata.envPath, "/Users/demo/.config/ai-cli-switch/daemon.env");
+  assert.equal(systemOnly.items[0]?.metadata.envPath, "/Users/demo/.config/cc-switch-web/daemon.env");
 
   database.close();
 });

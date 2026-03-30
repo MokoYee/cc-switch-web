@@ -363,10 +363,10 @@ type GovernanceFilter = "all" | "high" | "host-sync" | "active-app";
 type HostCapabilityFilter = "all" | "managed" | "unsupported" | "planned";
 type HostCapabilityExpandedState = Record<string, boolean>;
 
-const GOVERNANCE_FILTER_STORAGE_KEY = "ai-cli-switch.mcp-governance-filter";
-const GOVERNANCE_EXPANDED_STORAGE_KEY = "ai-cli-switch.mcp-governance-expanded";
-const HOST_CAPABILITY_FILTER_STORAGE_KEY = "ai-cli-switch.mcp-host-capability-filter";
-const HOST_CAPABILITY_EXPANDED_STORAGE_KEY = "ai-cli-switch.mcp-host-capability-expanded";
+const GOVERNANCE_FILTER_STORAGE_KEY = "cc-switch-web.mcp-governance-filter";
+const GOVERNANCE_EXPANDED_STORAGE_KEY = "cc-switch-web.mcp-governance-expanded";
+const HOST_CAPABILITY_FILTER_STORAGE_KEY = "cc-switch-web.mcp-host-capability-filter";
+const HOST_CAPABILITY_EXPANDED_STORAGE_KEY = "cc-switch-web.mcp-host-capability-expanded";
 
 const readStoredGovernanceFilter = (): GovernanceFilter => {
   if (typeof window === "undefined") {

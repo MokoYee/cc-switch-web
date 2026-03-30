@@ -60,7 +60,7 @@ const createBinding = (overrides: Partial<AppMcpBinding> = {}): AppMcpBinding =>
 });
 
 test("syncs codex MCP config and rolls back managed block", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-codex-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-codex-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const codexDir = join(homeDir, ".codex");
@@ -95,7 +95,7 @@ test("syncs codex MCP config and rolls back managed block", () => {
 });
 
 test("previews MCP host sync changes before apply", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-preview-apply-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-preview-apply-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const codexDir = join(homeDir, ".codex");
@@ -106,10 +106,10 @@ test("previews MCP host sync changes before apply", () => {
     [
       'model_provider = "custom"',
       "",
-      "# BEGIN AI CLI Switch MCP",
+      "# BEGIN CC Switch Web MCP",
       "[mcp_servers.old]",
       'command = "npx"',
-      "# END AI CLI Switch MCP"
+      "# END CC Switch Web MCP"
     ].join("\n"),
     "utf-8"
   );
@@ -129,14 +129,14 @@ test("previews MCP host sync changes before apply", () => {
 });
 
 test("previews and applies MCP host sync changes across managed apps", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-batch-host-sync-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-batch-host-sync-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   mkdirSync(join(homeDir, ".codex"), { recursive: true });
   mkdirSync(join(homeDir, ".claude"), { recursive: true });
   writeFileSync(
     join(homeDir, ".codex/config.toml"),
-    ["# BEGIN AI CLI Switch MCP", "[mcp_servers.old]", 'command = "npx"', "# END AI CLI Switch MCP"].join("\n"),
+    ["# BEGIN CC Switch Web MCP", "[mcp_servers.old]", 'command = "npx"', "# END CC Switch Web MCP"].join("\n"),
     "utf-8"
   );
   writeFileSync(
@@ -144,7 +144,7 @@ test("previews and applies MCP host sync changes across managed apps", () => {
     JSON.stringify(
       {
         mcpServers: {},
-        aiCliSwitchManagedMcpServers: []
+        ccSwitchWebManagedMcpServers: []
       },
       null,
       2
@@ -180,7 +180,7 @@ test("previews and applies MCP host sync changes across managed apps", () => {
 });
 
 test("rolls back MCP host sync changes across managed apps", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-batch-rollback-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-batch-rollback-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   mkdirSync(join(homeDir, ".codex"), { recursive: true });
@@ -239,7 +239,7 @@ test("rolls back MCP host sync changes across managed apps", () => {
 });
 
 test("syncs claude MCP config while preserving unmanaged servers", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-claude-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-claude-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   mkdirSync(join(homeDir, ".claude"), { recursive: true });
@@ -271,11 +271,11 @@ test("syncs claude MCP config while preserving unmanaged servers", () => {
 
   const applied = JSON.parse(readFileSync(configPath, "utf-8")) as {
     mcpServers: Record<string, { command?: string }>;
-    aiCliSwitchManagedMcpServers: string[];
+    ccSwitchWebManagedMcpServers: string[];
   };
   assert.equal(applied.mcpServers.shared?.command, "echo");
   assert.equal(applied.mcpServers.filesystem?.command, "npx");
-  assert.deepEqual(applied.aiCliSwitchManagedMcpServers, ["filesystem"]);
+  assert.deepEqual(applied.ccSwitchWebManagedMcpServers, ["filesystem"]);
 
   service.rollback("claude-code");
   const rolledBack = JSON.parse(readFileSync(configPath, "utf-8")) as {
@@ -288,7 +288,7 @@ test("syncs claude MCP config while preserving unmanaged servers", () => {
 });
 
 test("syncs gemini MCP config while preserving unmanaged servers", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-gemini-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-gemini-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   mkdirSync(join(homeDir, ".gemini"), { recursive: true });
@@ -319,11 +319,11 @@ test("syncs gemini MCP config while preserving unmanaged servers", () => {
 
   const applied = JSON.parse(readFileSync(configPath, "utf-8")) as {
     mcpServers: Record<string, { command?: string }>;
-    aiCliSwitchManagedMcpServers: string[];
+    ccSwitchWebManagedMcpServers: string[];
   };
   assert.equal(applied.mcpServers.shared?.command, "echo");
   assert.equal(applied.mcpServers.filesystem?.command, "npx");
-  assert.deepEqual(applied.aiCliSwitchManagedMcpServers, ["filesystem"]);
+  assert.deepEqual(applied.ccSwitchWebManagedMcpServers, ["filesystem"]);
 
   service.rollback("gemini-cli");
   const rolledBack = JSON.parse(readFileSync(configPath, "utf-8")) as {
@@ -336,7 +336,7 @@ test("syncs gemini MCP config while preserving unmanaged servers", () => {
 });
 
 test("syncs opencode MCP config while preserving unmanaged servers", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-opencode-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-opencode-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   mkdirSync(join(homeDir, ".config/opencode"), { recursive: true });
@@ -369,11 +369,11 @@ test("syncs opencode MCP config while preserving unmanaged servers", () => {
 
   const applied = JSON.parse(readFileSync(configPath, "utf-8")) as {
     mcp: Record<string, { type?: string; command?: string[] }>;
-    aiCliSwitchManagedMcpServers: string[];
+    ccSwitchWebManagedMcpServers: string[];
   };
   assert.equal(applied.mcp.shared?.type, "local");
   assert.equal(applied.mcp.filesystem?.type, "local");
-  assert.deepEqual(applied.aiCliSwitchManagedMcpServers, ["filesystem"]);
+  assert.deepEqual(applied.ccSwitchWebManagedMcpServers, ["filesystem"]);
 
   service.rollback("opencode");
   const rolledBack = JSON.parse(readFileSync(configPath, "utf-8")) as {
@@ -386,7 +386,7 @@ test("syncs opencode MCP config while preserving unmanaged servers", () => {
 });
 
 test("reports openclaw as external MCP bridge instead of managed host sync", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-capabilities-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-capabilities-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const service = createHostSyncService(homeDir, dataDir);
@@ -403,7 +403,7 @@ test("reports openclaw as external MCP bridge instead of managed host sync", () 
 });
 
 test("exports and imports MCP servers and bindings with snapshots", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-export-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-export-"));
   const dataDir = join(rootDir, "data");
   mkdirSync(dataDir, { recursive: true });
   const database = openDatabase(join(dataDir, "test.sqlite"));

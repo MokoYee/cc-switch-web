@@ -32,8 +32,8 @@ ccsw_ops_ensure_command mktemp
 
 [[ -f "${CCSW_OPS_CLI_ENTRY}" ]] || ccsw_ops_fatal "CLI dist entry missing under ${CCSW_OPS_REPO_ROOT}. Run npm run build or deploy an extracted release bundle first."
 
-readonly CCSW_OPS_VERIFY_HOST="${AICLI_SWITCH_DAEMON_HOST:-${AICLI_SWITCH_HOST:-127.0.0.1}}"
-readonly CCSW_OPS_VERIFY_PORT="${AICLI_SWITCH_DAEMON_PORT:-${AICLI_SWITCH_PORT:-8787}}"
+readonly CCSW_OPS_VERIFY_HOST="${CCSW_DAEMON_HOST:-${CCSW_HOST:-127.0.0.1}}"
+readonly CCSW_OPS_VERIFY_PORT="${CCSW_DAEMON_PORT:-${CCSW_PORT:-8787}}"
 readonly CCSW_OPS_VERIFY_BASE_URL="http://${CCSW_OPS_VERIFY_HOST}:${CCSW_OPS_VERIFY_PORT}"
 
 tmp_dir="$(mktemp -d)"

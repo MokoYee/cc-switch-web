@@ -73,7 +73,7 @@ const bootstrap = async (): Promise<void> => {
     if (runtime.controlToken.source === "database" && env.envControlToken === null) {
       app.log.warn(
         { controlToken: runtime.controlToken.value },
-        "AICLI_SWITCH_CONTROL_TOKEN not set; using persisted local control token from SQLite state"
+        "CCSW_CONTROL_TOKEN not set; using persisted local control token from SQLite state"
       );
     }
     process.on("SIGINT", () => {

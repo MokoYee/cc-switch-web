@@ -27,7 +27,7 @@ const createService = (
 };
 
 test("applies and rolls back codex managed config", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-host-codex-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-host-codex-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const codexDir = join(homeDir, ".codex");
@@ -46,8 +46,8 @@ test("applies and rolls back codex managed config", () => {
   const applied = readFileSync(configPath, "utf-8");
   assert.equal(applyResult.integrationState, "managed");
   assert.equal(applyResult.lifecycleMode, "foreground-session");
-  assert.match(applied, /model_provider = "ai_cli_switch"/);
-  assert.match(applied, /\[model_providers\.ai_cli_switch\]/);
+  assert.match(applied, /model_provider = "cc_switch_web"/);
+  assert.match(applied, /\[model_providers\.cc_switch_web\]/);
   assert.match(applied, /base_url = "http:\/\/127\.0\.0\.1:8787\/proxy\/codex\/v1"/);
   assert.match(applied, /requires_openai_auth = false/);
 
@@ -63,13 +63,13 @@ test("applies and rolls back codex managed config", () => {
   assert.equal(rollbackResult.integrationState, "unmanaged");
   assert.equal(rollbackResult.lifecycleMode, "foreground-session");
   assert.match(rolledBack, /model_provider = "custom"/);
-  assert.doesNotMatch(rolledBack, /ai_cli_switch/);
+  assert.doesNotMatch(rolledBack, /cc_switch_web/);
 
   rmSync(rootDir, { recursive: true, force: true });
 });
 
 test("applies and rolls back claude managed config", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-host-claude-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-host-claude-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const claudeDir = join(homeDir, ".claude");
@@ -156,7 +156,7 @@ test("applies and rolls back claude managed config", () => {
 });
 
 test("creates and removes claude onboarding skip file when it did not exist originally", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-host-claude-onboarding-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-host-claude-onboarding-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const claudeDir = join(homeDir, ".claude");
@@ -190,7 +190,7 @@ test("creates and removes claude onboarding skip file when it did not exist orig
 });
 
 test("builds host takeover preview with governance details for codex and claude-code", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-host-preview-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-host-preview-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const codexDir = join(homeDir, ".codex");
@@ -253,7 +253,7 @@ test("builds host takeover preview with governance details for codex and claude-
 });
 
 test("rolls back foreground-managed host configs automatically during shutdown cleanup", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-host-cleanup-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-host-cleanup-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const codexDir = join(homeDir, ".codex");
@@ -280,13 +280,13 @@ test("rolls back foreground-managed host configs automatically during shutdown c
   assert.equal(cleanup.failedApps.length, 0);
   assert.equal(cleanup.items[0]?.appCode, "codex");
   assert.match(rolledBack, /model_provider = "custom"/);
-  assert.doesNotMatch(rolledBack, /ai_cli_switch/);
+  assert.doesNotMatch(rolledBack, /cc_switch_web/);
 
   rmSync(rootDir, { recursive: true, force: true });
 });
 
 test("keeps persistent managed host configs when daemon runs as systemd user service", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-host-persistent-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-host-persistent-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const codexDir = join(homeDir, ".codex");
@@ -314,13 +314,13 @@ test("keeps persistent managed host configs when daemon runs as systemd user ser
   assert.equal(cleanup.failures.length, 0);
   assert.equal(cleanup.rolledBackApps.length, 0);
   assert.equal(cleanup.failedApps.length, 0);
-  assert.match(managedConfig, /ai_cli_switch/);
+  assert.match(managedConfig, /cc_switch_web/);
 
   rmSync(rootDir, { recursive: true, force: true });
 });
 
 test("auto-recovers stale foreground-managed host configs on next startup", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-host-startup-recovery-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-host-startup-recovery-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const codexDir = join(homeDir, ".codex");
@@ -336,7 +336,7 @@ test("auto-recovers stale foreground-managed host configs on next startup", () =
 
   const crashedSessionService = createService(homeDir, dataDir, {}, "foreground");
   crashedSessionService.applyManagedConfig("codex");
-  assert.match(readFileSync(configPath, "utf-8"), /ai_cli_switch/);
+  assert.match(readFileSync(configPath, "utf-8"), /cc_switch_web/);
 
   const restartedService = createService(homeDir, dataDir, {}, "systemd-user");
   const recovery = restartedService.recoverForegroundSessionConfigsOnStartup();
@@ -347,7 +347,7 @@ test("auto-recovers stale foreground-managed host configs on next startup", () =
   assert.deepEqual(recovery?.failedApps, []);
   assert.match(recovery?.message ?? "", /Auto-recovered 1 stale foreground-session/);
   assert.match(readFileSync(configPath, "utf-8"), /model_provider = "custom"/);
-  assert.doesNotMatch(readFileSync(configPath, "utf-8"), /ai_cli_switch/);
+  assert.doesNotMatch(readFileSync(configPath, "utf-8"), /cc_switch_web/);
   assert.equal(restartedService.scan().find((item) => item.appCode === "codex")?.integrationState, "unmanaged");
   assert.equal(restartedService.getStartupRecovery()?.rolledBackApps[0], "codex");
 
@@ -355,7 +355,7 @@ test("auto-recovers stale foreground-managed host configs on next startup", () =
 });
 
 test("detects codex and claude environment overrides from process and shell sources", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-host-env-conflicts-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-host-env-conflicts-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
 
@@ -370,7 +370,7 @@ test("detects codex and claude environment overrides from process and shell sour
   );
   mkdirSync(join(homeDir, ".config/environment.d"), { recursive: true });
   writeFileSync(
-    join(homeDir, ".config/environment.d", "ai-cli-switch.conf"),
+    join(homeDir, ".config/environment.d", "cc-switch-web.conf"),
     'ANTHROPIC_AUTH_TOKEN="environment-file-token"\n',
     "utf-8"
   );
@@ -416,7 +416,7 @@ test("detects codex and claude environment overrides from process and shell sour
 });
 
 test("exposes host takeover capability matrix for non-managed cli targets", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-host-matrix-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-host-matrix-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const geminiDir = join(homeDir, ".gemini");
@@ -461,7 +461,7 @@ test("exposes host takeover capability matrix for non-managed cli targets", () =
 });
 
 test("lists stable host capability registry without local machine state", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-host-capabilities-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-host-capabilities-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const service = createService(homeDir, dataDir);

@@ -28,7 +28,7 @@ export const enUSMessages = {
     runtimeTitle: "Runtime Information",
     controlTokenTitle: "Control Token",
     controlTokenDescription: "This daemon requires console authentication. Enter the control token and reload the dashboard.",
-    controlTokenPlaceholder: "Enter AICLI_SWITCH_CONTROL_TOKEN",
+    controlTokenPlaceholder: "Enter CCSW_CONTROL_TOKEN",
     controlTokenSave: "Save Token",
     metrics: {
       serviceStatus: "Service Status",

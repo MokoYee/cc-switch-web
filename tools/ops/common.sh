@@ -8,9 +8,9 @@ readonly CCSW_OPS_CLI_ENTRY="${CCSW_OPS_REPO_ROOT}/apps/cli/dist/index.js"
 readonly CCSW_OPS_DAEMON_ENTRY="${CCSW_OPS_REPO_ROOT}/apps/daemon/dist/index.cjs"
 readonly CCSW_OPS_WEB_INDEX="${CCSW_OPS_REPO_ROOT}/apps/web/dist/index.html"
 readonly CCSW_OPS_RELEASE_MANIFEST="${CCSW_OPS_REPO_ROOT}/release/manifest.json"
-readonly CCSW_OPS_SERVICE_NAME="ai-cli-switch.service"
+readonly CCSW_OPS_SERVICE_NAME="cc-switch-web.service"
 readonly CCSW_OPS_SYSTEMD_UNIT_PATH="${HOME}/.config/systemd/user/${CCSW_OPS_SERVICE_NAME}"
-readonly CCSW_OPS_STATE_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/ai-cli-switch"
+readonly CCSW_OPS_STATE_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/cc-switch-web"
 readonly CCSW_OPS_STATE_FILE="${CCSW_OPS_STATE_DIR}/release-state.env"
 
 ccsw_ops_info() {

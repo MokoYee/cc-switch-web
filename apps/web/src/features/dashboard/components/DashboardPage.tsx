@@ -2832,8 +2832,8 @@ export const DashboardPage = (): JSX.Element => {
             <p className="panel-supporting-copy">
               {localize(
                 locale,
-                "当前认证由环境变量托管。若需换 token，请修改 daemon 启动环境中的 AICLI_SWITCH_CONTROL_TOKEN 后重启服务。",
-                "Authentication is managed by environment variables. To rotate it, update AICLI_SWITCH_CONTROL_TOKEN in the daemon environment and restart the service."
+                "当前认证由环境变量托管。若需换 token，请修改 daemon 启动环境中的 CCSW_CONTROL_TOKEN 后重启服务。",
+                "Authentication is managed by environment variables. To rotate it, update CCSW_CONTROL_TOKEN in the daemon environment and restart the service."
               )}
             </p>
           ) : null}

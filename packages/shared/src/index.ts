@@ -1927,7 +1927,7 @@ export const systemServiceRuntimeDiffItemSchema = z.object({
 });
 
 export const systemServiceDoctorSchema = z.object({
-  service: z.literal("ai-cli-switch.service"),
+  service: z.literal("cc-switch-web.service"),
   fallback: z.string().min(1),
   checks: z.object({
     systemd: z.object({
@@ -2289,7 +2289,7 @@ export const systemMetadata: SystemMetadata = {
   daemon: {
     defaultHost: "127.0.0.1",
     defaultPort: 8787,
-    allowedOriginsEnvKey: "AICLI_SWITCH_ALLOWED_ORIGINS",
+    allowedOriginsEnvKey: "CCSW_ALLOWED_ORIGINS",
     defaultAllowedOrigins: [
       "http://127.0.0.1:8788",
       "http://localhost:8788"

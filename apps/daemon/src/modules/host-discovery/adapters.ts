@@ -108,12 +108,12 @@ const codexAdapter: ManagedHostCliAdapter = {
   buildManagedTarget: (proxyBaseUrl) => `${proxyBaseUrl}/v1`,
   buildManagedConfig: (existingContent, proxyBaseUrl) => {
     let nextContent = existingContent;
-    nextContent = upsertTomlString(nextContent, "model_provider", "ai_cli_switch");
+    nextContent = upsertTomlString(nextContent, "model_provider", "cc_switch_web");
     nextContent = upsertTomlSection(
       nextContent,
-      "model_providers.ai_cli_switch",
+      "model_providers.cc_switch_web",
       [
-        'name = "ai_cli_switch"',
+        'name = "cc_switch_web"',
         'wire_api = "responses"',
         `base_url = "${proxyBaseUrl}/v1"`,
         "requires_openai_auth = false"
@@ -143,8 +143,8 @@ const codexAdapter: ManagedHostCliAdapter = {
   isManaged: (configPath, proxyBaseUrl) => {
     const content = readFileSync(configPath, "utf-8");
     return (
-      /^model_provider\s*=\s*"ai_cli_switch"$/m.test(content) &&
-      content.includes("[model_providers.ai_cli_switch]") &&
+      /^model_provider\s*=\s*"cc_switch_web"$/m.test(content) &&
+      content.includes("[model_providers.cc_switch_web]") &&
       content.includes(`base_url = "${proxyBaseUrl}/v1"`) &&
       /^requires_openai_auth\s*=\s*false$/m.test(content)
     );

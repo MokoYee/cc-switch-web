@@ -11,7 +11,7 @@ import {
 import { messages } from "./messages.js";
 import type { I18nContextValue, TranslationKey } from "./types.js";
 
-const STORAGE_KEY = "ai-cli-switch.locale";
+const STORAGE_KEY = "cc-switch-web.locale";
 const DEFAULT_LOCALE: LocaleCode = "zh-CN";
 
 const I18nContext = createContext<I18nContextValue | null>(null);

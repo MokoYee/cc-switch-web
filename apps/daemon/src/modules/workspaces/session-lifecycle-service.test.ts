@@ -181,7 +181,7 @@ test("creates workspace and session together when cwd points to a new project ro
   );
   const lifecycleService = new SessionLifecycleService(sessionRepository, discoveryService);
 
-  const tempRoot = mkdtempSync(join(tmpdir(), "ai-cli-switch-session-auto-"));
+  const tempRoot = mkdtempSync(join(tmpdir(), "cc-switch-web-session-auto-"));
   const projectRoot = join(tempRoot, "repo");
   const cwd = join(projectRoot, "apps", "api");
   mkdirSync(join(projectRoot, ".git"), { recursive: true });
@@ -308,7 +308,7 @@ test("backfills workspace onto matched active session when cwd reveals project r
   const database = openDatabase(":memory:");
   const workspaceRepository = new WorkspaceRepository(database);
   const sessionRepository = new SessionRecordRepository(database);
-  const tempRoot = mkdtempSync(join(tmpdir(), "ai-cli-switch-session-backfill-"));
+  const tempRoot = mkdtempSync(join(tmpdir(), "cc-switch-web-session-backfill-"));
   const projectRoot = join(tempRoot, "repo");
   const cwd = join(projectRoot, "apps", "worker");
   mkdirSync(join(projectRoot, ".git"), { recursive: true });
@@ -391,7 +391,7 @@ test("ensures session from cwd and reuses existing workspace when bootstrapping 
   const database = openDatabase(":memory:");
   const workspaceRepository = new WorkspaceRepository(database);
   const sessionRepository = new SessionRecordRepository(database);
-  const tempRoot = mkdtempSync(join(tmpdir(), "ai-cli-switch-session-manual-"));
+  const tempRoot = mkdtempSync(join(tmpdir(), "cc-switch-web-session-manual-"));
   const projectRoot = join(tempRoot, "repo");
   const cwd = join(projectRoot, "packages", "console");
   mkdirSync(join(projectRoot, ".git"), { recursive: true });

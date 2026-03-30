@@ -41,7 +41,7 @@ const sanitizeForwardHeaders = (request: FastifyRequest): Headers => {
       lowerKey === "content-length" ||
       lowerKey === "authorization" ||
       lowerKey === "cookie" ||
-      lowerKey.startsWith("x-ai-cli-switch-")
+      lowerKey.startsWith("x-cc-switch-web-")
     ) {
       continue;
     }
@@ -292,27 +292,27 @@ const readRequestContextOverride = (
   readonly sessionId: string | null;
   readonly cwd: string | null;
 } => ({
-  workspaceId: readSingleHeader(request.headers["x-ai-cli-switch-workspace"]),
-  sessionId: readSingleHeader(request.headers["x-ai-cli-switch-session"]),
-  cwd: readSingleHeader(request.headers["x-ai-cli-switch-cwd"])
+  workspaceId: readSingleHeader(request.headers["x-cc-switch-web-workspace"]),
+  sessionId: readSingleHeader(request.headers["x-cc-switch-web-session"]),
+  cwd: readSingleHeader(request.headers["x-cc-switch-web-cwd"])
 });
 
 const applyContextHeaders = (headers: Headers, context: EffectiveAppContext): void => {
-  headers.set("x-ai-cli-switch-context-source", context.source);
+  headers.set("x-cc-switch-web-context-source", context.source);
   if (context.activeWorkspaceId !== null) {
-    headers.set("x-ai-cli-switch-workspace", context.activeWorkspaceId);
+    headers.set("x-cc-switch-web-workspace", context.activeWorkspaceId);
   }
   if (context.activeSessionId !== null) {
-    headers.set("x-ai-cli-switch-session", context.activeSessionId);
+    headers.set("x-cc-switch-web-session", context.activeSessionId);
   }
   if (context.provider.id !== null) {
-    headers.set("x-ai-cli-switch-context-provider", context.provider.id);
+    headers.set("x-cc-switch-web-context-provider", context.provider.id);
   }
   if (context.promptTemplate.id !== null) {
-    headers.set("x-ai-cli-switch-context-prompt", context.promptTemplate.id);
+    headers.set("x-cc-switch-web-context-prompt", context.promptTemplate.id);
   }
   if (context.skill.id !== null) {
-    headers.set("x-ai-cli-switch-context-skill", context.skill.id);
+    headers.set("x-cc-switch-web-context-skill", context.skill.id);
   }
 };
 
@@ -508,8 +508,8 @@ export const registerProxyRoutes = async (
         const targetUrl = buildTargetUrl(target.upstreamBaseUrl, bridgedRequest.upstreamPath, queryString);
         const headers = sanitizeForwardHeaders(request);
         headers.set("Authorization", `Bearer ${target.apiKeyPlaintext}`);
-        headers.set("x-ai-cli-switch-app", target.appCode);
-        headers.set("x-ai-cli-switch-provider", target.providerId);
+        headers.set("x-cc-switch-web-app", target.appCode);
+        headers.set("x-cc-switch-web-provider", target.providerId);
         applyContextHeaders(headers, effectiveContext);
 
         const upstreamResponse = await fetch(targetUrl, {

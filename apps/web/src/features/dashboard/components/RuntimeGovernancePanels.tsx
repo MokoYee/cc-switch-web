@@ -105,7 +105,7 @@ const buildServiceValidationChecklist = (
 
   items.push(
     snapshot.serviceDoctor.checks.service.active
-      ? localize(locale, "确认 ai-cli-switch.service 当前处于 active 状态。", "Confirm ai-cli-switch.service is currently active.")
+      ? localize(locale, "确认 cc-switch-web.service 当前处于 active 状态。", "Confirm cc-switch-web.service is currently active.")
       : localize(locale, "确认 user service 尚未启动时的预期状态，必要时再由宿主机手动启动。", "Confirm the expected inactive state before starting the user service from the host.")
   );
 

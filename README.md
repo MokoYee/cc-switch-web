@@ -141,11 +141,11 @@ ccsw daemon service install
 ccsw daemon service status
 ```
 
-兼容命令与历史前缀仍保留：
+当前稳定命名：
 
-- CLI 别名：`cc-switch-web`、`ai-cli-switch`、`aicli-switch`
-- 环境变量前缀：`AICLI_SWITCH_*`
-- `systemd` unit：`ai-cli-switch.service`
+- CLI 命令：`ccsw`、`cc-switch-web`
+- 环境变量前缀：`CCSW_*`
+- `systemd` unit：`cc-switch-web.service`
 
 ## 公开文档
 

@@ -26,7 +26,7 @@ const createService = () =>
     },
     {
       dataDir: "/tmp/ccsw-data",
-      dbPath: "/tmp/ccsw-data/ai-cli-switch.sqlite"
+      dbPath: "/tmp/ccsw-data/cc-switch-web.sqlite"
     },
     {
       latest: () => null
@@ -42,7 +42,7 @@ const createService = () =>
     } as never
   );
 
-test("syncServiceEnv writes the env file under ai-cli-switch config and unit content pins workspace root", async () => {
+test("syncServiceEnv writes the env file under cc-switch-web config and unit content pins workspace root", async () => {
   const tempHome = mkdtempSync(join(tmpdir(), "cc-switch-web-system-service-"));
   const previousHome = process.env.HOME;
   const previousUserProfile = process.env.USERPROFILE;
@@ -52,7 +52,7 @@ test("syncServiceEnv writes the env file under ai-cli-switch config and unit con
     process.env.USERPROFILE = tempHome;
 
     const service = createService();
-    const expectedEnvPath = join(tempHome, ".config/ai-cli-switch/daemon.env");
+    const expectedEnvPath = join(tempHome, ".config/cc-switch-web/daemon.env");
     const unitContent = (
       service as unknown as {
         getSystemdUnitContent: () => string;
@@ -63,7 +63,7 @@ test("syncServiceEnv writes the env file under ai-cli-switch config and unit con
 
     assert.equal(existsSync(expectedEnvPath), true);
     assert.equal(result.doctor.checks.files.envPath, expectedEnvPath);
-    assert.equal(readFileSync(expectedEnvPath, "utf-8").includes("AICLI_SWITCH_DAEMON_PORT=8787"), true);
+    assert.equal(readFileSync(expectedEnvPath, "utf-8").includes("CCSW_DAEMON_PORT=8787"), true);
     assert.equal(unitContent.includes(`WorkingDirectory=${workspaceRoot}`), true);
     assert.equal(unitContent.includes(`EnvironmentFile=-${expectedEnvPath}`), true);
   } finally {

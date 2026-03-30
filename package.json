@@ -5,9 +5,7 @@
   "type": "module",
   "bin": {
     "ccsw": "apps/cli/dist/index.js",
-    "cc-switch-web": "apps/cli/dist/index.js",
-    "ai-cli-switch": "apps/cli/dist/index.js",
-    "aicli-switch": "apps/cli/dist/index.js"
+    "cc-switch-web": "apps/cli/dist/index.js"
   },
   "files": [
     "apps/cli/dist",

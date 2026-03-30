@@ -730,17 +730,17 @@ test("workspace and session runtime stay aligned with edited context, active sel
     await postProxyCompletion(request, workspaceModel);
 
     await expect
-      .poll(() => findCapturedRequest(upstream.capturedRequests, workspaceModel)?.headers["x-ai-cli-switch-context-source"] ?? null)
+      .poll(() => findCapturedRequest(upstream.capturedRequests, workspaceModel)?.headers["x-cc-switch-web-context-source"] ?? null)
       .toBe("active-workspace");
     await expect
-      .poll(() => findCapturedRequest(upstream.capturedRequests, workspaceModel)?.headers["x-ai-cli-switch-context-provider"] ?? null)
+      .poll(() => findCapturedRequest(upstream.capturedRequests, workspaceModel)?.headers["x-cc-switch-web-context-provider"] ?? null)
       .toBe(workspaceProviderId);
 
     const capturedWorkspaceRequest = findCapturedRequest(upstream.capturedRequests, workspaceModel);
-    expect(capturedWorkspaceRequest?.headers["x-ai-cli-switch-workspace"]).toBe(workspaceId);
-    expect(capturedWorkspaceRequest?.headers["x-ai-cli-switch-session"] ?? null).toBe(null);
-    expect(capturedWorkspaceRequest?.headers["x-ai-cli-switch-context-prompt"]).toBe(workspacePromptId);
-    expect(capturedWorkspaceRequest?.headers["x-ai-cli-switch-context-skill"]).toBe(workspaceSkillId);
+    expect(capturedWorkspaceRequest?.headers["x-cc-switch-web-workspace"]).toBe(workspaceId);
+    expect(capturedWorkspaceRequest?.headers["x-cc-switch-web-session"] ?? null).toBe(null);
+    expect(capturedWorkspaceRequest?.headers["x-cc-switch-web-context-prompt"]).toBe(workspacePromptId);
+    expect(capturedWorkspaceRequest?.headers["x-cc-switch-web-context-skill"]).toBe(workspaceSkillId);
     expect(extractSystemInstruction(capturedWorkspaceRequest)).toContain(workspacePromptMarker);
     expect(extractSystemInstruction(capturedWorkspaceRequest)).toContain(workspaceSkillMarker);
 
@@ -807,17 +807,17 @@ test("workspace and session runtime stay aligned with edited context, active sel
     await postProxyCompletion(request, sessionModel);
 
     await expect
-      .poll(() => findCapturedRequest(upstream.capturedRequests, sessionModel)?.headers["x-ai-cli-switch-context-source"] ?? null)
+      .poll(() => findCapturedRequest(upstream.capturedRequests, sessionModel)?.headers["x-cc-switch-web-context-source"] ?? null)
       .toBe("active-session");
     await expect
-      .poll(() => findCapturedRequest(upstream.capturedRequests, sessionModel)?.headers["x-ai-cli-switch-context-provider"] ?? null)
+      .poll(() => findCapturedRequest(upstream.capturedRequests, sessionModel)?.headers["x-cc-switch-web-context-provider"] ?? null)
       .toBe(sessionProviderId);
 
     const capturedSessionRequest = findCapturedRequest(upstream.capturedRequests, sessionModel);
-    expect(capturedSessionRequest?.headers["x-ai-cli-switch-workspace"]).toBe(workspaceId);
-    expect(capturedSessionRequest?.headers["x-ai-cli-switch-session"]).toBe(sessionId);
-    expect(capturedSessionRequest?.headers["x-ai-cli-switch-context-prompt"]).toBe(sessionPromptId);
-    expect(capturedSessionRequest?.headers["x-ai-cli-switch-context-skill"]).toBe(sessionSkillId);
+    expect(capturedSessionRequest?.headers["x-cc-switch-web-workspace"]).toBe(workspaceId);
+    expect(capturedSessionRequest?.headers["x-cc-switch-web-session"]).toBe(sessionId);
+    expect(capturedSessionRequest?.headers["x-cc-switch-web-context-prompt"]).toBe(sessionPromptId);
+    expect(capturedSessionRequest?.headers["x-cc-switch-web-context-skill"]).toBe(sessionSkillId);
     expect(extractSystemInstruction(capturedSessionRequest)).toContain(sessionPromptMarker);
     expect(extractSystemInstruction(capturedSessionRequest)).toContain(sessionSkillMarker);
 

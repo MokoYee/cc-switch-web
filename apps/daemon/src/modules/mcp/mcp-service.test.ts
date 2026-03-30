@@ -23,7 +23,7 @@ const createService = (homeDir: string, dataDir: string): McpService => {
 };
 
 test("imports MCP servers from codex config", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-import-codex-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-import-codex-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const codexDir = join(homeDir, ".codex");
@@ -54,7 +54,7 @@ test("imports MCP servers from codex config", () => {
 });
 
 test("builds MCP runtime view and save previews", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-runtime-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-runtime-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const codexDir = join(homeDir, ".codex");
@@ -194,7 +194,7 @@ test("builds MCP runtime view and save previews", () => {
 });
 
 test("does not mark MCP env or headers as changed when only JSON key order differs", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-preview-stable-records-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-preview-stable-records-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   mkdirSync(dataDir, { recursive: true });
@@ -254,7 +254,7 @@ test("does not mark MCP env or headers as changed when only JSON key order diffe
 });
 
 test("previews MCP import conflicts from codex config", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-preview-codex-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-preview-codex-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const codexDir = join(homeDir, ".codex");
@@ -363,7 +363,7 @@ test("previews MCP import conflicts from codex config", () => {
 });
 
 test("previews MCP import field diffs for existing server updates", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-preview-diff-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-preview-diff-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const codexDir = join(homeDir, ".codex");
@@ -431,7 +431,7 @@ test("previews MCP import field diffs for existing server updates", () => {
 });
 
 test("imports MCP servers from claude config", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-import-claude-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-import-claude-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   mkdirSync(join(homeDir, ".claude"), { recursive: true });
@@ -473,7 +473,7 @@ test("imports MCP servers from claude config", () => {
 });
 
 test("imports MCP servers from gemini config", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-import-gemini-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-import-gemini-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   mkdirSync(join(homeDir, ".gemini"), { recursive: true });
@@ -510,7 +510,7 @@ test("imports MCP servers from gemini config", () => {
 });
 
 test("imports MCP servers from opencode config", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-import-opencode-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-import-opencode-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   mkdirSync(join(homeDir, ".config/opencode"), { recursive: true });
@@ -552,7 +552,7 @@ test("imports MCP servers from opencode config", () => {
 });
 
 test("disabled bindings do not keep MCP runtime in broken state", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-disabled-binding-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-disabled-binding-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   mkdirSync(dataDir, { recursive: true });
@@ -597,7 +597,7 @@ test("disabled bindings do not keep MCP runtime in broken state", () => {
 });
 
 test("previews and applies MCP governance repair actions", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-governance-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-governance-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   mkdirSync(dataDir, { recursive: true });
@@ -725,7 +725,7 @@ test("previews and applies MCP governance repair actions", () => {
 });
 
 test("previews and applies MCP governance repair across apps", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-mcp-governance-batch-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-mcp-governance-batch-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   mkdirSync(dataDir, { recursive: true });

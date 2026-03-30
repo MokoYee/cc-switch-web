@@ -73,7 +73,7 @@ const createService = (
 };
 
 test("syncs active-context prompt into codex host file and preserves rollback backup", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-prompt-host-codex-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-prompt-host-codex-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const codexDir = join(homeDir, ".codex");
@@ -157,7 +157,7 @@ test("syncs active-context prompt into codex host file and preserves rollback ba
 });
 
 test("falls back to a single app-scoped prompt when active context is empty", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-prompt-host-claude-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-prompt-host-claude-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const promptDir = join(homeDir, ".claude");
@@ -191,7 +191,7 @@ test("falls back to a single app-scoped prompt when active context is empty", ()
 });
 
 test("reports ambiguous prompt selection instead of guessing", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-prompt-host-ambiguous-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-prompt-host-ambiguous-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   mkdirSync(join(homeDir, ".codex"), { recursive: true });
@@ -227,7 +227,7 @@ test("reports ambiguous prompt selection instead of guessing", () => {
 });
 
 test("imports a host prompt file as a disabled prompt asset when no match exists", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-prompt-import-new-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-prompt-import-new-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const codexDir = join(homeDir, ".codex");
@@ -257,7 +257,7 @@ test("imports a host prompt file as a disabled prompt asset when no match exists
 });
 
 test("applies prompt host sync changes across managed apps in batch", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-prompt-host-batch-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-prompt-host-batch-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   mkdirSync(join(homeDir, ".codex"), { recursive: true });
@@ -304,7 +304,7 @@ test("applies prompt host sync changes across managed apps in batch", () => {
 });
 
 test("reuses an existing prompt asset when host prompt content already matches", () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "ai-cli-switch-prompt-import-match-"));
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-prompt-import-match-"));
   const homeDir = join(rootDir, "home");
   const dataDir = join(rootDir, "data");
   const promptDir = join(homeDir, ".claude");

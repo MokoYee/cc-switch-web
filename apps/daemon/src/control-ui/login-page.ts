@@ -48,7 +48,7 @@ export const renderControlLoginPage = (mountPath: string): string => `<!doctype 
       <h1>CC Switch Web</h1>
       <p>控制台默认只建议本地访问。Local access is recommended. 请输入控制令牌后进入管理界面。</p>
       <form id="loginForm">
-        <input id="tokenInput" type="password" placeholder="输入 / Enter AICLI_SWITCH_CONTROL_TOKEN" />
+        <input id="tokenInput" type="password" placeholder="输入 / Enter CCSW_CONTROL_TOKEN" />
         <button type="submit">进入控制台 / Open Console</button>
       </form>
       <p class="error" id="errorMessage"></p>

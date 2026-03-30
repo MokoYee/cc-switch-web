@@ -215,11 +215,11 @@ POST /api/v1/host-discovery/rollback-foreground
 
 如果问题不是配置漂移，而是代码版本本身需要回退，建议按这个顺序：
 
-1. 停服务：`systemctl --user stop ai-cli-switch.service`
+1. 停服务：`systemctl --user stop cc-switch-web.service`
 2. 切回上一版已知可用 commit/tag
 3. 重新构建：`npm install && npm run build`
 4. 重装或刷新服务环境：`ccsw daemon service install`
-5. 启服务：`systemctl --user start ai-cli-switch.service`
+5. 启服务：`systemctl --user start cc-switch-web.service`
 6. 重新验收 `/health`、`/ui/`、`/metrics` 和 `Service Doctor`
 
 如果当前不是 `systemd --user` 模式，而是手工前台运行，则把第 1/5 步替换成停止当前前台进程并重新执行 `ccsw daemon start`。

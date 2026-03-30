@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 
-const CONTROL_AUTH_COOKIE = "ai-cli-switch_control_token";
+const CONTROL_AUTH_COOKIE = "cc-switch-web_control_token";
 
 export interface ControlAuthContext {
   readonly controlToken: string;

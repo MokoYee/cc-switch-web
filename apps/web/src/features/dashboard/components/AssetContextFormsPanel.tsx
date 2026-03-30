@@ -342,9 +342,9 @@ type AssetGovernanceEntry = {
   readonly usedBySessionIds: readonly string[];
 };
 
-const ASSET_QUEUE_FILTER_STORAGE_KEY = "ai-cli-switch.asset-queue-filter";
-const ASSET_QUEUE_EXPANDED_STORAGE_KEY = "ai-cli-switch.asset-queue-expanded";
-const ASSET_QUEUE_APP_FILTER_STORAGE_KEY = "ai-cli-switch.asset-queue-app-filter";
+const ASSET_QUEUE_FILTER_STORAGE_KEY = "cc-switch-web.asset-queue-filter";
+const ASSET_QUEUE_EXPANDED_STORAGE_KEY = "cc-switch-web.asset-queue-expanded";
+const ASSET_QUEUE_APP_FILTER_STORAGE_KEY = "cc-switch-web.asset-queue-app-filter";
 
 const readStoredAssetQueueFilter = (): AssetQueueFilter => {
   if (typeof window === "undefined") {

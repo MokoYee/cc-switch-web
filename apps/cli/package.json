@@ -14,9 +14,7 @@
   },
   "bin": {
     "ccsw": "dist/index.js",
-    "cc-switch-web": "dist/index.js",
-    "ai-cli-switch": "dist/index.js",
-    "aicli-switch": "dist/index.js"
+    "cc-switch-web": "dist/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

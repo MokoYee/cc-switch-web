@@ -50,7 +50,7 @@ export class SettingsRepository {
 
   rotateControlToken(envOverride: string | null): ControlTokenRecord {
     if (envOverride !== null && envOverride.length > 0) {
-      throw new Error("AICLI_SWITCH_CONTROL_TOKEN is set in environment; rotate token via environment config");
+      throw new Error("CCSW_CONTROL_TOKEN is set in environment; rotate token via environment config");
     }
 
     const nextToken = randomBytes(24).toString("hex");

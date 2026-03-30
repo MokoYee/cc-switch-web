@@ -56,7 +56,7 @@ const createEffectiveContext = (appCode: AppCode): EffectiveAppContext => ({
 });
 
 const createServiceDoctor = (): SystemServiceDoctor => ({
-  service: "ai-cli-switch.service",
+  service: "cc-switch-web.service",
   fallback: "ccsw daemon start",
   checks: {
     systemd: {
@@ -64,7 +64,7 @@ const createServiceDoctor = (): SystemServiceDoctor => ({
       detail: "systemd unavailable"
     },
     files: {
-      unitPath: "/tmp/ai-cli-switch.service",
+      unitPath: "/tmp/cc-switch-web.service",
       unitExists: false,
       envPath: "/tmp/daemon.env",
       envExists: false,
@@ -147,7 +147,7 @@ const createRuntime = (dependencies: {
     },
     storagePaths: {
       dataDir: "/tmp/data",
-      dbPath: "/tmp/data/ai-cli-switch.sqlite"
+      dbPath: "/tmp/data/cc-switch-web.sqlite"
     },
     database: {},
     providerRepository: { list: () => [] },
@@ -298,7 +298,7 @@ const createRuntime = (dependencies: {
         allowAnyOrigin: false,
         healthProbeIntervalMs: 15_000,
         dataDir: "/tmp/data",
-        dbPath: "/tmp/data/ai-cli-switch.sqlite",
+        dbPath: "/tmp/data/cc-switch-web.sqlite",
         latestSnapshotVersion: null
       })
     },

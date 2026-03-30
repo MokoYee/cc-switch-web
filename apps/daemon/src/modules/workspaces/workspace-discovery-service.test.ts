@@ -25,7 +25,7 @@ const createEnv = (roots: string[]): DaemonEnv => ({
 });
 
 test("discovers project roots, infers app code, and imports workspace candidates", () => {
-  const tempRoot = mkdtempSync(join(tmpdir(), "ai-cli-switch-workspace-discovery-"));
+  const tempRoot = mkdtempSync(join(tmpdir(), "cc-switch-web-workspace-discovery-"));
   const repoRoot = join(tempRoot, "projects", "demo-repo");
   mkdirSync(join(repoRoot, ".git"), { recursive: true });
   mkdirSync(join(repoRoot, ".codex"), { recursive: true });
@@ -70,7 +70,7 @@ test("discovers project roots, infers app code, and imports workspace candidates
 });
 
 test("surfaces existing session cwd as workspace candidate", () => {
-  const tempRoot = mkdtempSync(join(tmpdir(), "ai-cli-switch-workspace-session-"));
+  const tempRoot = mkdtempSync(join(tmpdir(), "cc-switch-web-workspace-session-"));
   const sessionRoot = join(tempRoot, "service-a");
   mkdirSync(sessionRoot, { recursive: true });
   writeFileSync(join(sessionRoot, "pyproject.toml"), "[project]\nname = 'service-a'\n", "utf-8");
@@ -110,7 +110,7 @@ test("surfaces existing session cwd as workspace candidate", () => {
 });
 
 test("links matching sessions when importing a workspace candidate", () => {
-  const tempRoot = mkdtempSync(join(tmpdir(), "ai-cli-switch-workspace-link-"));
+  const tempRoot = mkdtempSync(join(tmpdir(), "cc-switch-web-workspace-link-"));
   const repoRoot = join(tempRoot, "repo");
   const nestedSessionRoot = join(repoRoot, "apps", "gateway");
   mkdirSync(join(repoRoot, ".git"), { recursive: true });
@@ -149,7 +149,7 @@ test("links matching sessions when importing a workspace candidate", () => {
 });
 
 test("auto imports nearest project root for cwd when workspace does not exist yet", () => {
-  const tempRoot = mkdtempSync(join(tmpdir(), "ai-cli-switch-workspace-auto-import-"));
+  const tempRoot = mkdtempSync(join(tmpdir(), "cc-switch-web-workspace-auto-import-"));
   const repoRoot = join(tempRoot, "repo");
   const nestedPath = join(repoRoot, "packages", "gateway", "src");
   mkdirSync(nestedPath, { recursive: true });
@@ -181,7 +181,7 @@ test("auto imports nearest project root for cwd when workspace does not exist ye
 });
 
 test("deduplicates nested session cwd onto nearest project root candidate", () => {
-  const tempRoot = mkdtempSync(join(tmpdir(), "ai-cli-switch-workspace-session-project-root-"));
+  const tempRoot = mkdtempSync(join(tmpdir(), "cc-switch-web-workspace-session-project-root-"));
   const repoRoot = join(tempRoot, "repo");
   const nestedSessionRoot = join(repoRoot, "apps", "gateway");
   mkdirSync(join(repoRoot, ".git"), { recursive: true });
@@ -220,7 +220,7 @@ test("deduplicates nested session cwd onto nearest project root candidate", () =
 });
 
 test("batch imports discovery candidates and links matching sessions", () => {
-  const tempRoot = mkdtempSync(join(tmpdir(), "ai-cli-switch-workspace-batch-import-"));
+  const tempRoot = mkdtempSync(join(tmpdir(), "cc-switch-web-workspace-batch-import-"));
   const repoRoot = join(tempRoot, "repo");
   const nestedSessionRoot = join(repoRoot, "apps", "gateway");
   mkdirSync(join(repoRoot, ".git"), { recursive: true });
