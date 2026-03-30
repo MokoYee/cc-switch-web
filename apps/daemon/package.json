@@ -1,8 +1,9 @@
 {
   "name": "@cc-switch-web/daemon",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/index.cjs",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/MokoYee/cc-switch-web.git",
@@ -13,9 +14,9 @@
     "url": "https://github.com/MokoYee/cc-switch-web/issues"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "rm -rf dist && mkdir -p dist && esbuild src/index.ts --bundle --platform=node --format=cjs --target=node20 --packages=bundle --external:better-sqlite3 --outfile=dist/index.cjs",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
+    "start": "node dist/index.cjs",
     "test": "npm run build --workspace @cc-switch-web/shared && tsx --test src/modules/proxy/protocol-bridge.test.ts src/modules/proxy/anthropic-sse-bridge.test.ts src/modules/proxy/provider-health-probe-service.test.ts src/modules/proxy/proxy-http-handler.test.ts src/modules/proxy/proxy-runtime-service.test.ts src/modules/proxy/usage-tracking.test.ts src/modules/audit/audit-event-service.test.ts src/modules/assets/asset-repositories.test.ts src/modules/assets/asset-version-service.test.ts src/modules/assets/skill-delivery-service.test.ts src/modules/dashboard/dashboard-bootstrap-service.test.ts src/modules/governance/config-governance-service.test.ts src/modules/host-discovery/host-discovery-service.test.ts src/modules/mcp/mcp-host-sync-service.test.ts src/modules/mcp/mcp-service.test.ts src/modules/mcp/mcp-verification-history-service.test.ts src/modules/quotas/app-quota-service.test.ts src/modules/routing/routing-governance-service.test.ts src/modules/routing/context-routing-explanation-service.test.ts src/modules/snapshots/snapshot-service.test.ts src/modules/system/metrics-service.test.ts src/modules/system/system-service.test.ts src/modules/workspaces/workspace-repositories.test.ts src/modules/workspaces/workspace-context-service.test.ts src/modules/workspaces/active-context-policy-service.test.ts src/modules/workspaces/workspace-discovery-service.test.ts src/modules/workspaces/session-governance-service.test.ts src/modules/workspaces/session-lifecycle-service.test.ts src/modules/workspaces/runtime-context-observability-service.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -29,6 +30,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.12.7",
+    "esbuild": "^0.25.3",
     "tsx": "^4.7.2",
     "typescript": "^5.4.5"
   }

@@ -1,9 +1,24 @@
 {
-  "name": "cc-switch-web",
+  "name": "@mokoyee/cc-switch-web",
   "version": "0.1.0",
   "description": "Daemon-first web console and local proxy control plane for Codex, Claude Code, Gemini CLI, and related AI CLI tools.",
-  "private": true,
   "type": "module",
+  "bin": {
+    "ccsw": "apps/cli/dist/index.js",
+    "cc-switch-web": "apps/cli/dist/index.js",
+    "ai-cli-switch": "apps/cli/dist/index.js",
+    "aicli-switch": "apps/cli/dist/index.js"
+  },
+  "files": [
+    "apps/cli/dist",
+    "apps/daemon/dist",
+    "apps/web/dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/MokoYee/cc-switch-web.git"
@@ -40,7 +55,11 @@
     "test": "npm run test --workspace @cc-switch-web/daemon && npm run test --workspace @cc-switch-web/web",
     "test:browser": "npm run build --workspace @cc-switch-web/shared && npm run build --workspace @cc-switch-web/web && npm run build --workspace @cc-switch-web/daemon && playwright test",
     "test:browser:install": "playwright install chromium",
-    "typecheck": "npm run build --workspace @cc-switch-web/shared && npm run typecheck --workspace @cc-switch-web/daemon && npm run typecheck --workspace @cc-switch-web/web && npm run typecheck --workspace @cc-switch-web/cli"
+    "typecheck": "npm run build --workspace @cc-switch-web/shared && npm run typecheck --workspace @cc-switch-web/daemon && npm run typecheck --workspace @cc-switch-web/web && npm run typecheck --workspace @cc-switch-web/cli",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.8.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.53.2"

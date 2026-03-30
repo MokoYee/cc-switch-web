@@ -1,6 +1,7 @@
 {
   "name": "@cc-switch-web/cli",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "repository": {
     "type": "git",
@@ -23,8 +24,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@cc-switch-web/shared": "file:../../packages/shared",
-    "better-sqlite3": "^11.10.0"
+    "better-sqlite3": "^12.8.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

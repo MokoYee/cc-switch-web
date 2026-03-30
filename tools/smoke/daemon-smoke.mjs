@@ -12,7 +12,7 @@ const STARTUP_TIMEOUT_MS = 30_000;
 const REQUEST_TIMEOUT_MS = 5_000;
 const LOG_HISTORY_LIMIT = 80;
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const DAEMON_ENTRY = resolve(REPO_ROOT, "apps/daemon/dist/index.js");
+const DAEMON_ENTRY = resolve(REPO_ROOT, "apps/daemon/dist/index.cjs");
 
 const assert = (condition, message) => {
   if (!condition) {

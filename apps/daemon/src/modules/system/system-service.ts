@@ -36,8 +36,11 @@ interface SpawnResult {
   readonly error: Error | null;
 }
 
+const currentModuleFilePath =
+  typeof __filename === "string" ? __filename : fileURLToPath(import.meta.url);
+
 export class SystemService {
-  private readonly workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../..");
+  private readonly workspaceRoot = resolve(dirname(currentModuleFilePath), "../../../../..");
   private readonly cliEntry = resolve(this.workspaceRoot, "apps/cli/dist/index.js");
   private readonly systemdUnitPath = resolve(homedir(), ".config/systemd/user/ai-cli-switch.service");
   private readonly systemdEnvPath = resolve(homedir(), ".config/ai-cli-switch/daemon.env");

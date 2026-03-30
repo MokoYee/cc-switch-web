@@ -1,9 +1,32 @@
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// 使用模块相对路径定位内置 UI，避免 systemd 或 release bundle 下的 cwd 漂移。
-const WEB_DIST_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../apps/web/dist");
+const resolveWebDistDir = (): string => {
+  const currentFilePath =
+    typeof __filename === "string" ? __filename : fileURLToPath(import.meta.url);
+  const currentDir = dirname(currentFilePath);
+  const candidates = [
+    // npm 安装包与 bundling 后，daemon 入口位于 apps/daemon/dist/index.js。
+    resolve(currentDir, "../../web/dist"),
+    // 开发态或 tsc 产物下，ui-assets.ts 位于 apps/daemon/dist/control-ui。
+    resolve(currentDir, "../../../web/dist"),
+    // 兼容历史 release bundle 与旧布局。
+    resolve(currentDir, "../../../../apps/web/dist")
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(join(candidate, "index.html"))) {
+      return candidate;
+    }
+  }
+
+  return candidates[0];
+};
+
+// 使用模块相对路径定位内置 UI，避免 systemd、npm 安装目录或 release bundle 下的 cwd 漂移。
+const WEB_DIST_DIR = resolveWebDistDir();
 
 const contentTypeByExt: Record<string, string> = {
   ".css": "text/css; charset=utf-8",

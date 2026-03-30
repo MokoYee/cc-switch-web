@@ -18,3 +18,4 @@ GEMINI.md
 *.tsbuildinfo
 playwright-report
 test-results
+*.tgz

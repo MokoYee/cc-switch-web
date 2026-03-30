@@ -7,7 +7,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const DAEMON_ENTRY = resolve(REPO_ROOT, "apps/daemon/dist/index.js");
+const DAEMON_ENTRY = resolve(REPO_ROOT, "apps/daemon/dist/index.cjs");
 const daemonHost = process.env.PLAYWRIGHT_DAEMON_HOST ?? "127.0.0.1";
 const daemonPort = process.env.PLAYWRIGHT_DAEMON_PORT ?? "18911";
 const controlToken = process.env.PLAYWRIGHT_CONTROL_TOKEN ?? "playwright-control-token";

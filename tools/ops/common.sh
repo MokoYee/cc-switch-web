@@ -5,7 +5,7 @@ set -euo pipefail
 readonly CCSW_OPS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly CCSW_OPS_REPO_ROOT="$(cd "${CCSW_OPS_SCRIPT_DIR}/../.." && pwd)"
 readonly CCSW_OPS_CLI_ENTRY="${CCSW_OPS_REPO_ROOT}/apps/cli/dist/index.js"
-readonly CCSW_OPS_DAEMON_ENTRY="${CCSW_OPS_REPO_ROOT}/apps/daemon/dist/index.js"
+readonly CCSW_OPS_DAEMON_ENTRY="${CCSW_OPS_REPO_ROOT}/apps/daemon/dist/index.cjs"
 readonly CCSW_OPS_WEB_INDEX="${CCSW_OPS_REPO_ROOT}/apps/web/dist/index.html"
 readonly CCSW_OPS_RELEASE_MANIFEST="${CCSW_OPS_REPO_ROOT}/release/manifest.json"
 readonly CCSW_OPS_SERVICE_NAME="ai-cli-switch.service"
