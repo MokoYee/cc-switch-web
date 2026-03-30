@@ -17,7 +17,7 @@ import {
   type UsageSummary,
   type UsageTimeseries,
   type UsageTimeseriesQuery
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { SqliteDatabase } from "../../db/database.js";
 import type { BindingRepository } from "../bindings/binding-repository.js";

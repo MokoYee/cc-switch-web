@@ -8,7 +8,7 @@ import type {
   ProviderDiagnosticDetail,
   SessionRuntimeDetail,
   WorkspaceRuntimeDetail
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import { ProgressiveList } from "../../../shared/components/ProgressiveList.js";
 import { useI18n } from "../../../shared/i18n/I18nProvider.js";

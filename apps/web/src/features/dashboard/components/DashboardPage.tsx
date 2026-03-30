@@ -26,7 +26,7 @@ import type {
   SkillUpsert,
   SkillVersion,
   WorkspaceUpsert
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import { LanguageSwitcher } from "../../../shared/components/LanguageSwitcher.js";
 import { useI18n } from "../../../shared/i18n/I18nProvider.js";

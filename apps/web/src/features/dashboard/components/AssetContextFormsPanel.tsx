@@ -11,7 +11,7 @@ import type {
   SkillVersion,
   WorkspaceSavePreview,
   WorkspaceUpsert
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import { useI18n } from "../../../shared/i18n/I18nProvider.js";
 import { joinDashboardWarnings } from "../lib/formatDashboardWarning.js";

@@ -1,4 +1,4 @@
-import type { ActiveContextState } from "@cc-switch-web/shared";
+import type { ActiveContextState } from "cc-switch-web-shared";
 
 import type { SettingsRepository } from "../settings/settings-repository.js";
 import type { WorkspaceContextService } from "./workspace-context-service.js";

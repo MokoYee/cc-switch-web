@@ -1,4 +1,4 @@
-import type { ExportPackage } from "@cc-switch-web/shared";
+import type { ExportPackage } from "cc-switch-web-shared";
 
 import {
   exportCurrentConfig,

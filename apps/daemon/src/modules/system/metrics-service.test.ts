@@ -13,9 +13,9 @@ import type {
   ProviderDiagnostic,
   SessionRecord,
   Workspace
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
-import { defaultProxyPolicy } from "@cc-switch-web/shared";
+import { defaultProxyPolicy } from "cc-switch-web-shared";
 
 import { MetricsService, type MetricsServiceDependencies } from "./metrics-service.js";
 

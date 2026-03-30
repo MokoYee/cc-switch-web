@@ -6,7 +6,7 @@ import type {
   PromptHostSyncBatchPreview,
   PromptHostSyncPreview,
   PromptHostSyncState
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 const controlToken = process.env.PLAYWRIGHT_CONTROL_TOKEN ?? "playwright-control-token";
 

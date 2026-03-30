@@ -15,7 +15,7 @@ import type {
   UsageRecordPage,
   UsageSummary,
   UsageTimeseries
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import {
   DASHBOARD_AUDIT_PREVIEW_LIMIT,

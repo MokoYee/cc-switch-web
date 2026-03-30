@@ -12,8 +12,8 @@ import type {
   SessionRecord,
   SkillUpsert,
   Workspace
-} from "@cc-switch-web/shared";
-import { quickContextAssetInputSchema } from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
+import { quickContextAssetInputSchema } from "cc-switch-web-shared";
 
 import type { AssetVersionService } from "../assets/asset-version-service.js";
 import type { BindingRepository } from "../bindings/binding-repository.js";

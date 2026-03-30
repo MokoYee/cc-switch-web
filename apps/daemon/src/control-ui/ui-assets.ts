@@ -22,7 +22,11 @@ const resolveWebDistDir = (): string => {
     }
   }
 
-  return candidates[0];
+  const fallbackDir = candidates[0];
+  if (!fallbackDir) {
+    throw new Error("control UI dist directory resolution failed");
+  }
+  return fallbackDir;
 };
 
 // 使用模块相对路径定位内置 UI，避免 systemd、npm 安装目录或 release bundle 下的 cwd 漂移。

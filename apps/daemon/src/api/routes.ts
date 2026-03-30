@@ -25,7 +25,7 @@ import {
   workspaceDiscoveryBatchImportSchema,
   workspaceDiscoveryImportSchema,
   workspaceUpsertSchema
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { DaemonRuntime } from "../bootstrap/runtime.js";
 

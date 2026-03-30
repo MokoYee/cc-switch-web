@@ -5,7 +5,7 @@ import type {
   SkillUpsert,
   Workspace,
   WorkspaceUpsert
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import {
   buildPreviewSignature,

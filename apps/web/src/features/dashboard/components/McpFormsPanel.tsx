@@ -5,7 +5,7 @@ import type {
   McpBindingSavePreview,
   McpServerSavePreview,
   McpServerUpsert
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import { useI18n } from "../../../shared/i18n/I18nProvider.js";
 import type { DashboardSnapshot } from "../api/load-dashboard-snapshot.js";

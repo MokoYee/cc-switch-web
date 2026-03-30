@@ -10,7 +10,7 @@ import type {
   RoutingExecutionPlanPreview,
   RoutingPlanCandidate,
   RoutingPreviewIssueCode
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { BindingRepository } from "../bindings/binding-repository.js";
 import type { FailoverChainRepository } from "../failover/failover-chain-repository.js";

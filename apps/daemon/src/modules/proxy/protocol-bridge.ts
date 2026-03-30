@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { FastifyRequest } from "fastify";
 
-import type { EffectiveAppContext } from "@cc-switch-web/shared";
+import type { EffectiveAppContext } from "cc-switch-web-shared";
 
 import type { RuntimeTarget } from "./proxy-runtime-service.js";
 

@@ -7,7 +7,7 @@ import type {
   AssetGovernanceRepairResult,
   PromptTemplate,
   Skill
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { AssetVersionService } from "../assets/asset-version-service.js";
 import type { PromptTemplateRepository } from "../assets/prompt-template-repository.js";

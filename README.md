@@ -56,13 +56,13 @@
 通过 npm 直接安装：
 
 ```bash
-npm install -g @mokoyee/cc-switch-web
+npm install -g cc-switch-web
 ```
 
 或直接临时执行：
 
 ```bash
-npx @mokoyee/cc-switch-web daemon start
+npx cc-switch-web daemon start
 ```
 
 安装完成后，CLI 命令仍然是：

@@ -5,7 +5,7 @@ import type {
   McpVerificationHistoryPage as McpVerificationHistoryPagePayload,
   McpGovernanceRepairPreview,
   McpHostSyncPreview
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { DashboardSnapshot } from "../api/load-dashboard-snapshot.js";
 import {

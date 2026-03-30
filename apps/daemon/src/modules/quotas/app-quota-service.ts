@@ -1,4 +1,4 @@
-import { type AppCode, type AppQuota, type AppQuotaStatus } from "@cc-switch-web/shared";
+import { type AppCode, type AppQuota, type AppQuotaStatus } from "cc-switch-web-shared";
 
 import type { SqliteDatabase } from "../../db/database.js";
 import { AppQuotaRepository } from "./app-quota-repository.js";

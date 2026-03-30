@@ -6,7 +6,7 @@ import type {
   QuickContextAssetApplyResult,
   QuickContextAssetPreview,
   QuickContextAssetTargetMode
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import {
   applyQuickContextAsset,

@@ -1,4 +1,4 @@
-import type { AppBinding } from "@cc-switch-web/shared";
+import type { AppBinding } from "cc-switch-web-shared";
 
 import type { DashboardFollowUpNotice } from "../lib/dashboardFollowUp.js";
 

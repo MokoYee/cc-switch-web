@@ -1,4 +1,4 @@
-import type { HostCliApplyPreview, LocaleCode } from "@cc-switch-web/shared";
+import type { HostCliApplyPreview, LocaleCode } from "cc-switch-web-shared";
 
 import type { GovernanceNotice } from "./buildGovernanceNotice.js";
 

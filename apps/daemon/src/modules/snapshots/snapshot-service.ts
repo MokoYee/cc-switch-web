@@ -13,7 +13,7 @@ import {
   type Provider,
   type ProxyPolicy,
   type Workspace
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { SqliteDatabase } from "../../db/database.js";
 import { PromptTemplateRepository } from "../assets/prompt-template-repository.js";
@@ -303,7 +303,7 @@ export class SnapshotService {
       workspaces?: Workspace[];
       sessionRecords?: SessionRecord[];
       bindings: AppBinding[];
-      appQuotas?: import("@cc-switch-web/shared").AppQuota[];
+      appQuotas?: import("cc-switch-web-shared").AppQuota[];
       proxyPolicy: ProxyPolicy;
       failoverChains?: FailoverChain[];
       mcpServers?: McpServer[];

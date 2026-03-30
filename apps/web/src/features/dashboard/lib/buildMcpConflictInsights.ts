@@ -1,4 +1,4 @@
-import type { LocaleCode, McpHostSyncPreview } from "@cc-switch-web/shared";
+import type { LocaleCode, McpHostSyncPreview } from "cc-switch-web-shared";
 
 import type { DashboardSnapshot } from "../api/load-dashboard-snapshot.js";
 import { buildMcpGovernanceEntries, type McpGovernanceEntry } from "./buildMcpGovernanceEntries.js";

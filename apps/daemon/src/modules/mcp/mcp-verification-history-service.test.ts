@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdtempSync } from "node:fs";
 
-import { nowIso } from "@cc-switch-web/shared";
+import { nowIso } from "cc-switch-web-shared";
 
 import { openDatabase } from "../../db/database.js";
 import { AppMcpBindingRepository } from "./app-mcp-binding-repository.js";

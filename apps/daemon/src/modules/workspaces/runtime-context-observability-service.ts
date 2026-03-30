@@ -8,7 +8,7 @@ import type {
   SessionRuntimeSummary,
   WorkspaceRuntimeDetail,
   WorkspaceRuntimeSummary
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { SqliteDatabase } from "../../db/database.js";
 import type { ActiveContextService } from "./active-context-service.js";

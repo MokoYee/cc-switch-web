@@ -13,7 +13,7 @@ import {
   type HostCliRollbackBatchResult,
   type HostCliStartupRecovery,
   type HostIntegrationEvent
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { SqliteDatabase } from "../../db/database.js";
 import {

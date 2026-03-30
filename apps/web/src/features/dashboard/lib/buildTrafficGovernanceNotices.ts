@@ -1,4 +1,4 @@
-import type { LocaleCode, ProxyRequestLog, UsageRecord } from "@cc-switch-web/shared";
+import type { LocaleCode, ProxyRequestLog, UsageRecord } from "cc-switch-web-shared";
 
 import type { DashboardSnapshot } from "../api/load-dashboard-snapshot.js";
 import type { GovernanceNotice } from "./buildGovernanceNotice.js";

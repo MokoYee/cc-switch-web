@@ -7,7 +7,7 @@ import type {
   ResolvedWorkspaceContext,
   SessionRecord,
   Workspace
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { BindingRepository } from "../bindings/binding-repository.js";
 import type { PromptTemplateRepository } from "../assets/prompt-template-repository.js";

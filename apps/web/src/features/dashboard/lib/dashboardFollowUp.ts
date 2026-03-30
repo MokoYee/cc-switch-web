@@ -8,7 +8,7 @@ import type {
   SessionRecord,
   Skill,
   Workspace
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 export type DashboardFollowUpAction =
   | {

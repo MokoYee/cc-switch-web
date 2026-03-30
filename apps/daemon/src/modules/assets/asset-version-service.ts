@@ -5,7 +5,7 @@ import type {
   Skill,
   SkillUpsert,
   SkillVersion
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { PromptTemplateRepository } from "./prompt-template-repository.js";
 import type { PromptTemplateVersionRepository } from "./prompt-template-version-repository.js";

@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { defaultProxyPolicy, type AppMcpBinding, type McpServer } from "@cc-switch-web/shared";
+import { defaultProxyPolicy, type AppMcpBinding, type McpServer } from "cc-switch-web-shared";
 
 import { openDatabase } from "../../db/database.js";
 import { BindingRepository } from "../bindings/binding-repository.js";

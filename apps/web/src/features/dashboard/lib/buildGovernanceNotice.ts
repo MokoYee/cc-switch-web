@@ -4,7 +4,7 @@ import type {
   McpHostSyncPreview,
   ProviderRoutingPreview,
   FailoverChainRoutingPreview
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import { buildRoutingPreviewPrimaryCause } from "./buildRoutingPrimaryCause.js";
 

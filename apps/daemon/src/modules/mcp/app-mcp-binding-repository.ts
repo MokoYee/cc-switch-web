@@ -1,4 +1,4 @@
-import { nowIso, type AppCode, type AppMcpBinding, type AppMcpBindingUpsert } from "@cc-switch-web/shared";
+import { nowIso, type AppCode, type AppMcpBinding, type AppMcpBindingUpsert } from "cc-switch-web-shared";
 
 import type { SqliteDatabase } from "../../db/database.js";
 

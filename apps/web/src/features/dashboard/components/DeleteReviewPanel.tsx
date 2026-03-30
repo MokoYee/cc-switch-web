@@ -1,8 +1,8 @@
-import type { ConfigDeletePreview } from "@cc-switch-web/shared";
+import type { ConfigDeletePreview } from "cc-switch-web-shared";
 
 import { ConfigImpactSummary } from "./ConfigImpactSummary.js";
 import { GovernanceNoticeCard } from "./GovernanceNoticeCard.js";
-import type { LocaleCode } from "@cc-switch-web/shared";
+import type { LocaleCode } from "cc-switch-web-shared";
 import { joinDashboardWarnings } from "../lib/formatDashboardWarning.js";
 
 const joinPreviewValues = (items: string[], fallback: string): string =>

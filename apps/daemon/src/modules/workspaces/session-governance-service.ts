@@ -1,4 +1,4 @@
-import type { EffectiveAppContext, SessionArchiveResult, SessionGovernanceStatus } from "@cc-switch-web/shared";
+import type { EffectiveAppContext, SessionArchiveResult, SessionGovernanceStatus } from "cc-switch-web-shared";
 
 import type { SettingsRepository } from "../settings/settings-repository.js";
 import type { SessionRecordRepository } from "./session-record-repository.js";

@@ -17,7 +17,7 @@ import type {
   SkillUpsert,
   SkillVersion,
   WorkspaceUpsert
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 import type { DashboardSnapshot } from "../api/load-dashboard-snapshot.js";
 import type { DashboardFollowUpNotice } from "../lib/dashboardFollowUp.js";
 import {

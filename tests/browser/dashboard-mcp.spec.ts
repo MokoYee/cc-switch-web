@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
-import type { McpHostSyncBatchPreview, McpHostSyncState } from "@cc-switch-web/shared";
+import type { McpHostSyncBatchPreview, McpHostSyncState } from "cc-switch-web-shared";
 
 const controlToken = process.env.PLAYWRIGHT_CONTROL_TOKEN ?? "playwright-control-token";
 

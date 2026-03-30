@@ -1,4 +1,4 @@
-import type { LocaleCode } from "@cc-switch-web/shared";
+import type { LocaleCode } from "cc-switch-web-shared";
 
 const translate = (locale: LocaleCode, zhCN: string, enUS: string): string =>
   locale === "zh-CN" ? zhCN : enUS;

@@ -30,7 +30,7 @@ import type {
   SkillUpsert,
   WorkspaceSavePreview,
   WorkspaceUpsert
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import {
   loadSnapshotByVersion,

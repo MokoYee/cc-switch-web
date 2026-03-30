@@ -9,7 +9,7 @@ import { AppMcpBindingRepository } from "./app-mcp-binding-repository.js";
 import { McpEventRepository } from "./mcp-event-repository.js";
 import { McpServerRepository } from "./mcp-server-repository.js";
 import { McpService } from "./mcp-service.js";
-import { nowIso } from "@cc-switch-web/shared";
+import { nowIso } from "cc-switch-web-shared";
 
 const createService = (homeDir: string, dataDir: string): McpService => {
   mkdirSync(dataDir, { recursive: true });

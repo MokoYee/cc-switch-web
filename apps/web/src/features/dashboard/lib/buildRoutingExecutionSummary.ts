@@ -3,7 +3,7 @@ import type {
   FailoverChainRoutingPreview,
   LocaleCode,
   ProviderRoutingPreview
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import { buildRoutingPreviewPrimaryCause } from "./buildRoutingPrimaryCause.js";
 

@@ -145,7 +145,7 @@ import {
   type WorkspaceDiscoveryItem,
   type WorkspaceUpsert,
   type FailoverChainRoutingPreview,
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 declare global {
   interface Window {

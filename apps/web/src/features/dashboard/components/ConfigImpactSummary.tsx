@@ -1,4 +1,4 @@
-import type { ConfigImpactPreview } from "@cc-switch-web/shared";
+import type { ConfigImpactPreview } from "cc-switch-web-shared";
 
 const renderImpactRiskLevel = (
   riskLevel: ConfigImpactPreview["riskLevel"],

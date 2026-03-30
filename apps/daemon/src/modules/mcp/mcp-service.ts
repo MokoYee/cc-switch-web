@@ -25,7 +25,7 @@ import {
   type McpServerSavePreview,
   type McpServerUsage,
   type McpServerUpsert
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import { AppMcpBindingRepository } from "./app-mcp-binding-repository.js";
 import { McpEventRepository } from "./mcp-event-repository.js";

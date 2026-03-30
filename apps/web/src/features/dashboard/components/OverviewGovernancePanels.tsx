@@ -1,5 +1,5 @@
 import type { DashboardSnapshot } from "../api/load-dashboard-snapshot.js";
-import type { HostCliApplyPreview, LocaleCode } from "@cc-switch-web/shared";
+import type { HostCliApplyPreview, LocaleCode } from "cc-switch-web-shared";
 import { buildPromptGovernanceEntries, buildSkillGovernanceEntries } from "../lib/buildAssetGovernanceEntries.js";
 import { buildMcpGovernanceEntries } from "../lib/buildMcpGovernanceEntries.js";
 import { buildRequestPrimaryCause } from "../lib/buildRoutingPrimaryCause.js";

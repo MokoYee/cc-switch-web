@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 
-import type { ProxyRequestLogPage, UsageRecordPage, UsageSummary, UsageTimeseries } from "@cc-switch-web/shared";
+import type { ProxyRequestLogPage, UsageRecordPage, UsageSummary, UsageTimeseries } from "cc-switch-web-shared";
 
 import { MetricCard } from "./MetricCard.js";
 import { GovernanceNoticeCard } from "./GovernanceNoticeCard.js";

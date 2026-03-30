@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 
-import { defaultProxyPolicy, nowIso } from "@cc-switch-web/shared";
+import { defaultProxyPolicy, nowIso } from "cc-switch-web-shared";
 
 export type SqliteDatabase = Database.Database;
 

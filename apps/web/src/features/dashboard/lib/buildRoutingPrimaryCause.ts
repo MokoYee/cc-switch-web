@@ -4,7 +4,7 @@ import type {
   LocaleCode,
   ProviderRoutingPreview,
   ProxyRequestLog
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 export type RoutingPrimaryCauseCode =
   | "healthy"

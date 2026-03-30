@@ -4,7 +4,7 @@ import type {
   SessionRecordUpsert,
   SkillUpsert,
   WorkspaceUpsert
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 import type { Dispatch, SetStateAction } from "react";
 
 import {

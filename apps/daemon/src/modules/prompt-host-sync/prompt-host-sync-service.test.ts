@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { AppCode, EffectiveAppContext, PromptHostSyncPreview, PromptHostSyncResult } from "@cc-switch-web/shared";
+import type { AppCode, EffectiveAppContext, PromptHostSyncPreview, PromptHostSyncResult } from "cc-switch-web-shared";
 
 import { openDatabase } from "../../db/database.js";
 import { PromptTemplateRepository } from "../assets/prompt-template-repository.js";

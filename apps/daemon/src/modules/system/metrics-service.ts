@@ -3,7 +3,7 @@ import type {
   McpAppRuntimeView,
   ProviderDiagnostic,
   SessionRecordStatus
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { BindingRepository } from "../bindings/binding-repository.js";
 import type { AppMcpBindingRepository } from "../mcp/app-mcp-binding-repository.js";

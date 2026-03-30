@@ -1,4 +1,4 @@
-import type { AppCode } from "@cc-switch-web/shared";
+import type { AppCode } from "cc-switch-web-shared";
 
 import type { DashboardSnapshot } from "../api/load-dashboard-snapshot.js";
 

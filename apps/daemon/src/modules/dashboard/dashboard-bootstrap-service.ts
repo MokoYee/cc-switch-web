@@ -4,7 +4,7 @@ import type {
   HostCliDiscovery,
   SystemServiceDoctor,
   WorkspaceDiscoveryItem
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { DaemonRuntime } from "../../bootstrap/runtime.js";
 

@@ -1,4 +1,4 @@
-import type { AppCode } from "@cc-switch-web/shared";
+import type { AppCode } from "cc-switch-web-shared";
 import { Transform, type TransformCallback } from "node:stream";
 
 export interface UsageExtractionResult {

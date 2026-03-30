@@ -18,7 +18,7 @@ import type {
   SessionRuntimeDetail,
   UsageRecordPage,
   WorkspaceRuntimeDetail
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 import { ensureDashboardAdvancedTargetVisible } from "./support/advanced-panels.js";
 
 const controlToken = process.env.PLAYWRIGHT_CONTROL_TOKEN ?? "playwright-control-token";

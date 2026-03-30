@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import type { DashboardBootstrap } from "@cc-switch-web/shared";
+import type { DashboardBootstrap } from "cc-switch-web-shared";
 import { ensureDashboardAdvancedTargetVisible } from "./support/advanced-panels.js";
 
 const controlToken = process.env.PLAYWRIGHT_CONTROL_TOKEN ?? "playwright-control-token";

@@ -1,4 +1,4 @@
-import type { AppBinding, McpImportOptions } from "@cc-switch-web/shared";
+import type { AppBinding, McpImportOptions } from "cc-switch-web-shared";
 
 import {
   applyHostMcpSync,

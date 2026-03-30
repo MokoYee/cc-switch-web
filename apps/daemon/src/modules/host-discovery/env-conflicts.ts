@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import type { AppCode, HostCliDiscovery } from "@cc-switch-web/shared";
+import type { AppCode, HostCliDiscovery } from "cc-switch-web-shared";
 
 type HostCliEnvConflict = HostCliDiscovery["envConflicts"][number];
 

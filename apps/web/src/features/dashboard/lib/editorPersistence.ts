@@ -4,7 +4,7 @@ import type {
   Skill,
   SkillUpsert,
   WorkspaceUpsert
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import {
   buildPromptTemplateEditorState,

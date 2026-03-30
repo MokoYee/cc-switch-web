@@ -9,7 +9,7 @@ import type {
   McpVerificationHistoryPage,
   McpVerificationHistoryQuery,
   McpVerificationHistoryStatus
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { SqliteDatabase } from "../../db/database.js";
 import type { AppMcpBindingRepository } from "./app-mcp-binding-repository.js";

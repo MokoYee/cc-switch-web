@@ -19,10 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -31,25 +31,25 @@ jobs:
         run: npm ci
 
       - name: Build shared package
-        run: npm run build --workspace @cc-switch-web/shared
+        run: npm run build --workspace cc-switch-web-shared
 
       - name: Typecheck web
-        run: npm run typecheck --workspace @cc-switch-web/web
+        run: npm run typecheck --workspace cc-switch-web-ui
 
       - name: Test web
-        run: npm run test --workspace @cc-switch-web/web
+        run: npm run test --workspace cc-switch-web-ui
 
       - name: Build web
-        run: npm run build --workspace @cc-switch-web/web
+        run: npm run build --workspace cc-switch-web-ui
 
   daemon-quality:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -58,31 +58,31 @@ jobs:
         run: npm ci
 
       - name: Build shared package
-        run: npm run build --workspace @cc-switch-web/shared
+        run: npm run build --workspace cc-switch-web-shared
 
       - name: Typecheck daemon
-        run: npm run typecheck --workspace @cc-switch-web/daemon
+        run: npm run typecheck --workspace cc-switch-web-daemon
 
       - name: Test daemon
-        run: npm run test --workspace @cc-switch-web/daemon
+        run: npm run test --workspace cc-switch-web-daemon
 
       - name: Build daemon
-        run: npm run build --workspace @cc-switch-web/daemon
+        run: npm run build --workspace cc-switch-web-daemon
 
       - name: Typecheck cli
-        run: npm run typecheck --workspace @cc-switch-web/cli
+        run: npm run typecheck --workspace cc-switch-web-cli
 
       - name: Build cli
-        run: npm run build --workspace @cc-switch-web/cli
+        run: npm run build --workspace cc-switch-web-cli
 
   daemon-smoke:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -97,10 +97,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm

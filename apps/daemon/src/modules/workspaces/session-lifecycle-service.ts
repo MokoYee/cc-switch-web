@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { basename, resolve } from "node:path";
 
-import type { AppCode, EffectiveAppContext, SessionRecord } from "@cc-switch-web/shared";
+import type { AppCode, EffectiveAppContext, SessionRecord } from "cc-switch-web-shared";
 
 import type { SessionRecordRepository } from "./session-record-repository.js";
 import type { WorkspaceDiscoveryService } from "./workspace-discovery-service.js";

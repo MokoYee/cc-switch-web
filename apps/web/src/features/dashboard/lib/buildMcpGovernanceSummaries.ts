@@ -1,4 +1,4 @@
-import type { LocaleCode, McpGovernanceRepairPreview } from "@cc-switch-web/shared";
+import type { LocaleCode, McpGovernanceRepairPreview } from "cc-switch-web-shared";
 
 import type { DashboardSnapshot } from "../api/load-dashboard-snapshot.js";
 

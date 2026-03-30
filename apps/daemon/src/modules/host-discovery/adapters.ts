@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-import type { AppCode, HostCliCapability, HostCliDiscovery } from "@cc-switch-web/shared";
+import type { AppCode, HostCliCapability, HostCliDiscovery } from "cc-switch-web-shared";
 
 interface BaseHostCliAdapter {
   readonly appCode: AppCode;

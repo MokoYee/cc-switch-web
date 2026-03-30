@@ -9,7 +9,7 @@ import {
   type WorkspaceDiscoveryBatchImportResult,
   type WorkspaceDiscoveryImport,
   type WorkspaceDiscoveryItem
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { DaemonEnv } from "../../config/env.js";
 import type { SessionRecordRepository } from "./session-record-repository.js";

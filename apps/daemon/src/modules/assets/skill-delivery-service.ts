@@ -1,7 +1,7 @@
 import type {
   AppCode,
   SkillDeliveryCapability
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 const PROXY_READY_APP_CODES: AppCode[] = [
   "codex",

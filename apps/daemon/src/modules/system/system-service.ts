@@ -9,7 +9,7 @@ import {
   type SystemMetadata,
   type SystemServiceDoctor,
   type SystemServiceMutationResult
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { DaemonEnv } from "../../config/env.js";
 import type { DaemonStoragePaths } from "../../db/paths.js";

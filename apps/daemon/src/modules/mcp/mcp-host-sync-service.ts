@@ -14,7 +14,7 @@ import {
   type HostMcpSyncCapability,
   type HostMcpSyncResult,
   type McpServer
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import { McpEventRepository } from "./mcp-event-repository.js";
 

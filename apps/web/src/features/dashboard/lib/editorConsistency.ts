@@ -20,7 +20,7 @@ import type {
   SkillUpsert,
   Workspace,
   WorkspaceUpsert
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 type WithId = {
   readonly id: string;

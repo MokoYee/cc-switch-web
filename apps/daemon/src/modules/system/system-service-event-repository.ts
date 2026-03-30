@@ -1,4 +1,4 @@
-import { nowIso } from "@cc-switch-web/shared";
+import { nowIso } from "cc-switch-web-shared";
 
 import type { SqliteDatabase } from "../../db/database.js";
 

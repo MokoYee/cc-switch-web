@@ -16,7 +16,7 @@ import {
   type UsageSummary,
   type UsageTimeseries,
   type WorkspaceDiscoveryItem
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { DaemonRuntime } from "../../bootstrap/runtime.js";
 import { DashboardBootstrapService } from "./dashboard-bootstrap-service.js";

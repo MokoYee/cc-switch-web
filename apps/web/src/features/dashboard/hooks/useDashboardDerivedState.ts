@@ -6,7 +6,7 @@ import type {
   ConfigSnapshotDiffBucket,
   ConfigImportPreview,
   ConfigRestorePreview
-} from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
 
 import type { DashboardSnapshot } from "../api/load-dashboard-snapshot.js";
 

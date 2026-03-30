@@ -18,8 +18,8 @@ import type {
   SkillUpsert,
   WorkspaceSavePreview,
   WorkspaceUpsert
-} from "@cc-switch-web/shared";
-import { exportPackageSchema } from "@cc-switch-web/shared";
+} from "cc-switch-web-shared";
+import { exportPackageSchema } from "cc-switch-web-shared";
 
 import type { PromptTemplateRepository } from "../assets/prompt-template-repository.js";
 import type { SkillRepository } from "../assets/skill-repository.js";

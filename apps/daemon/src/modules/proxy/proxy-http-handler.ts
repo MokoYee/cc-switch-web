@@ -3,7 +3,7 @@ import { pipeline } from "node:stream";
 import { Readable } from "node:stream";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { AppCode, EffectiveAppContext } from "@cc-switch-web/shared";
+import type { AppCode, EffectiveAppContext } from "cc-switch-web-shared";
 
 import type { DaemonRuntime } from "../../bootstrap/runtime.js";
 import { AnthropicSseBridgeTransform } from "./anthropic-sse-bridge.js";
