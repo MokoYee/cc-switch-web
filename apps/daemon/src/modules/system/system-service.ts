@@ -148,25 +148,35 @@ export class SystemService {
 
     if (!systemdAvailable) {
       recommendedActions.push(
-        "systemd --user unavailable; run daemon in foreground or install on a Linux host with systemd user session"
+        "systemd --user unavailable; use `ccsw daemon start` or move to a Linux host with systemd user session"
       );
     }
     if (!existsSync(this.systemdUnitPath)) {
-      recommendedActions.push("install the user service to create cc-switch-web.service");
+      recommendedActions.push("run `ccsw daemon service install` to create and enable cc-switch-web.service");
     }
     if (!envFile.exists) {
-      recommendedActions.push("sync the service environment file before enabling systemd service");
+      recommendedActions.push(
+        "run `ccsw daemon service sync-env` before enabling or restarting the user service"
+      );
     } else if (envDiff.length > 0) {
-      recommendedActions.push("sync the service environment file to remove drift from current daemon settings");
+      recommendedActions.push(
+        "run `ccsw daemon service sync-env` to remove drift from the current daemon settings"
+      );
     }
     if (!runtimeDifferences.length && this.env.runMode !== "systemd-user") {
-      recommendedActions.push("current daemon runs in foreground mode; install and start systemd user service for unattended startup");
+      recommendedActions.push(
+        "current daemon runs in foreground mode; run `ccsw daemon service install` and `ccsw daemon service restart` for unattended startup"
+      );
     }
     if (systemdAvailable && existsSync(this.systemdUnitPath) && activeResult?.stdout.trim() !== "active") {
-      recommendedActions.push("start or restart cc-switch-web.service after environment sync");
+      recommendedActions.push(
+        "run `ccsw daemon service start` or `ccsw daemon service restart`, then inspect `ccsw daemon service logs --lines 200` if startup still fails"
+      );
     }
     if (recommendedActions.length === 0) {
-      recommendedActions.push("service configuration and daemon runtime are aligned");
+      recommendedActions.push(
+        "service configuration and daemon runtime are aligned; use `ccsw daemon service logs --lines 50` for a quick runtime audit"
+      );
     }
 
     return {

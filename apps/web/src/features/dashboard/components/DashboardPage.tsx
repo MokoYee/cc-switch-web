@@ -2177,10 +2177,16 @@ export const DashboardPage = (): JSX.Element => {
     }
   };
 
-  const loadHostApplyPreview = (appCode: string): void =>
+  const loadHostApplyPreview = (
+    appCode: string,
+    mode?: HostCliApplyPreview["takeoverMode"]
+  ): void =>
     runAction(
       async () => {
-        const item = await previewApplyHostCliManagedConfig(appCode as AppBinding["appCode"]);
+        const item = await previewApplyHostCliManagedConfig(
+          appCode as AppBinding["appCode"],
+          mode
+        );
         setHostApplyPreviewByApp((current) => ({
           ...current,
           [appCode]: item

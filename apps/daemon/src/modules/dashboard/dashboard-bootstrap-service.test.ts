@@ -99,6 +99,7 @@ const createHostDiscovery = (appCode: AppCode, marker: string): HostCliDiscovery
   takeoverSupported: true,
   supportLevel: "managed",
   takeoverMethod: "file-rewrite",
+  supportedTakeoverModes: ["file-rewrite"],
   supportReasonCode: "stable-provider-config",
   docsUrl: null,
   integrationState: "unmanaged",
@@ -419,10 +420,12 @@ test("includes startup host recovery summary in dashboard bootstrap", async () =
           {
             appCode: "codex",
             action: "rollback",
+            takeoverMode: "file-rewrite",
             configPath: "/tmp/codex.json",
             backupPath: "/tmp/codex.bak",
             integrationState: "unmanaged",
             lifecycleMode: "foreground-session",
+            environmentOverride: null,
             message: "Managed config rolled back for codex"
           }
         ],

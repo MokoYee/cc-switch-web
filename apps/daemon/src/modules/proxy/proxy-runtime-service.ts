@@ -105,6 +105,8 @@ export interface ProviderHealthState {
   readonly lastProbeResult: "healthy" | "unhealthy" | null;
   readonly recoveryProbeInFlight: boolean;
   readonly recoveryAttemptCount: number;
+  readonly recoverySuccessCount: number;
+  readonly recoverySuccessThreshold: number;
   readonly nextRecoveryProbeAt: string | null;
   readonly cooldownUntil: string | null;
   readonly lastErrorMessage: string | null;
@@ -239,6 +241,7 @@ interface MutableProviderHealthState {
   circuitOpenedAt: number | null;
   cooldownUntil: number | null;
   recoveryAttemptCount: number;
+  recoverySuccessCount: number;
   recoveryProbeInFlight: boolean;
   lastFailureAt: string | null;
   lastSuccessAt: string | null;
@@ -248,10 +251,27 @@ interface MutableProviderHealthState {
   lastErrorMessage: string | null;
 }
 
-const buildRecoveryProbeUrl = (baseUrl: string): string => {
+const RECOVERY_SUCCESS_THRESHOLD = 2;
+const MAX_RECOVERY_STABILIZATION_SECONDS = 30;
+
+const buildRecoveryProbeUrl = (providerType: ProviderType, baseUrl: string): string => {
   const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+  if (providerType === "gemini") {
+    if (normalizedBaseUrl.endsWith("/v1beta/openai")) {
+      return `${normalizedBaseUrl.slice(0, -"/openai".length)}/models`;
+    }
+    if (normalizedBaseUrl.endsWith("/v1beta")) {
+      return `${normalizedBaseUrl}/models`;
+    }
+  }
+  if (providerType === "anthropic" && normalizedBaseUrl.endsWith("/v1/messages")) {
+    return `${normalizedBaseUrl.slice(0, -"/messages".length)}/models`;
+  }
   if (normalizedBaseUrl.endsWith("/v1")) {
     return `${normalizedBaseUrl}/models`;
+  }
+  if (normalizedBaseUrl.endsWith("/messages")) {
+    return `${normalizedBaseUrl.slice(0, -"/messages".length)}/models`;
   }
 
   return normalizedBaseUrl;
@@ -337,6 +357,9 @@ const computeRecoveryBackoffSeconds = (
   const multiplier = 2 ** Math.max(recoveryAttemptCount - 1, 0);
   return Math.min(normalizedBase * multiplier, MAX_RECOVERY_BACKOFF_SECONDS);
 };
+
+const computeRecoveryStabilizationSeconds = (cooldownSeconds: number): number =>
+  Math.min(Math.max(Math.floor(cooldownSeconds / 2), 5), MAX_RECOVERY_STABILIZATION_SECONDS);
 
 const buildUsageWhereClause = (
   query: Omit<UsageRecordQuery, "limit" | "offset">
@@ -630,21 +653,38 @@ export class ProxyRuntimeService {
     };
   }
 
-  recordSuccess(providerId: string): void {
+  recordSuccess(providerId: string, cooldownSeconds = 30): void {
     const state = this.ensureProviderHealthState(providerId);
-    const hadOpenCircuit = state.cooldownUntil !== null || state.circuitOpenedAt !== null;
+    const recovering = state.cooldownUntil !== null || state.circuitOpenedAt !== null;
+    const eventTime = nowIso();
     state.consecutiveFailures = 0;
-    state.circuitOpenedAt = null;
-    state.cooldownUntil = null;
     state.recoveryAttemptCount = 0;
     state.recoveryProbeInFlight = false;
-    state.lastSuccessAt = nowIso();
-    state.lastProbeAt = nowIso();
+    state.lastSuccessAt = eventTime;
+    state.lastProbeAt = eventTime;
     state.lastProbeResult = "healthy";
-    if (hadOpenCircuit) {
-      state.lastRecoveredAt = state.lastSuccessAt;
+
+    if (!recovering) {
+      state.recoverySuccessCount = 0;
+      state.circuitOpenedAt = null;
+      state.cooldownUntil = null;
+      state.lastErrorMessage = null;
+      return;
     }
-    state.lastErrorMessage = null;
+
+    state.recoverySuccessCount += 1;
+    if (state.recoverySuccessCount >= RECOVERY_SUCCESS_THRESHOLD) {
+      state.circuitOpenedAt = null;
+      state.cooldownUntil = null;
+      state.lastRecoveredAt = eventTime;
+      state.lastErrorMessage = null;
+      return;
+    }
+
+    state.circuitOpenedAt = Date.now();
+    state.cooldownUntil =
+      Date.now() + computeRecoveryStabilizationSeconds(cooldownSeconds) * 1000;
+    state.lastErrorMessage = `Recovery verification in progress (${state.recoverySuccessCount}/${RECOVERY_SUCCESS_THRESHOLD})`;
   }
 
   recordFailure(
@@ -659,6 +699,7 @@ export class ProxyRuntimeService {
     state.lastProbeAt = state.lastFailureAt;
     state.lastProbeResult = "unhealthy";
     state.lastErrorMessage = errorMessage;
+    state.recoverySuccessCount = 0;
 
     if (state.consecutiveFailures >= failureThreshold) {
       state.circuitOpenedAt = Date.now();
@@ -785,12 +826,14 @@ export class ProxyRuntimeService {
           : Date.now() >= healthState.cooldownUntil
             ? "half-open"
             : "open";
+      const recoveryVerificationInProgress =
+        healthState.recoverySuccessCount > 0 && circuitState !== "closed";
 
       const diagnosisStatus = !provider.enabled
         ? "disabled"
-        : circuitState === "open"
+        : circuitState === "open" && !recoveryVerificationInProgress
           ? "down"
-          : circuitState === "half-open"
+          : circuitState === "half-open" || recoveryVerificationInProgress
             ? "recovering"
             : aggregate === undefined
               ? "idle"
@@ -826,6 +869,8 @@ export class ProxyRuntimeService {
         lastProbeResult: healthState.lastProbeResult,
         recoveryProbeInFlight: healthState.recoveryProbeInFlight,
         recoveryAttemptCount: healthState.recoveryAttemptCount,
+        recoverySuccessCount: healthState.recoverySuccessCount,
+        recoverySuccessThreshold: RECOVERY_SUCCESS_THRESHOLD,
         nextRecoveryProbeAt:
           healthState.cooldownUntil === null ? null : new Date(healthState.cooldownUntil).toISOString(),
         circuitState,
@@ -833,7 +878,9 @@ export class ProxyRuntimeService {
         cooldownUntil:
           healthState.cooldownUntil === null ? null : new Date(healthState.cooldownUntil).toISOString(),
         recoveryProbeUrl:
-          runtimeTarget === null ? null : buildRecoveryProbeUrl(runtimeTarget.upstreamBaseUrl),
+          runtimeTarget === null
+            ? null
+            : buildRecoveryProbeUrl(runtimeTarget.providerType, runtimeTarget.upstreamBaseUrl),
         lastRequestPath: lastRequest?.path ?? null,
         lastRequestMethod: lastRequest?.method ?? null,
         lastStatusCode: lastRequest?.status_code ?? null,
@@ -867,7 +914,14 @@ export class ProxyRuntimeService {
     let recommendation: ProviderDiagnosticDetail["recommendation"] = "ready";
     let recommendationMessage = "Provider runtime looks ready for traffic.";
 
-    if (failureCategory === "auth") {
+    if (
+      diagnostic.diagnosisStatus === "recovering" &&
+      diagnostic.recoverySuccessCount > 0 &&
+      diagnostic.recoverySuccessCount < diagnostic.recoverySuccessThreshold
+    ) {
+      recommendation = "observe-recent-failures";
+      recommendationMessage = `Recovery verification is still in progress (${diagnostic.recoverySuccessCount}/${diagnostic.recoverySuccessThreshold}). Keep the provider behind fallback traffic until another successful probe or request confirms stability.`;
+    } else if (failureCategory === "auth") {
       recommendation = "check-credentials";
       recommendationMessage = "Recent failures suggest credential or permission issues. Verify API key and upstream access policy.";
     } else if (failureCategory === "rate-limit") {
@@ -1371,8 +1425,8 @@ export class ProxyRuntimeService {
     return true;
   }
 
-  markProbeRecoverySuccess(providerId: string): void {
-    this.recordSuccess(providerId);
+  markProbeRecoverySuccess(providerId: string, cooldownSeconds: number): void {
+    this.recordSuccess(providerId, cooldownSeconds);
   }
 
   markProbeRecoveryFailure(
@@ -1387,6 +1441,7 @@ export class ProxyRuntimeService {
       state.recoveryAttemptCount
     );
     state.recoveryProbeInFlight = false;
+    state.recoverySuccessCount = 0;
     state.circuitOpenedAt = Date.now();
     state.cooldownUntil = Date.now() + backoffSeconds * 1000;
     state.lastFailureAt = nowIso();
@@ -1412,6 +1467,7 @@ export class ProxyRuntimeService {
     state.circuitOpenedAt = Date.now();
     state.cooldownUntil = Date.now() + nextCooldownSeconds * 1000;
     state.recoveryAttemptCount = 0;
+    state.recoverySuccessCount = 0;
     state.recoveryProbeInFlight = false;
     state.lastFailureAt = eventTime;
     state.lastProbeAt = eventTime;
@@ -1439,6 +1495,7 @@ export class ProxyRuntimeService {
     state.circuitOpenedAt = null;
     state.cooldownUntil = null;
     state.recoveryAttemptCount = 0;
+    state.recoverySuccessCount = 0;
     state.recoveryProbeInFlight = false;
     state.lastRecoveredAt = eventTime;
     state.lastSuccessAt = eventTime;
@@ -1473,6 +1530,7 @@ export class ProxyRuntimeService {
       circuitOpenedAt: null,
       cooldownUntil: null,
       recoveryAttemptCount: 0,
+      recoverySuccessCount: 0,
       recoveryProbeInFlight: false,
       lastFailureAt: null,
       lastSuccessAt: null,
@@ -1527,6 +1585,8 @@ export class ProxyRuntimeService {
       lastProbeResult: state.lastProbeResult,
       recoveryProbeInFlight: state.recoveryProbeInFlight,
       recoveryAttemptCount: state.recoveryAttemptCount,
+      recoverySuccessCount: state.recoverySuccessCount,
+      recoverySuccessThreshold: RECOVERY_SUCCESS_THRESHOLD,
       nextRecoveryProbeAt:
         state.cooldownUntil === null ? null : new Date(state.cooldownUntil).toISOString(),
       cooldownUntil:

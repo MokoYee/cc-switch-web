@@ -1,0 +1,115 @@
+{
+  "version": "0.2.0",
+  "apps": [
+    {
+      "appCode": "codex",
+      "binary": "codex",
+      "status": "ready",
+      "supportedTakeoverModes": [
+        "file-rewrite",
+        "environment-override"
+      ],
+      "notes": [
+        "默认优先验证 file-rewrite，再回归 environment-override。",
+        "如果本地存在自定义 model_provider，需要先清理再验证 environment-override。"
+      ]
+    },
+    {
+      "appCode": "claude-code",
+      "binary": "claude",
+      "status": "ready",
+      "supportedTakeoverModes": [
+        "file-rewrite",
+        "environment-override"
+      ],
+      "notes": [
+        "file-rewrite 还需要回看 Claude onboarding bypass 是否生效。",
+        "environment-override 模式需要在启动 Claude Code 的 shell 中先 source 托管脚本。"
+      ]
+    },
+    {
+      "appCode": "gemini-cli",
+      "binary": "gemini",
+      "status": "blocked",
+      "supportedTakeoverModes": [],
+      "notes": [
+        "当前代理主链路尚未提供 Gemini API / Gateway 协议适配，因此不能把 Gemini CLI 直接切到本地代理。",
+        "本轮验收只保留配置识别、MCP Host Sync 和运行态排障验证，不做 takeover apply。"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "basic-text",
+      "title": "非流式文本请求",
+      "expected": [
+        "真实 CLI 请求命中本地代理。",
+        "最近请求日志出现 2xx 成功记录。",
+        "Provider / binding / host event 三条链路时间线一致。"
+      ]
+    },
+    {
+      "id": "stream-text",
+      "title": "流式文本请求",
+      "expected": [
+        "流式输出不中断。",
+        "日志中可以看到真实流式请求成功结束。",
+        "CLI 端没有因为代理桥接出现格式错误。"
+      ]
+    },
+    {
+      "id": "tool-calling",
+      "title": "工具调用",
+      "expected": [
+        "CLI 可以发起至少一次工具调用。",
+        "代理日志保留工具请求与结果。",
+        "失败时能从运行态定位到 provider / context / quota 主因。"
+      ]
+    },
+    {
+      "id": "image-input",
+      "title": "图片输入",
+      "expected": [
+        "CLI 能提交图片输入或引用图片资源。",
+        "代理不会因为附件桥接直接返回 4xx/5xx。",
+        "日志可辨识图片相关请求是否成功。"
+      ]
+    },
+    {
+      "id": "upstream-429",
+      "title": "上游 429",
+      "expected": [
+        "运行时能识别限流并记录清晰失败原因。",
+        "若存在故障转移链，后续候选节点能接管流量。",
+        "恢复面板能解释仍未恢复的原因。"
+      ]
+    },
+    {
+      "id": "upstream-5xx",
+      "title": "上游 5xx",
+      "expected": [
+        "故障 Provider 被降级或熔断。",
+        "请求日志中存在 failover 或 error 记录。",
+        "Provider 健康事件能解释切换原因。"
+      ]
+    },
+    {
+      "id": "upstream-timeout",
+      "title": "上游超时",
+      "expected": [
+        "超时被识别为可达性/超时类故障。",
+        "不会持续击穿同一失效 Provider。",
+        "恢复探测按回退窗口执行。"
+      ]
+    },
+    {
+      "id": "failover-recovery",
+      "title": "故障转移后恢复",
+      "expected": [
+        "主 Provider 故障时切到备用节点。",
+        "恢复后不会因为一次偶发成功就立刻切回。",
+        "恢复详情能展示当前 recovery verification 进度。"
+      ]
+    }
+  ]
+}

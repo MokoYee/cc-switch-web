@@ -96,6 +96,7 @@ export const enUSMessages = {
       },
       method: {
         fileRewrite: "Rewrite local config file",
+        environmentOverride: "Export environment script",
         configInspect: "Inspect config shape only",
         externalControlPlane: "Use control-plane integration"
       },

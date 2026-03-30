@@ -8,10 +8,12 @@ import {
   type HostCliApplyPreview,
   type HostCliCapability,
   type HostCliDiscovery,
+  type HostCliEnvironmentOverride,
   type HostCliLifecycleMode,
   type HostCliMutationResult,
   type HostCliRollbackBatchResult,
   type HostCliStartupRecovery,
+  type HostCliTakeoverMode,
   type HostIntegrationEvent
 } from "cc-switch-web-shared";
 
@@ -22,14 +24,21 @@ import {
   toHostCliCapability,
   type HostCliAdapter
 } from "./adapters.js";
+import {
+  createHostCliEnvironmentProfiles,
+  type HostCliEnvironmentProfile
+} from "./environment-profiles.js";
 import { scanHostCliEnvConflicts } from "./env-conflicts.js";
 
 interface HostIntegrationStateRecord {
   readonly appCode: AppCode;
+  readonly takeoverMode: HostCliTakeoverMode;
   readonly configPath: string;
   readonly backupPath: string | null;
   readonly lifecycleMode: HostCliLifecycleMode;
   readonly rollbackAction: "restore" | "delete";
+  readonly desiredTarget: string | null;
+  readonly environmentOverride: HostCliEnvironmentOverride | null;
   readonly supplementalFiles: Array<{
     readonly path: string;
     readonly backupPath: string | null;
@@ -79,6 +88,7 @@ const writeJsonObject = (filePath: string, value: Record<string, unknown>): void
 
 export class HostDiscoveryService {
   private readonly adapters: HostCliAdapter[];
+  private readonly environmentProfiles: Map<AppCode, HostCliEnvironmentProfile>;
   private readonly backupsDir: string;
   private readonly stateDir: string;
   private startupRecovery: HostCliStartupRecovery | null = null;
@@ -99,6 +109,9 @@ export class HostDiscoveryService {
     mkdirSync(this.backupsDir, { recursive: true });
     mkdirSync(this.stateDir, { recursive: true });
     this.adapters = createHostCliAdapters();
+    this.environmentProfiles = new Map(
+      createHostCliEnvironmentProfiles().map((profile) => [profile.appCode, profile])
+    );
   }
 
   scan(): HostCliDiscovery[] {
@@ -106,36 +119,43 @@ export class HostDiscoveryService {
 
     return this.adapters.map((adapter) => {
       const executablePath = resolveExecutablePath(adapter.binaryName);
-      const configPath = adapter.resolveConfigPath(home);
-      const integrationState = this.detectIntegrationState(adapter, configPath);
       const state = this.readState(adapter.appCode);
+      const configPath = adapter.resolveConfigPath(home);
+      const supportedTakeoverModes = this.listSupportedTakeoverModes(adapter.appCode);
+      const integrationState = this.detectIntegrationState(adapter, configPath, state);
       const envConflicts = scanHostCliEnvConflicts({
         appCode: adapter.appCode,
         homeDir: home,
         ...(this.options.processEnv !== undefined ? { processEnv: this.options.processEnv } : {})
       });
       const currentTarget =
-        configPath !== null && existsSync(configPath) && adapter.getCurrentTarget !== undefined
+        state?.takeoverMode === "environment-override" && integrationState === "managed"
+          ? state.desiredTarget
+          : configPath !== null && existsSync(configPath) && adapter.getCurrentTarget !== undefined
           ? this.safeRead(() => adapter.getCurrentTarget?.(configPath) ?? null)
           : null;
-      const desiredTarget =
-        isManagedHostCliAdapter(adapter)
-          ? adapter.buildManagedTarget(this.buildProxyBaseUrl(adapter.appCode))
-          : null;
+      const desiredTarget = this.resolveDesiredTarget(adapter.appCode);
       const lifecycleMode =
         integrationState === "managed" ? (state?.lifecycleMode ?? null) : null;
+      const supportLevel =
+        supportedTakeoverModes.length > 0 ? "managed" : adapter.supportLevel;
+      const configPathForDisplay =
+        state?.takeoverMode === "environment-override" && integrationState === "managed"
+          ? state.configPath
+          : configPath;
 
       return {
         appCode: adapter.appCode,
         discovered: executablePath !== null,
         executablePath,
-        configPath,
+        configPath: configPathForDisplay,
         configLocationHint: adapter.configLocationHint,
         status: executablePath !== null ? "discovered" : "missing",
         configFormat: adapter.configFormat,
-        takeoverSupported: isManagedHostCliAdapter(adapter),
-        supportLevel: adapter.supportLevel,
+        takeoverSupported: supportedTakeoverModes.length > 0,
+        supportLevel,
         takeoverMethod: adapter.takeoverMethod,
+        supportedTakeoverModes,
         supportReasonCode: adapter.supportReasonCode,
         docsUrl: adapter.docsUrl,
         integrationState,
@@ -143,12 +163,14 @@ export class HostDiscoveryService {
         desiredTarget,
         lifecycleMode,
         managedTarget:
-          isManagedHostCliAdapter(adapter) &&
-          integrationState === "managed" &&
-          configPath !== null &&
-          existsSync(configPath)
-            ? this.safeRead(() => adapter.getManagedTarget(configPath))
-            : null,
+          state?.takeoverMode === "environment-override" && integrationState === "managed"
+            ? state.desiredTarget
+            : isManagedHostCliAdapter(adapter) &&
+                integrationState === "managed" &&
+                configPath !== null &&
+                existsSync(configPath)
+              ? this.safeRead(() => adapter.getManagedTarget(configPath))
+              : null,
         managedFeatures:
           isManagedHostCliAdapter(adapter) &&
           configPath !== null &&
@@ -174,7 +196,17 @@ export class HostDiscoveryService {
   }
 
   listCapabilities(): HostCliCapability[] {
-    return this.adapters.map(toHostCliCapability);
+    return this.adapters.map((adapter) => {
+      const capability = toHostCliCapability(adapter);
+      const supportedTakeoverModes = this.listSupportedTakeoverModes(adapter.appCode);
+
+      return {
+        ...capability,
+        takeoverSupported: supportedTakeoverModes.length > 0,
+        supportLevel: supportedTakeoverModes.length > 0 ? "managed" : adapter.supportLevel,
+        supportedTakeoverModes
+      };
+    });
   }
 
   listRecentEvents(limit = 20): HostIntegrationEvent[] {
@@ -210,8 +242,22 @@ export class HostDiscoveryService {
     }));
   }
 
-  applyManagedConfig(appCode: AppCode): HostCliMutationResult {
-    const adapter = this.getManagedAdapter(appCode);
+  applyManagedConfig(
+    appCode: AppCode,
+    takeoverMode: HostCliTakeoverMode = this.resolveDefaultTakeoverMode(appCode)
+  ): HostCliMutationResult {
+    const existingState = this.readState(appCode);
+    if (existingState !== null && existingState.takeoverMode !== takeoverMode) {
+      throw new Error(
+        `Another takeover mode is already active for ${appCode}. Roll it back before switching modes.`
+      );
+    }
+
+    if (takeoverMode === "environment-override") {
+      return this.applyEnvironmentTakeover(appCode);
+    }
+
+    const adapter = this.getManagedAdapter(appCode, takeoverMode);
     const home = this.options.homeDir ?? homedir();
     const configPath = adapter.resolveConfigPath(home);
     const lifecycleMode = this.resolveLifecycleMode();
@@ -246,10 +292,13 @@ export class HostDiscoveryService {
     const appliedAt = nowIso();
     this.writeState({
       appCode,
+      takeoverMode,
       configPath,
       backupPath,
       lifecycleMode,
       rollbackAction: existingContent === null ? "delete" : "restore",
+      desiredTarget: adapter.buildManagedTarget(proxyBaseUrl),
+      environmentOverride: null,
       supplementalFiles,
       lastAppliedAt: appliedAt
     });
@@ -257,18 +306,27 @@ export class HostDiscoveryService {
     const result: HostCliMutationResult = {
       appCode,
       action: "apply",
+      takeoverMode,
       configPath,
       backupPath,
       integrationState: "managed",
       lifecycleMode,
+      environmentOverride: null,
       message: this.buildMutationMessage(appCode, "apply", supplementalFiles, lifecycleMode)
     };
     this.appendEvent(result);
     return result;
   }
 
-  previewApplyManagedConfig(appCode: AppCode): HostCliApplyPreview {
-    const adapter = this.getManagedAdapter(appCode);
+  previewApplyManagedConfig(
+    appCode: AppCode,
+    takeoverMode: HostCliTakeoverMode = this.resolveDefaultTakeoverMode(appCode)
+  ): HostCliApplyPreview {
+    if (takeoverMode === "environment-override") {
+      return this.previewEnvironmentTakeover(appCode);
+    }
+
+    const adapter = this.getManagedAdapter(appCode, takeoverMode);
     const home = this.options.homeDir ?? homedir();
     const configPath = adapter.resolveConfigPath(home);
 
@@ -418,12 +476,14 @@ export class HostDiscoveryService {
 
     return {
       appCode,
+      takeoverMode,
       configPath,
       configExists,
       backupRequired: configExists,
       riskLevel,
       lifecycleMode: this.resolveLifecycleMode(),
       desiredTarget: adapter.buildManagedTarget(proxyBaseUrl),
+      environmentOverride: null,
       summary,
       managedFeaturesToEnable,
       touchedFiles,
@@ -436,38 +496,62 @@ export class HostDiscoveryService {
   }
 
   rollbackManagedConfig(appCode: AppCode): HostCliMutationResult {
-    const adapter = this.getManagedAdapter(appCode);
     const state = this.readState(appCode);
-    const configPath = adapter.resolveConfigPath(this.options.homeDir ?? homedir());
 
     if (state === null) {
       throw new Error(`No host takeover state found for app: ${appCode}`);
     }
 
-    if (state.rollbackAction === "delete") {
-      rmSync(state.configPath, { force: true });
-    } else if (state.backupPath !== null && existsSync(state.backupPath)) {
-      const originalContent = readFileSync(state.backupPath, "utf-8");
-      ensureParentDir(state.configPath);
-      writeFileSync(state.configPath, originalContent, "utf-8");
+    let resultConfigPath = state.configPath;
+
+    if (state.takeoverMode === "environment-override") {
+      if (state.rollbackAction === "delete") {
+        rmSync(state.configPath, { force: true });
+      } else if (state.backupPath !== null && existsSync(state.backupPath)) {
+        const originalContent = readFileSync(state.backupPath, "utf-8");
+        ensureParentDir(state.configPath);
+        writeFileSync(state.configPath, originalContent, "utf-8");
+      } else {
+        throw new Error(`Backup file not found for rollback: ${state.backupPath ?? "none"}`);
+      }
     } else {
-      throw new Error(`Backup file not found for rollback: ${state.backupPath ?? "none"}`);
+      const adapter = this.getManagedAdapter(appCode, "file-rewrite");
+      const configPath = adapter.resolveConfigPath(this.options.homeDir ?? homedir());
+      resultConfigPath = configPath ?? state.configPath;
+
+      if (state.rollbackAction === "delete") {
+        rmSync(state.configPath, { force: true });
+      } else if (state.backupPath !== null && existsSync(state.backupPath)) {
+        const originalContent = readFileSync(state.backupPath, "utf-8");
+        ensureParentDir(state.configPath);
+        writeFileSync(state.configPath, originalContent, "utf-8");
+      } else {
+        throw new Error(`Backup file not found for rollback: ${state.backupPath ?? "none"}`);
+      }
+
+      for (const item of state.supplementalFiles) {
+        if (item.rollbackAction === "delete") {
+          rmSync(item.path, { force: true });
+          continue;
+        }
+
+        if (item.backupPath !== null && existsSync(item.backupPath)) {
+          const originalContent = readFileSync(item.backupPath, "utf-8");
+          ensureParentDir(item.path);
+          writeFileSync(item.path, originalContent, "utf-8");
+          continue;
+        }
+
+        throw new Error(`Backup file not found for rollback: ${item.backupPath ?? "none"}`);
+      }
     }
 
-    for (const item of state.supplementalFiles) {
-      if (item.rollbackAction === "delete") {
-        rmSync(item.path, { force: true });
-        continue;
+    if (state.takeoverMode === "environment-override") {
+      for (const item of state.supplementalFiles) {
+        if (item.rollbackAction === "delete") {
+          rmSync(item.path, { force: true });
+        }
       }
-
-      if (item.backupPath !== null && existsSync(item.backupPath)) {
-        const originalContent = readFileSync(item.backupPath, "utf-8");
-        ensureParentDir(item.path);
-        writeFileSync(item.path, originalContent, "utf-8");
-        continue;
-      }
-
-      throw new Error(`Backup file not found for rollback: ${item.backupPath ?? "none"}`);
     }
 
     this.removeState(appCode);
@@ -475,11 +559,19 @@ export class HostDiscoveryService {
     const result: HostCliMutationResult = {
       appCode,
       action: "rollback",
-      configPath: configPath ?? state.configPath,
+      takeoverMode: state.takeoverMode,
+      configPath: resultConfigPath,
       backupPath: state.backupPath,
       integrationState: "unmanaged",
       lifecycleMode: state.lifecycleMode,
-      message: this.buildMutationMessage(appCode, "rollback", state.supplementalFiles)
+      environmentOverride: state.environmentOverride,
+      message: this.buildMutationMessage(
+        appCode,
+        "rollback",
+        state.supplementalFiles,
+        state.lifecycleMode,
+        state.takeoverMode
+      )
     };
     this.appendEvent(result);
     return result;
@@ -550,7 +642,14 @@ export class HostDiscoveryService {
     return this.startupRecovery;
   }
 
-  private getManagedAdapter(appCode: AppCode) {
+  private getManagedAdapter(
+    appCode: AppCode,
+    takeoverMode: HostCliTakeoverMode = "file-rewrite"
+  ) {
+    if (takeoverMode !== "file-rewrite") {
+      throw new Error(`File rewrite adapter is not available for takeover mode: ${takeoverMode}`);
+    }
+
     const adapter = this.adapters.find((item) => item.appCode === appCode);
 
     if (adapter === undefined) {
@@ -562,6 +661,219 @@ export class HostDiscoveryService {
     }
 
     return adapter;
+  }
+
+  private getEnvironmentProfile(appCode: AppCode): HostCliEnvironmentProfile {
+    const profile = this.environmentProfiles.get(appCode);
+    if (profile === undefined) {
+      throw new Error(`Environment takeover is not supported yet for app: ${appCode}`);
+    }
+    return profile;
+  }
+
+  private listSupportedTakeoverModes(appCode: AppCode): HostCliTakeoverMode[] {
+    const adapter = this.adapters.find((item) => item.appCode === appCode);
+    const takeoverModes = new Set<HostCliTakeoverMode>(adapter?.supportedTakeoverModes ?? []);
+
+    if (this.environmentProfiles.has(appCode)) {
+      takeoverModes.add("environment-override");
+    }
+
+    return Array.from(takeoverModes);
+  }
+
+  private resolveDefaultTakeoverMode(appCode: AppCode): HostCliTakeoverMode {
+    const supportedTakeoverModes = this.listSupportedTakeoverModes(appCode);
+
+    if (supportedTakeoverModes.includes("file-rewrite")) {
+      return "file-rewrite";
+    }
+    if (supportedTakeoverModes.includes("environment-override")) {
+      return "environment-override";
+    }
+
+    throw new Error(`Host takeover is not supported yet for app: ${appCode}`);
+  }
+
+  private resolveDesiredTarget(appCode: AppCode): string | null {
+    const adapter = this.adapters.find((item) => item.appCode === appCode);
+    if (adapter !== undefined && isManagedHostCliAdapter(adapter)) {
+      return adapter.buildManagedTarget(this.buildProxyBaseUrl(appCode));
+    }
+
+    const profile = this.environmentProfiles.get(appCode);
+    if (profile === undefined) {
+      return null;
+    }
+
+    const environmentOverride = profile.buildEnvironmentOverride(
+      this.options.homeDir ?? homedir(),
+      this.buildProxyBaseUrl(appCode)
+    );
+
+    return (
+      environmentOverride.variables.find((item) => /BASE_URL$/i.test(item.variableName))?.value ??
+      null
+    );
+  }
+
+  private previewEnvironmentTakeover(appCode: AppCode): HostCliApplyPreview {
+    const profile = this.getEnvironmentProfile(appCode);
+    const home = this.options.homeDir ?? homedir();
+    const configPath = this.adapters.find((item) => item.appCode === appCode)?.resolveConfigPath(home) ?? null;
+    const environmentOverride = profile.buildEnvironmentOverride(
+      home,
+      this.buildProxyBaseUrl(appCode)
+    );
+    const envConflicts = scanHostCliEnvConflicts({
+      appCode,
+      homeDir: home,
+      ...(this.options.processEnv !== undefined ? { processEnv: this.options.processEnv } : {})
+    });
+    const compatibilityWarnings =
+      profile.buildCompatibilityWarnings?.({
+        homeDir: home,
+        configPath
+      }) ?? [];
+    const exportScriptExists = existsSync(environmentOverride.exportScriptPath);
+    const desiredTarget = this.resolveDesiredTarget(appCode);
+    const riskLevel: HostCliApplyPreview["riskLevel"] =
+      envConflicts.length > 0 || compatibilityWarnings.length > 0
+        ? "high"
+        : exportScriptExists
+          ? "medium"
+          : "low";
+    const summary = [
+      `Environment takeover will export ${environmentOverride.variables.map((item) => item.variableName).join(", ")} for ${appCode}.`,
+      desiredTarget === null
+        ? `Managed environment override will be generated at ${environmentOverride.exportScriptPath}.`
+        : `CLI traffic will target ${desiredTarget} after the managed environment script is sourced.`,
+      exportScriptExists
+        ? `Existing managed script at ${environmentOverride.exportScriptPath} will be replaced on apply.`
+        : `A managed script will be created at ${environmentOverride.exportScriptPath}.`
+    ];
+    const validationChecklist = [
+      `Run '${environmentOverride.activationCommands[0]}' in the shell that will launch ${appCode}.`,
+      desiredTarget === null
+        ? `After exporting the variables, validate ${appCode} reaches the intended local gateway.`
+        : `After exporting the variables, confirm ${appCode} reaches ${desiredTarget}.`,
+      `When validation is complete, run '${environmentOverride.deactivationCommands[0]}' or open a new shell to clear the override.`
+    ];
+    const runbook = [
+      "Review the generated environment variables and confirm they match the intended local gateway target.",
+      "Apply the preview only when you are ready to source the managed script in the target shell session.",
+      "After the CLI request succeeds, inspect runtime status and request logs before treating takeover as complete."
+    ];
+    const warnings = [
+      "Environment takeover does not rewrite the original CLI config file. Only shells that source the managed script will use the local gateway.",
+      ...compatibilityWarnings
+    ];
+
+    if (envConflicts.length > 0) {
+      warnings.push(
+        `${envConflicts.length} environment override(s) were detected for ${appCode}; clear stale shell exports before sourcing the managed script.`
+      );
+    }
+    if (this.resolveLifecycleMode() === "foreground-session") {
+      warnings.push(
+        "Foreground mode cleanup only removes the managed script. Shells that already exported the variables still need 'unset' or a new login shell."
+      );
+    }
+
+    return {
+      appCode,
+      takeoverMode: "environment-override",
+      configPath: environmentOverride.exportScriptPath,
+      configExists: exportScriptExists,
+      backupRequired: exportScriptExists,
+      riskLevel,
+      lifecycleMode: this.resolveLifecycleMode(),
+      desiredTarget,
+      environmentOverride,
+      summary,
+      managedFeaturesToEnable: [],
+      touchedFiles: [
+        {
+          path: environmentOverride.exportScriptPath,
+          exists: exportScriptExists,
+          backupRequired: exportScriptExists,
+          changeKind: exportScriptExists ? "update" : "create"
+        }
+      ],
+      rollbackPlan: [
+        {
+          path: environmentOverride.exportScriptPath,
+          action: exportScriptExists ? "restore" : "delete"
+        }
+      ],
+      validationChecklist,
+      runbook,
+      envConflicts,
+      warnings
+    };
+  }
+
+  private applyEnvironmentTakeover(appCode: AppCode): HostCliMutationResult {
+    const existingState = this.readState(appCode);
+    if (existingState !== null && existingState.takeoverMode !== "environment-override") {
+      throw new Error(
+        `Another takeover mode is already active for ${appCode}. Roll it back before switching to environment takeover.`
+      );
+    }
+
+    const profile = this.getEnvironmentProfile(appCode);
+    const home = this.options.homeDir ?? homedir();
+    const environmentOverride = profile.buildEnvironmentOverride(
+      home,
+      this.buildProxyBaseUrl(appCode)
+    );
+    const exportScriptExists = existsSync(environmentOverride.exportScriptPath);
+    const existingContent = exportScriptExists
+      ? readFileSync(environmentOverride.exportScriptPath, "utf-8")
+      : null;
+    const backupPath =
+      existingContent === null
+        ? null
+        : this.createBackupFile(appCode, environmentOverride.exportScriptPath, existingContent);
+    const lifecycleMode = this.resolveLifecycleMode();
+
+    ensureParentDir(environmentOverride.exportScriptPath);
+    writeFileSync(environmentOverride.exportScriptPath, environmentOverride.exportSnippet, "utf-8");
+
+    const appliedAt = nowIso();
+    this.writeState({
+      appCode,
+      takeoverMode: "environment-override",
+      configPath: environmentOverride.exportScriptPath,
+      backupPath,
+      lifecycleMode,
+      rollbackAction: exportScriptExists ? "restore" : "delete",
+      desiredTarget:
+        environmentOverride.variables.find((item) => /BASE_URL$/i.test(item.variableName))?.value ?? null,
+      environmentOverride,
+      supplementalFiles: [],
+      lastAppliedAt: appliedAt
+    });
+
+    const result: HostCliMutationResult = {
+      appCode,
+      action: "apply",
+      takeoverMode: "environment-override",
+      configPath: environmentOverride.exportScriptPath,
+      backupPath,
+      integrationState: "managed",
+      lifecycleMode,
+      environmentOverride,
+      message: this.buildMutationMessage(
+        appCode,
+        "apply",
+        [],
+        lifecycleMode,
+        "environment-override"
+      )
+    };
+    this.appendEvent(result);
+    return result;
   }
 
   private buildProxyBaseUrl(appCode: AppCode): string {
@@ -578,8 +890,19 @@ export class HostDiscoveryService {
     supplementalFiles: readonly {
       readonly path: string;
     }[],
-    lifecycleMode: HostCliLifecycleMode = "persistent"
+    lifecycleMode: HostCliLifecycleMode = "persistent",
+    takeoverMode: HostCliTakeoverMode = "file-rewrite"
   ): string {
+    if (takeoverMode === "environment-override") {
+      if (action === "apply") {
+        return lifecycleMode === "foreground-session"
+          ? `Environment takeover prepared for ${appCode}; source the managed shell script before starting the CLI; foreground shutdown only removes the script, not already-exported variables`
+          : `Environment takeover prepared for ${appCode}; source the managed shell script before starting the CLI`;
+      }
+
+      return `Environment takeover rolled back for ${appCode}; unset the exported variables or open a new shell if the CLI session is still active`;
+    }
+
     if (
       appCode === "claude-code" &&
       supplementalFiles.some((item) => item.path.endsWith("/.claude.json"))
@@ -604,10 +927,19 @@ export class HostDiscoveryService {
 
   private detectIntegrationState(
     adapter: HostCliAdapter,
-    configPath: string | null
+    configPath: string | null,
+    state: HostIntegrationStateRecord | null
   ): HostCliDiscovery["integrationState"] {
+    if (
+      state !== null &&
+      state.takeoverMode === "environment-override" &&
+      existsSync(state.configPath)
+    ) {
+      return "managed";
+    }
+
     if (!isManagedHostCliAdapter(adapter)) {
-      return adapter.supportLevel === "inspect-only" ? "unsupported" : "unsupported";
+      return this.environmentProfiles.has(adapter.appCode) ? "unmanaged" : "unsupported";
     }
 
     if (configPath === null || !existsSync(configPath)) {
@@ -654,11 +986,27 @@ export class HostDiscoveryService {
 
     return {
       appCode: parsed.appCode as AppCode,
+      takeoverMode:
+        parsed.takeoverMode === "environment-override"
+          ? "environment-override"
+          : "file-rewrite",
       configPath: parsed.configPath,
       backupPath: typeof parsed.backupPath === "string" ? parsed.backupPath : null,
       lifecycleMode:
         parsed.lifecycleMode === "foreground-session" ? "foreground-session" : "persistent",
       rollbackAction: parsed.rollbackAction === "delete" ? "delete" : "restore",
+      desiredTarget: typeof parsed.desiredTarget === "string" ? parsed.desiredTarget : null,
+      environmentOverride:
+        typeof parsed.environmentOverride === "object" &&
+        parsed.environmentOverride !== null &&
+        typeof (parsed.environmentOverride as { exportScriptPath?: unknown }).exportScriptPath === "string" &&
+        typeof (parsed.environmentOverride as { exportSnippet?: unknown }).exportSnippet === "string" &&
+        typeof (parsed.environmentOverride as { unsetSnippet?: unknown }).unsetSnippet === "string" &&
+        Array.isArray((parsed.environmentOverride as { activationCommands?: unknown }).activationCommands) &&
+        Array.isArray((parsed.environmentOverride as { deactivationCommands?: unknown }).deactivationCommands) &&
+        Array.isArray((parsed.environmentOverride as { variables?: unknown }).variables)
+          ? (parsed.environmentOverride as HostCliEnvironmentOverride)
+          : null,
       supplementalFiles: Array.isArray(parsed.supplementalFiles)
         ? parsed.supplementalFiles
             .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)

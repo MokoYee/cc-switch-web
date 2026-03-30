@@ -1117,6 +1117,24 @@ export const exportPackageSchema = z.object({
 });
 
 export const hostCliLifecycleModeSchema = z.enum(["persistent", "foreground-session"]);
+export const hostCliTakeoverModeSchema = z.enum(["file-rewrite", "environment-override"]);
+
+export const hostCliEnvironmentVariableSchema = z.object({
+  variableName: z.string().min(1),
+  value: z.string(),
+  sensitive: z.boolean().default(false),
+  description: z.string().min(1)
+});
+
+export const hostCliEnvironmentOverrideSchema = z.object({
+  exportScriptPath: z.string().min(1),
+  exportSnippet: z.string().min(1),
+  unsetSnippet: z.string().min(1),
+  activationCommands: z.array(z.string().min(1)).min(1),
+  deactivationCommands: z.array(z.string().min(1)).min(1),
+  variables: z.array(hostCliEnvironmentVariableSchema).min(1),
+  activationScope: z.enum(["shell-session", "user-managed-script"]).default("user-managed-script")
+});
 
 export const hostCliDiscoverySchema = z.object({
   appCode: appCodeSchema,
@@ -1128,7 +1146,10 @@ export const hostCliDiscoverySchema = z.object({
   configFormat: z.enum(["toml", "json", "unknown"]).nullable().default(null),
   takeoverSupported: z.boolean().default(false),
   supportLevel: z.enum(["managed", "inspect-only", "planned"]).default("planned"),
-  takeoverMethod: z.enum(["file-rewrite", "config-inspect", "external-control-plane"]).default("config-inspect"),
+  takeoverMethod: z
+    .enum(["file-rewrite", "environment-override", "config-inspect", "external-control-plane"])
+    .default("config-inspect"),
+  supportedTakeoverModes: z.array(hostCliTakeoverModeSchema).default([]),
   supportReasonCode: z.enum([
     "stable-provider-config",
     "stable-env-config",
@@ -1164,6 +1185,7 @@ export const hostCliCapabilitySchema = hostCliDiscoverySchema.pick({
   takeoverSupported: true,
   supportLevel: true,
   takeoverMethod: true,
+  supportedTakeoverModes: true,
   supportReasonCode: true,
   docsUrl: true
 }).extend({
@@ -1173,21 +1195,25 @@ export const hostCliCapabilitySchema = hostCliDiscoverySchema.pick({
 export const hostCliMutationResultSchema = z.object({
   appCode: appCodeSchema,
   action: z.enum(["apply", "rollback"]),
+  takeoverMode: hostCliTakeoverModeSchema.default("file-rewrite"),
   configPath: z.string(),
   backupPath: z.string().nullable(),
   integrationState: z.enum(["managed", "unmanaged"]),
   lifecycleMode: hostCliLifecycleModeSchema.nullable().default(null),
+  environmentOverride: hostCliEnvironmentOverrideSchema.nullable().default(null),
   message: z.string().min(1)
 });
 
 export const hostCliApplyPreviewSchema = z.object({
   appCode: appCodeSchema,
+  takeoverMode: hostCliTakeoverModeSchema.default("file-rewrite"),
   configPath: z.string().min(1),
   configExists: z.boolean(),
   backupRequired: z.boolean(),
   riskLevel: z.enum(["low", "medium", "high"]),
   lifecycleMode: hostCliLifecycleModeSchema,
   desiredTarget: z.string().nullable(),
+  environmentOverride: hostCliEnvironmentOverrideSchema.nullable().default(null),
   summary: z.array(z.string().min(1)),
   managedFeaturesToEnable: z.array(z.enum(["claude-onboarding-bypassed"])),
   touchedFiles: z.array(
@@ -1835,6 +1861,8 @@ export const providerDiagnosticSchema = z.object({
   lastProbeResult: z.enum(["healthy", "unhealthy"]).nullable(),
   recoveryProbeInFlight: z.boolean(),
   recoveryAttemptCount: z.number().int().min(0),
+  recoverySuccessCount: z.number().int().min(0),
+  recoverySuccessThreshold: z.number().int().min(1),
   nextRecoveryProbeAt: z.string().datetime().nullable(),
   circuitState: z.enum(["closed", "open", "half-open"]),
   diagnosisStatus: providerDiagnosisStatusSchema,
@@ -2009,6 +2037,8 @@ export const dashboardProviderHealthStateSchema = z.object({
   lastProbeResult: z.enum(["healthy", "unhealthy"]).nullable(),
   recoveryProbeInFlight: z.boolean(),
   recoveryAttemptCount: z.number().int().min(0),
+  recoverySuccessCount: z.number().int().min(0),
+  recoverySuccessThreshold: z.number().int().min(1),
   nextRecoveryProbeAt: z.string().datetime().nullable(),
   cooldownUntil: z.string().datetime().nullable(),
   lastErrorMessage: z.string().nullable()
@@ -2197,6 +2227,8 @@ export type ConfigDeletePreview = z.infer<typeof configDeletePreviewSchema>;
 export type ConfigImportPreview = z.infer<typeof configImportPreviewSchema>;
 export type ConfigRestorePreview = z.infer<typeof configRestorePreviewSchema>;
 export type HostCliLifecycleMode = z.infer<typeof hostCliLifecycleModeSchema>;
+export type HostCliTakeoverMode = z.infer<typeof hostCliTakeoverModeSchema>;
+export type HostCliEnvironmentOverride = z.infer<typeof hostCliEnvironmentOverrideSchema>;
 export type HostCliDiscovery = z.infer<typeof hostCliDiscoverySchema>;
 export type HostCliCapability = z.infer<typeof hostCliCapabilitySchema>;
 export type HostCliMutationResult = z.infer<typeof hostCliMutationResultSchema>;

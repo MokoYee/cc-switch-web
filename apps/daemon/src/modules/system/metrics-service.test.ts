@@ -54,6 +54,8 @@ const createDiagnostic = (overrides: Partial<ProviderDiagnostic> = {}): Provider
   lastProbeResult: null,
   recoveryProbeInFlight: false,
   recoveryAttemptCount: 0,
+  recoverySuccessCount: 0,
+  recoverySuccessThreshold: 2,
   nextRecoveryProbeAt: null,
   circuitState: "closed",
   diagnosisStatus: "healthy",

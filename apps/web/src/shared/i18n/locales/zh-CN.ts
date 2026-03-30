@@ -96,6 +96,7 @@ export const zhCNMessages = {
       },
       method: {
         fileRewrite: "改写本机配置文件",
+        environmentOverride: "导出环境变量脚本",
         configInspect: "仅识别配置形态",
         externalControlPlane: "应走控制面对接"
       },

@@ -928,10 +928,20 @@ test("backs off repeated recovery probe failures and exposes probe runtime state
   assert.ok(Date.parse(secondDiagnostic.cooldownUntil) > Date.parse(firstDiagnostic.cooldownUntil));
 
   service.beginRecoveryProbe("provider-a");
-  service.markProbeRecoverySuccess("provider-a");
+  service.markProbeRecoverySuccess("provider-a", 5);
+  const stabilizationDiagnostic = service.listProviderDiagnostics().find((item) => item.providerId === "provider-a");
+  assert.ok(stabilizationDiagnostic);
+  assert.equal(stabilizationDiagnostic.recoveryAttemptCount, 0);
+  assert.equal(stabilizationDiagnostic.recoverySuccessCount, 1);
+  assert.equal(stabilizationDiagnostic.diagnosisStatus, "recovering");
+  assert.ok(stabilizationDiagnostic.cooldownUntil !== null);
+
+  service.beginRecoveryProbe("provider-a");
+  service.markProbeRecoverySuccess("provider-a", 5);
   const recoveredDiagnostic = service.listProviderDiagnostics().find((item) => item.providerId === "provider-a");
   assert.ok(recoveredDiagnostic);
   assert.equal(recoveredDiagnostic.recoveryAttemptCount, 0);
+  assert.equal(recoveredDiagnostic.recoverySuccessCount, 2);
   assert.equal(recoveredDiagnostic.recoveryProbeInFlight, false);
   assert.equal(recoveredDiagnostic.cooldownUntil, null);
 

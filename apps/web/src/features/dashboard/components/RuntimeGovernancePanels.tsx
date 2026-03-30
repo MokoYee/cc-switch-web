@@ -5,6 +5,7 @@ import type {
   AuditEventPage,
   ContextTimelineEvent,
   HostCliApplyPreview,
+  HostCliTakeoverMode,
   ProviderDiagnosticDetail,
   SessionRuntimeDetail,
   WorkspaceRuntimeDetail
@@ -326,23 +327,41 @@ const renderSupportLevel = (
   return t("dashboard.discovery.level.planned");
 };
 
+const renderTakeoverModeLabel = (
+  takeoverMode:
+    | DashboardSnapshot["discoveries"][number]["takeoverMethod"]
+    | HostCliApplyPreview["takeoverMode"]
+    | HostCliTakeoverMode,
+  t: (
+    key:
+      | "dashboard.discovery.method.fileRewrite"
+      | "dashboard.discovery.method.environmentOverride"
+      | "dashboard.discovery.method.configInspect"
+      | "dashboard.discovery.method.externalControlPlane"
+  ) => string
+): string => {
+  if (takeoverMode === "file-rewrite") {
+    return t("dashboard.discovery.method.fileRewrite");
+  }
+  if (takeoverMode === "environment-override") {
+    return t("dashboard.discovery.method.environmentOverride");
+  }
+  if (takeoverMode === "config-inspect") {
+    return t("dashboard.discovery.method.configInspect");
+  }
+  return t("dashboard.discovery.method.externalControlPlane");
+};
+
 const renderTakeoverMethod = (
   discovery: DashboardSnapshot["discoveries"][number],
   t: (
     key:
       | "dashboard.discovery.method.fileRewrite"
+      | "dashboard.discovery.method.environmentOverride"
       | "dashboard.discovery.method.configInspect"
       | "dashboard.discovery.method.externalControlPlane"
   ) => string
-): string => {
-  if (discovery.takeoverMethod === "file-rewrite") {
-    return t("dashboard.discovery.method.fileRewrite");
-  }
-  if (discovery.takeoverMethod === "config-inspect") {
-    return t("dashboard.discovery.method.configInspect");
-  }
-  return t("dashboard.discovery.method.externalControlPlane");
-};
+): string => renderTakeoverModeLabel(discovery.takeoverMethod, t);
 
 const renderSupportReason = (
   discovery: DashboardSnapshot["discoveries"][number],
@@ -646,11 +665,17 @@ type RuntimeGovernancePanelsProps = {
   readonly onOpenRoutingForms: () => void;
   readonly onOpenMcpForms: () => void;
   readonly onOpenAssetForms: () => void;
-  readonly onApplyHostCliManagedConfig: (appCode: string) => void;
+  readonly onApplyHostCliManagedConfig: (
+    appCode: string,
+    mode?: HostCliTakeoverMode
+  ) => void;
   readonly onRollbackHostCliManagedConfig: (appCode: string) => void;
   readonly onRollbackForegroundHostCliManagedConfigs: () => void;
   readonly hostApplyPreviewByApp: Record<string, HostCliApplyPreview | null>;
-  readonly onPreviewHostCliManagedConfig: (appCode: string) => void;
+  readonly onPreviewHostCliManagedConfig: (
+    appCode: string,
+    mode?: HostCliTakeoverMode
+  ) => void;
   readonly refreshWorkspaceRuntimeDetail: (workspaceId: string) => void;
   readonly focusWorkspaceLogs: (workspaceId: string) => void;
   readonly refreshSessionRuntimeDetail: (sessionId: string) => void;
@@ -1171,6 +1196,10 @@ export const RuntimeGovernancePanels = ({
         <div className="list">
           {snapshot.discoveries.map((item) => {
             const preview = hostApplyPreviewByApp[item.appCode];
+            const supportsEnvironmentOverride = item.supportedTakeoverModes.includes(
+              "environment-override"
+            );
+            const supportsFileRewrite = item.supportedTakeoverModes.includes("file-rewrite");
 
             return (
               <div className="list-row" key={item.appCode}>
@@ -1178,6 +1207,14 @@ export const RuntimeGovernancePanels = ({
                   <strong>{item.appCode}</strong>
                   <p>{renderIntegrationState(item, t)} / {renderSupportLevel(item, t)}</p>
                   <p>{t("dashboard.discovery.takeoverMethod")}: {renderTakeoverMethod(item, t)}</p>
+                  {item.supportedTakeoverModes.length > 1 ? (
+                    <p>
+                      {localize(locale, "可用接管模式", "Available Modes")}:{" "}
+                      {item.supportedTakeoverModes
+                        .map((mode) => renderTakeoverModeLabel(mode, t))
+                        .join(" / ")}
+                    </p>
+                  ) : null}
                   <p>{renderSupportReason(item, t)}</p>
                   <p>{t("dashboard.discovery.currentTarget")}: {item.currentTarget ?? t("common.notFound")}</p>
                   {item.desiredTarget ? <p>{t("dashboard.discovery.desiredTarget")}: {item.desiredTarget}</p> : null}
@@ -1214,6 +1251,10 @@ export const RuntimeGovernancePanels = ({
                     <div className="note-block">
                       <strong>{localize(locale, "接管预检", "Takeover Preview")}</strong>
                       <GovernanceNoticeCard notice={buildHostTakeoverPreviewNotice(preview, locale)} locale={locale} />
+                      <p>
+                        {localize(locale, "预检模式", "Preview Mode")}:{" "}
+                        {renderTakeoverModeLabel(preview.takeoverMode, t)}
+                      </p>
                       <p>
                         {localize(locale, "目标", "Target")}: {preview.desiredTarget ?? t("common.notFound")}
                       </p>
@@ -1252,6 +1293,27 @@ export const RuntimeGovernancePanels = ({
                             : feature}
                         </p>
                       ))}
+                      {preview.environmentOverride ? (
+                        <>
+                          <p>{localize(locale, "环境变量接管", "Environment Takeover")}:</p>
+                          <ul className="governance-suggestion-list">
+                            {preview.environmentOverride.variables.map((variable) => (
+                              <li key={`${item.appCode}-env-variable-${variable.variableName}`}>
+                                <code>{variable.variableName}</code> = <code>{variable.value || "''"}</code> /{" "}
+                                {variable.description}
+                              </li>
+                            ))}
+                          </ul>
+                          <p>
+                            {localize(locale, "激活命令", "Activation Command")}:{" "}
+                            <code>{preview.environmentOverride.activationCommands[0]}</code>
+                          </p>
+                          <p>
+                            {localize(locale, "清理命令", "Cleanup Command")}:{" "}
+                            <code>{preview.environmentOverride.deactivationCommands[0]}</code>
+                          </p>
+                        </>
+                      ) : null}
                       <p>{localize(locale, "核验清单", "Validation Checklist")}:</p>
                       <ul className="governance-suggestion-list">
                         {preview.validationChecklist.map((check) => (
@@ -1324,13 +1386,41 @@ export const RuntimeGovernancePanels = ({
                       </button>
                     ) : (
                       <>
-                        <button className="inline-action" type="button" disabled={isWorking} onClick={() => onPreviewHostCliManagedConfig(item.appCode)}>
-                          {preview
-                            ? localize(locale, "刷新预检", "Refresh Preview")
-                            : localize(locale, "预检接管", "Preview Takeover")}
-                        </button>
+                        {supportsFileRewrite ? (
+                          <button
+                            className="inline-action"
+                            type="button"
+                            disabled={isWorking}
+                            onClick={() => onPreviewHostCliManagedConfig(item.appCode, "file-rewrite")}
+                          >
+                            {preview?.takeoverMode === "file-rewrite"
+                              ? localize(locale, "刷新文件接管预检", "Refresh File Preview")
+                              : localize(locale, "预检文件接管", "Preview File Takeover")}
+                          </button>
+                        ) : null}
+                        {supportsEnvironmentOverride ? (
+                          <button
+                            className="inline-action"
+                            type="button"
+                            disabled={isWorking}
+                            onClick={() =>
+                              onPreviewHostCliManagedConfig(item.appCode, "environment-override")
+                            }
+                          >
+                            {preview?.takeoverMode === "environment-override"
+                              ? localize(locale, "刷新环境接管预检", "Refresh Env Preview")
+                              : localize(locale, "预检环境接管", "Preview Env Takeover")}
+                          </button>
+                        ) : null}
                         {preview ? (
-                          <button className="inline-action" type="button" disabled={isWorking} onClick={() => onApplyHostCliManagedConfig(item.appCode)}>
+                          <button
+                            className="inline-action"
+                            type="button"
+                            disabled={isWorking}
+                            onClick={() =>
+                              onApplyHostCliManagedConfig(item.appCode, preview.takeoverMode)
+                            }
+                          >
                             {localize(locale, "确认应用接管", "Confirm Takeover")}
                           </button>
                         ) : null}

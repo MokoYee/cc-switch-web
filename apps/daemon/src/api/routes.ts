@@ -7,6 +7,7 @@ import {
   appQuotaUpsertSchema,
   appMcpBindingUpsertSchema,
   failoverChainUpsertSchema,
+  hostCliTakeoverModeSchema,
   mcpImportOptionsSchema,
   mcpVerificationHistoryQuerySchema,
   mcpServerUpsertSchema,
@@ -1132,8 +1133,12 @@ export const registerRoutes = async (
   });
   app.get("/api/v1/host-discovery/:appCode/preview-apply", async (request) => {
     const { appCode } = request.params as { appCode: Parameters<typeof hostDiscoveryService.previewApplyManagedConfig>[0] };
+    const query = request.query as { mode?: string };
     return {
-      item: hostDiscoveryService.previewApplyManagedConfig(appCode)
+      item: hostDiscoveryService.previewApplyManagedConfig(
+        appCode,
+        query.mode === undefined ? undefined : hostCliTakeoverModeSchema.parse(query.mode)
+      )
     };
   });
 
@@ -1177,7 +1182,11 @@ export const registerRoutes = async (
 
   app.post("/api/v1/host-discovery/:appCode/apply", async (request) => {
     const { appCode } = request.params as { appCode: Parameters<typeof hostDiscoveryService.applyManagedConfig>[0] };
-    const result = hostDiscoveryService.applyManagedConfig(appCode);
+    const body = request.body as { mode?: string } | undefined;
+    const result = hostDiscoveryService.applyManagedConfig(
+      appCode,
+      body?.mode === undefined ? undefined : hostCliTakeoverModeSchema.parse(body.mode)
+    );
     invalidateDashboardBootstrap();
     return { item: result };
   });

@@ -31,6 +31,7 @@
 - 前台模式更适合临时接管、协议排障、宿主机预检
 - 持久模式更适合长期代理、Prometheus 抓取和稳定交付
 - 当前 `foreground-session` 宿主机接管在 daemon 正常退出时会自动回滚；如果上次异常退出，daemon 下次启动会自动恢复残留的临时接管
+- 当前已提供 `ccsw daemon service logs` / `follow`，排障时优先使用统一 CLI 入口而不是手工拼 `journalctl`
 
 ## 3. 标准部署步骤
 
@@ -59,6 +60,11 @@ ccsw daemon start
 3. `http://127.0.0.1:8787/metrics` 能返回 Prometheus 文本格式
 4. 运行治理面中的 `Service Doctor` 没有出现 `envInSync=false` 或明显 runtime drift
 
+如果当前机器要承载真实 AI CLI，再补两项：
+
+5. `npm run acceptance:cli:matrix -- --app codex` 或 `--app claude-code` 能生成当前验收步骤
+6. 任选一种接管模式完成一次 `preview -> apply -> rollback` 闭环
+
 ### 3.3 上线后首轮人工核查
 
 - 打开控制台 `Runtime Governance` 面板
@@ -66,6 +72,47 @@ ccsw daemon start
 - 看 `runtimeMatch` 是否已经对齐
 - 如果出现“启动自动恢复”卡片，先打开宿主机审计确认上次异常退出残留已经被清理
 - 如果宿主机 CLI 处于临时接管模式，发起一次真实 CLI 请求，确认当前请求已经命中代理链路
+- 如果 Provider 状态显示 `recovering`，继续观察恢复验证计数，不要把单次成功当成完全恢复
+
+## 3.4 宿主机接管模式选择
+
+推荐顺序：
+
+1. 先用 `environment-override` 做低风险试接管
+2. 验证稳定后，再决定是否切到 `file-rewrite`
+3. 长期运行场景优先配合 `systemd --user`
+
+最小命令：
+
+```bash
+ccsw host preview codex --mode environment-override
+ccsw host apply codex --mode environment-override
+ccsw host rollback codex
+```
+
+说明：
+
+- `environment-override` 会生成受管导出脚本，并返回激活 / 清理命令
+- 该模式不会自动改写 shell rc 文件
+- 如果当前 shell 已经残留旧变量，先执行 apply 返回的清理命令，再重新激活
+- `gemini-cli` 当前不在 takeover 可交付范围内，原因是代理主链路尚未提供 Gemini API / Gateway 适配
+
+## 3.5 服务日志与诊断闭环
+
+常用命令：
+
+```bash
+ccsw daemon service doctor
+ccsw daemon service logs --lines 200
+ccsw daemon service follow --lines 100
+```
+
+推荐顺序：
+
+1. 先执行 `ccsw daemon service doctor`，确认是 `systemd` 不可用、env 漂移还是 runtime drift
+2. 如果服务未启动或刚重启失败，执行 `ccsw daemon service logs --lines 200`
+3. 如果要边操作边观察，执行 `ccsw daemon service follow --lines 100`
+4. 日志确认问题后，再回到 `sync-env`、`restart`、`rollback` 等动作
 
 ## 4. Prometheus 抓取示例
 
@@ -232,5 +279,6 @@ POST /api/v1/host-discovery/rollback-foreground
 - 控制台可以登录
 - `Service Doctor` 没有明显 env/runtime drift
 - 真实 CLI 请求能打进代理日志
+- `acceptance:cli:matrix` 已按目标 CLI 至少执行一轮
 - 最近快照可见且 restore preview 正常
 - 如启用了宿主机接管，确认 apply/rollback 各走通一次

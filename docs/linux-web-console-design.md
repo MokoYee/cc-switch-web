@@ -90,8 +90,10 @@
 - 请求级显式 Workspace / Session 覆盖
 - Failover Chain 切换
 - 熔断冷却
-- Provider 健康探活
+- ProviderType 差异化健康探活
+- 恢复验证窗口与连续成功阈值
 - 自动恢复与事件记录
+- 控制台 / CLI 可解释“恢复验证中”而不是把一次偶发成功误判为已恢复
 
 ### 3.3 宿主机 CLI 接管
 
@@ -100,6 +102,8 @@
 - 支持矩阵 API / CLI
 - `codex` 真实 apply / rollback
 - `claude-code` 真实 apply / rollback
+- `codex` 环境变量接管预览 / apply / rollback
+- `claude-code` 环境变量接管预览 / apply / rollback
 - 前台临时接管生命周期
   - daemon 正常退出时自动回滚 `foreground-session` 宿主机接管
   - daemon 下次启动时自动恢复上次异常退出残留的临时接管
@@ -115,6 +119,13 @@
 - Prompt / Skill 当前仍分层处理：Prompt 可投放宿主机，Skill 继续保持代理侧注入
 - `codex` / `claude-code` / `gemini-cli` 当前标记为 `proxy-only`
 - `opencode` / `openclaw` 当前标记为 `planned`
+
+当前环境变量接管原则：
+
+- `environment-override` 通过受管脚本导出代理相关环境变量
+- apply 会返回激活命令和清理命令，用户显式 `source` 后生效
+- 不自动修改 shell rc，不自动污染用户登录环境
+- `gemini-cli` 当前仍只做发现，不承诺 env takeover 可用，因为代理主链路尚未提供 Gemini API / Gateway 适配
 
 当前宿主机支持矩阵原则：
 
@@ -137,6 +148,9 @@
   - 控制台运行治理面直接暴露校验清单与恢复步骤
 - CLI 查询入口
 - 基础运行时状态查询
+- 兼容矩阵脚本与验收文档
+  - `npm run acceptance:cli:matrix`
+  - `docs/cli-compatibility-matrix.md`
 
 ### 3.5 MCP 基础模块
 

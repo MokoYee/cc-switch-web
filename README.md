@@ -29,6 +29,8 @@
 - 提供单端口 daemon 与内置 Web 控制台
 - 管理 Provider、应用绑定、代理策略和故障转移
 - 接管并回滚 `codex`、`claude-code` 等本机 CLI 配置
+- 为 `codex`、`claude-code` 提供 `file-rewrite` / `environment-override` 双接管模式
+- 对 Provider 健康检查、自动切换和恢复验证提供更稳定的状态解释
 - 管理 MCP 与 Prompt 的导入、预览、发布和回滚
 - 提供 usage 统计、审计事件、运行治理与 `/metrics`
 - 提供配置快照、导入导出和最近版本恢复
@@ -118,6 +120,15 @@ ccsw host preview codex
 ccsw host apply codex
 ```
 
+如果你不想先改本机配置文件，可以先走环境变量接管：
+
+```bash
+ccsw host preview codex --mode environment-override
+ccsw host apply codex --mode environment-override
+```
+
+`environment-override` 模式会生成受管脚本并返回 `source` / 清理命令，不会自动修改你的 shell rc 文件。
+
 如果需要回滚：
 
 ```bash
@@ -139,6 +150,8 @@ ccsw host rollback codex
 ccsw daemon service print
 ccsw daemon service install
 ccsw daemon service status
+ccsw daemon service logs --lines 200
+ccsw daemon service follow --lines 100
 ```
 
 当前稳定命名：
@@ -151,3 +164,5 @@ ccsw daemon service status
 
 - [Linux 单端口控制台设计](./docs/linux-web-console-design.md)
 - [Linux 运行与回滚手册](./docs/linux-operations-runbook.md)
+- [真实 CLI 兼容性验收矩阵](./docs/cli-compatibility-matrix.md)
+- [v0.2 需求分析与功能计划](./docs/v0.2-requirements-plan.md)

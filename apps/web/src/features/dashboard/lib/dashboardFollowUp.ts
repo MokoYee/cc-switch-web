@@ -1438,12 +1438,24 @@ export const buildProviderProbedFollowUpNotice = (
 
 export const buildHostTakeoverAppliedFollowUpNotice = (
   locale: "zh-CN" | "en-US",
-  appCode: AppBinding["appCode"]
+  appCode: AppBinding["appCode"],
+  result?: {
+    readonly takeoverMode?: "file-rewrite" | "environment-override";
+    readonly environmentOverride?: {
+      readonly activationCommands?: string[];
+    } | null;
+  }
 ): DashboardFollowUpNotice => ({
   category: "app-traffic",
   title: localize(locale, "宿主机接管已应用", "Host Takeover Applied"),
   summary:
-    appCode === "claude-code"
+    result?.takeoverMode === "environment-override"
+      ? localize(
+          locale,
+          `下一步先在目标 shell 中执行 ${result.environmentOverride?.activationCommands?.[0] ?? "source <managed-script>"}，再发送真实请求，确认环境变量接管已把流量切到本地网关。`,
+          `Next, run ${result.environmentOverride?.activationCommands?.[0] ?? "source <managed-script>"} in the target shell, then send a real request and confirm environment takeover routes traffic to the local gateway.`
+        )
+      : appCode === "claude-code"
       ? localize(
           locale,
           "下一步应进入接管闭环验证，确认 Claude Code 已切到本地网关、真实请求已进入代理，并验证初次安装确认已被跳过。",

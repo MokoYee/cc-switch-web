@@ -64,14 +64,16 @@ Commands:
   ${DEFAULT_COMMAND_NAME} daemon service install
   ${DEFAULT_COMMAND_NAME} daemon service uninstall
   ${DEFAULT_COMMAND_NAME} daemon service start|stop|restart|status|doctor
+  ${DEFAULT_COMMAND_NAME} daemon service logs [--lines <n>]
+  ${DEFAULT_COMMAND_NAME} daemon service follow [--lines <n>]
   ${DEFAULT_COMMAND_NAME} quickstart <appCode>
   ${DEFAULT_COMMAND_NAME} host scan
   ${DEFAULT_COMMAND_NAME} host matrix
   ${DEFAULT_COMMAND_NAME} host capabilities
   ${DEFAULT_COMMAND_NAME} host events
-  ${DEFAULT_COMMAND_NAME} host preview <appCode>
-  ${DEFAULT_COMMAND_NAME} host setup <appCode>
-  ${DEFAULT_COMMAND_NAME} host apply <appCode>
+  ${DEFAULT_COMMAND_NAME} host preview <appCode> [--mode file-rewrite|environment-override]
+  ${DEFAULT_COMMAND_NAME} host setup <appCode> [--mode file-rewrite|environment-override]
+  ${DEFAULT_COMMAND_NAME} host apply <appCode> [--mode file-rewrite|environment-override]
   ${DEFAULT_COMMAND_NAME} host rollback <appCode>
   ${DEFAULT_COMMAND_NAME} mcp servers
   ${DEFAULT_COMMAND_NAME} mcp bindings
@@ -146,6 +148,33 @@ const readOptionValue = (flagName: string): string | undefined => {
   }
 
   return process.argv[index + 1];
+};
+
+const readPositiveIntegerOption = (flagName: string, defaultValue?: number): number | undefined => {
+  const value = readOptionValue(flagName);
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${flagName} must be a positive integer`);
+  }
+
+  return parsed;
+};
+
+const readHostTakeoverMode = (): "file-rewrite" | "environment-override" | undefined => {
+  const mode = readOptionValue("--mode");
+  if (mode === undefined) {
+    return undefined;
+  }
+
+  if (mode === "file-rewrite" || mode === "environment-override") {
+    return mode;
+  }
+
+  throw new Error(`Unsupported host takeover mode: ${mode}`);
 };
 
 const getLocalControlToken = (): string => {
@@ -422,6 +451,42 @@ const runSystemctlUser = async (...args: string[]): Promise<void> => {
   });
 };
 
+const runJournalctlUser = async (follow: boolean): Promise<void> => {
+  await ensureSystemdUserAvailable();
+
+  const lines = readPositiveIntegerOption("--lines", follow ? 100 : 200) ?? (follow ? 100 : 200);
+  const args = [
+    "--user",
+    "--unit",
+    "cc-switch-web.service",
+    "--no-pager",
+    "--output",
+    "short-iso",
+    "--lines",
+    String(lines)
+  ];
+
+  if (follow) {
+    args.push("--follow");
+  }
+
+  await new Promise<void>((resolvePromise, rejectPromise) => {
+    const child = spawn("journalctl", args, {
+      stdio: "inherit"
+    });
+
+    child.on("error", rejectPromise);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolvePromise();
+        return;
+      }
+
+      rejectPromise(new Error(`journalctl ${args.join(" ")} failed with exit code ${code ?? -1}`));
+    });
+  });
+};
+
 const printUserServiceEnv = (): void => {
   console.log(getSystemdEnvContent());
 };
@@ -616,6 +681,51 @@ const printUserServiceDoctor = async (): Promise<void> => {
         )
       : null;
 
+  const recommendedActions: string[] = [];
+
+  if (!systemdAvailable) {
+    recommendedActions.push(
+      "systemd --user unavailable; use `ccsw daemon start` or move to a Linux host with systemd user session"
+    );
+  }
+  if (!existsSync(systemdUnitPath)) {
+    recommendedActions.push("run `ccsw daemon service install` to create and enable cc-switch-web.service");
+  }
+  if (!envFile.exists) {
+    recommendedActions.push(
+      "run `ccsw daemon service sync-env` before enabling or restarting the user service"
+    );
+  } else if (envDiff.length > 0) {
+    recommendedActions.push(
+      "run `ccsw daemon service sync-env` to remove drift from the current daemon settings"
+    );
+  }
+  if (runtimeCheck.reachable && runtimeCheck.authenticated && runtimeCheck.daemonRuntime?.runMode !== "systemd-user") {
+    if (runtimeCheck.daemonMatchesDesired) {
+      recommendedActions.push(
+        "current daemon runs in foreground mode; run `ccsw daemon service install` and `ccsw daemon service restart` for unattended startup"
+      );
+    }
+  } else if (runtimeCheck.reachable && !runtimeCheck.authenticated) {
+    recommendedActions.push(
+      "set `CCSW_CONTROL_TOKEN` or run `ccsw auth print-token`, then rerun `ccsw daemon service doctor` to compare runtime drift"
+    );
+  } else if (!runtimeCheck.reachable) {
+    recommendedActions.push(
+      "ensure the daemon is reachable locally, then rerun `ccsw daemon service doctor` or inspect `ccsw daemon service logs --lines 200`"
+    );
+  }
+  if (systemdAvailable && existsSync(systemdUnitPath) && activeResult?.stdout.trim() !== "active") {
+    recommendedActions.push(
+      "run `ccsw daemon service start` or `ccsw daemon service restart`, then inspect `ccsw daemon service logs --lines 200` if startup still fails"
+    );
+  }
+  if (recommendedActions.length === 0) {
+    recommendedActions.push(
+      "service configuration and daemon runtime are aligned; use `ccsw daemon service logs --lines 50` for a quick runtime audit"
+    );
+  }
+
   console.log(
     JSON.stringify(
       {
@@ -653,7 +763,8 @@ const printUserServiceDoctor = async (): Promise<void> => {
                 ? Number.parseInt(systemdStatusProperties.ExecMainPID, 10)
                 : null
           },
-          runtime: runtimeCheck
+          runtime: runtimeCheck,
+          recommendedActions
         }
       },
       null,
@@ -869,19 +980,21 @@ const printHostEvents = async (): Promise<void> => {
 };
 
 const printHostApplyPreview = async (appCode: string): Promise<void> => {
+  const mode = readHostTakeoverMode();
   const result = await readProtectedJson<{ item: unknown }>(
-    `/api/v1/host-discovery/${encodeURIComponent(appCode)}/preview-apply`
+    `/api/v1/host-discovery/${encodeURIComponent(appCode)}/preview-apply${mode === undefined ? "" : `?mode=${encodeURIComponent(mode)}`}`
   );
   console.log(JSON.stringify(result, null, 2));
 };
 
 const setupHostConfig = async (appCode: string): Promise<void> => {
+  const mode = readHostTakeoverMode();
   const preview = await readProtectedJson<{ item: unknown }>(
-    `/api/v1/host-discovery/${encodeURIComponent(appCode)}/preview-apply`
+    `/api/v1/host-discovery/${encodeURIComponent(appCode)}/preview-apply${mode === undefined ? "" : `?mode=${encodeURIComponent(mode)}`}`
   );
   const result = await postProtectedJson<{ item: unknown }>(
     `/api/v1/host-discovery/${encodeURIComponent(appCode)}/apply`,
-    {}
+    mode === undefined ? {} : { mode }
   );
   console.log(
     JSON.stringify(
@@ -931,9 +1044,10 @@ const runQuickstart = async (appCode: string): Promise<void> => {
 };
 
 const applyHostConfig = async (appCode: string): Promise<void> => {
+  const mode = readHostTakeoverMode();
   const result = await postProtectedJson<{ item: unknown }>(
     `/api/v1/host-discovery/${encodeURIComponent(appCode)}/apply`,
-    {}
+    mode === undefined ? {} : { mode }
   );
   console.log(JSON.stringify(result, null, 2));
 };
@@ -1669,6 +1783,16 @@ const run = async (): Promise<void> => {
 
     if (serviceAction === "doctor") {
       await printUserServiceDoctor();
+      return;
+    }
+
+    if (serviceAction === "logs") {
+      await runJournalctlUser(false);
+      return;
+    }
+
+    if (serviceAction === "follow") {
+      await runJournalctlUser(true);
       return;
     }
 

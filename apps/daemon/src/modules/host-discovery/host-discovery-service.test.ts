@@ -189,6 +189,38 @@ test("creates and removes claude onboarding skip file when it did not exist orig
   rmSync(rootDir, { recursive: true, force: true });
 });
 
+test("applies and rolls back codex environment takeover without rewriting the original config", () => {
+  const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-host-codex-env-"));
+  const homeDir = join(rootDir, "home");
+  const dataDir = join(rootDir, "data");
+  const service = createService(homeDir, dataDir);
+
+  const preview = service.previewApplyManagedConfig("codex", "environment-override");
+  assert.equal(preview.takeoverMode, "environment-override");
+  assert.ok(preview.environmentOverride !== null);
+  assert.match(preview.environmentOverride?.exportScriptPath ?? "", /\.config\/cc-switch-web\/host-env\/codex\.sh$/);
+  assert.equal(preview.touchedFiles[0]?.backupRequired, false);
+
+  const applyResult = service.applyManagedConfig("codex", "environment-override");
+  const exportScriptPath = applyResult.environmentOverride?.exportScriptPath ?? "";
+  assert.equal(applyResult.takeoverMode, "environment-override");
+  assert.equal(existsSync(exportScriptPath), true);
+  assert.match(readFileSync(exportScriptPath, "utf-8"), /OPENAI_BASE_URL/);
+  assert.match(readFileSync(exportScriptPath, "utf-8"), /OPENAI_API_KEY/);
+
+  const discovery = service.scan().find((item) => item.appCode === "codex");
+  assert.equal(discovery?.integrationState, "managed");
+  assert.equal(discovery?.supportedTakeoverModes.includes("environment-override"), true);
+  assert.equal(discovery?.currentTarget, "http://127.0.0.1:8787/proxy/codex/v1");
+
+  const rollbackResult = service.rollbackManagedConfig("codex");
+  assert.equal(rollbackResult.takeoverMode, "environment-override");
+  assert.equal(rollbackResult.environmentOverride?.deactivationCommands[0], "unset OPENAI_BASE_URL OPENAI_API_KEY");
+  assert.equal(existsSync(exportScriptPath), false);
+
+  rmSync(rootDir, { recursive: true, force: true });
+});
+
 test("builds host takeover preview with governance details for codex and claude-code", () => {
   const rootDir = mkdtempSync(join(tmpdir(), "cc-switch-web-host-preview-"));
   const homeDir = join(rootDir, "home");
@@ -445,6 +477,7 @@ test("exposes host takeover capability matrix for non-managed cli targets", () =
 
   assert.equal(gemini?.supportLevel, "inspect-only");
   assert.equal(gemini?.takeoverSupported, false);
+  assert.deepEqual(gemini?.supportedTakeoverModes, []);
   assert.equal(gemini?.supportReasonCode, "auth-only-config");
   assert.equal(gemini?.configLocationHint, "~/.gemini/settings.json");
   assert.equal(gemini?.currentTarget, "auth:oauth-personal");
@@ -470,6 +503,10 @@ test("lists stable host capability registry without local machine state", () => 
   assert.equal(capabilities.length, 5);
   assert.equal(capabilities.find((item) => item.appCode === "codex")?.binaryName, "codex");
   assert.equal(capabilities.find((item) => item.appCode === "codex")?.supportLevel, "managed");
+  assert.deepEqual(
+    capabilities.find((item) => item.appCode === "codex")?.supportedTakeoverModes,
+    ["file-rewrite", "environment-override"]
+  );
   assert.equal(capabilities.find((item) => item.appCode === "gemini-cli")?.supportLevel, "inspect-only");
   assert.equal(capabilities.find((item) => item.appCode === "openclaw")?.takeoverMethod, "external-control-plane");
 

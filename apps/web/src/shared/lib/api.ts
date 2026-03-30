@@ -39,6 +39,7 @@ import {
   type HostCliDiscovery,
   type HostCliApplyPreview,
   type HostCliRollbackBatchResult,
+  type HostCliTakeoverMode,
   hostMcpSyncCapabilitySchema,
   type HostMcpSyncCapability,
   type McpAppRuntimeView,
@@ -890,10 +891,13 @@ export const rollbackHostMcpSync = async (appCode: AppBinding["appCode"]): Promi
 };
 
 export const previewApplyHostCliManagedConfig = async (
-  appCode: AppBinding["appCode"]
+  appCode: AppBinding["appCode"],
+  mode?: HostCliTakeoverMode
 ): Promise<HostCliApplyPreview> => {
   const result = await readJson<{ item: HostCliApplyPreview }>(
-    `/api/v1/host-discovery/${encodeURIComponent(appCode)}/preview-apply`
+    `/api/v1/host-discovery/${encodeURIComponent(appCode)}/preview-apply${toQueryString({
+      mode
+    })}`
   );
   return result.item;
 };
@@ -1059,11 +1063,14 @@ export const previewRestoreSnapshotVersion = async (version: number): Promise<Co
   return result.item;
 };
 
-export const applyHostCliManagedConfig = async (appCode: AppBinding["appCode"]): Promise<HostCliMutationResult> => {
+export const applyHostCliManagedConfig = async (
+  appCode: AppBinding["appCode"],
+  mode?: HostCliTakeoverMode
+): Promise<HostCliMutationResult> => {
   const result = await writeJson<{ item: HostCliMutationResult }>(
     `/api/v1/host-discovery/${encodeURIComponent(appCode)}/apply`,
     "POST",
-    {}
+    mode === undefined ? {} : { mode }
   );
   return result.item;
 };

@@ -619,7 +619,7 @@ export const registerProxyRoutes = async (
           return;
         }
 
-        runtime.proxyRuntimeService.recordSuccess(target.providerId);
+        runtime.proxyRuntimeService.recordSuccess(target.providerId, target.cooldownSeconds);
         const requestLog = runtime.proxyRuntimeService.appendRequestLog({
           appCode: target.appCode,
           providerId: target.providerId,

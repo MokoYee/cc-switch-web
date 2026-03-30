@@ -1,4 +1,4 @@
-import type { AppBinding } from "cc-switch-web-shared";
+import type { AppBinding, HostCliTakeoverMode } from "cc-switch-web-shared";
 
 import {
   activateSession,
@@ -122,15 +122,15 @@ export const createDashboardRuntimeActions = ({
     setSelectedProviderDiagnosticId(null);
     setSelectedProviderDiagnosticDetail(null);
   },
-  applyHostCliManagedConfig: (appCode: string) =>
+  applyHostCliManagedConfig: (appCode: string, mode?: HostCliTakeoverMode) =>
     runAction(async () => {
       const targetAppCode = appCode as AppBinding["appCode"];
-      await applyHostCliManagedConfig(targetAppCode);
+      const result = await applyHostCliManagedConfig(targetAppCode, mode);
       openAuditFocus({
         source: "host-integration",
         appCode: targetAppCode
       });
-      setFollowUpNotice(buildHostTakeoverAppliedFollowUpNotice(locale, targetAppCode));
+      setFollowUpNotice(buildHostTakeoverAppliedFollowUpNotice(locale, targetAppCode, result));
     }, t("dashboard.discovery.applySuccess")),
   rollbackHostCliManagedConfig: (appCode: string) =>
     runAction(async () => {

@@ -11,6 +11,16 @@ export const buildHostTakeoverPreviewNotice = (
 ): GovernanceNotice => {
   const suggestions: string[] = [];
 
+  if (preview.takeoverMode === "environment-override" && preview.environmentOverride !== null) {
+    suggestions.push(
+      localize(
+        locale,
+        "这次接管只会生成可 source 的环境脚本，不会改写原始 CLI 配置文件；必须在目标 shell 中显式执行激活命令。",
+        "This takeover only generates a source-able environment script and does not rewrite the original CLI config file. You must run the activation command in the target shell."
+      )
+    );
+  }
+
   if (preview.backupRequired) {
     suggestions.push(
       localize(
@@ -55,8 +65,12 @@ export const buildHostTakeoverPreviewNotice = (
     suggestions.push(
       localize(
         locale,
-        "这次接管属于临时接管，daemon 正常退出后会自动回滚；如果希望重启后继续生效，应改用 systemd user service。",
-        "This takeover is temporary and will auto-rollback when the daemon exits cleanly. Use a systemd user service if it must survive restarts."
+        preview.takeoverMode === "environment-override"
+          ? "这次接管属于临时接管；daemon 正常退出后会清理托管脚本，但已经导出的环境变量仍需手动 unset 或重新开 shell。"
+          : "这次接管属于临时接管，daemon 正常退出后会自动回滚；如果希望重启后继续生效，应改用 systemd user service。",
+        preview.takeoverMode === "environment-override"
+          ? "This takeover is temporary. A clean daemon shutdown removes the managed script, but already-exported variables still need 'unset' or a new shell."
+          : "This takeover is temporary and will auto-rollback when the daemon exits cleanly. Use a systemd user service if it must survive restarts."
       )
     );
   }

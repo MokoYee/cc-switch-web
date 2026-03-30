@@ -1,7 +1,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-import type { AppCode, HostCliCapability, HostCliDiscovery } from "cc-switch-web-shared";
+import type {
+  AppCode,
+  HostCliCapability,
+  HostCliDiscovery,
+  HostCliTakeoverMode
+} from "cc-switch-web-shared";
 
 interface BaseHostCliAdapter {
   readonly appCode: AppCode;
@@ -9,6 +14,7 @@ interface BaseHostCliAdapter {
   readonly configFormat: HostCliDiscovery["configFormat"];
   readonly supportLevel: HostCliDiscovery["supportLevel"];
   readonly takeoverMethod: HostCliDiscovery["takeoverMethod"];
+  readonly supportedTakeoverModes: HostCliTakeoverMode[];
   readonly supportReasonCode: HostCliDiscovery["supportReasonCode"];
   readonly docsUrl: string | null;
   readonly configLocationHint: string | null;
@@ -19,6 +25,7 @@ interface BaseHostCliAdapter {
 export interface ManagedHostCliAdapter extends BaseHostCliAdapter {
   readonly supportLevel: "managed";
   readonly takeoverMethod: "file-rewrite";
+  readonly supportedTakeoverModes: ["file-rewrite"];
   buildManagedTarget(proxyBaseUrl: string): string;
   buildManagedConfig(existingContent: string, proxyBaseUrl: string): string;
   listManagedSupplementalFiles?(
@@ -101,6 +108,7 @@ const codexAdapter: ManagedHostCliAdapter = {
   configFormat: "toml",
   supportLevel: "managed",
   takeoverMethod: "file-rewrite",
+  supportedTakeoverModes: ["file-rewrite"],
   supportReasonCode: "stable-provider-config",
   docsUrl: "https://github.com/openai/codex",
   configLocationHint: "~/.codex/config.toml",
@@ -157,6 +165,7 @@ const claudeCodeAdapter: ManagedHostCliAdapter = {
   configFormat: "json",
   supportLevel: "managed",
   takeoverMethod: "file-rewrite",
+  supportedTakeoverModes: ["file-rewrite"],
   supportReasonCode: "stable-env-config",
   docsUrl: "https://docs.anthropic.com/en/docs/claude-code",
   configLocationHint: "~/.claude/settings.json",
@@ -248,6 +257,7 @@ const geminiCliAdapter: InspectOnlyHostCliAdapter = {
   configFormat: "json",
   supportLevel: "inspect-only",
   takeoverMethod: "config-inspect",
+  supportedTakeoverModes: [],
   supportReasonCode: "auth-only-config",
   docsUrl: "https://github.com/google-gemini/gemini-cli",
   configLocationHint: "~/.gemini/settings.json",
@@ -276,6 +286,7 @@ const opencodeAdapter: PlannedHostCliAdapter = {
   configFormat: "json",
   supportLevel: "planned",
   takeoverMethod: "config-inspect",
+  supportedTakeoverModes: [],
   supportReasonCode: "unverified-user-config",
   docsUrl: "https://opencode.ai/docs",
   configLocationHint: "~/.config/opencode",
@@ -288,6 +299,7 @@ const openclawAdapter: PlannedHostCliAdapter = {
   configFormat: "json",
   supportLevel: "planned",
   takeoverMethod: "external-control-plane",
+  supportedTakeoverModes: [],
   supportReasonCode: "external-gateway-product",
   docsUrl: "https://docs.openclaw.ai",
   configLocationHint: "~/.openclaw/openclaw.json",
@@ -310,6 +322,7 @@ export const toHostCliCapability = (adapter: HostCliAdapter): HostCliCapability 
   takeoverSupported: adapter.supportLevel === "managed",
   supportLevel: adapter.supportLevel,
   takeoverMethod: adapter.takeoverMethod,
+  supportedTakeoverModes: adapter.supportedTakeoverModes,
   supportReasonCode: adapter.supportReasonCode,
   docsUrl: adapter.docsUrl
 });

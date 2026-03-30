@@ -1,16 +1,53 @@
 import type { FastifyBaseLogger } from "fastify";
+import type { ProviderType } from "cc-switch-web-shared";
 
 import type { ProxyRuntimeService } from "./proxy-runtime-service.js";
 
 const DEFAULT_HEALTH_CHECK_INTERVAL_MS = 15_000;
 
-const buildProbeUrl = (baseUrl: string): string => {
+const buildProbeUrl = (providerType: ProviderType, baseUrl: string): string => {
   const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+  if (providerType === "gemini") {
+    if (normalizedBaseUrl.endsWith("/v1beta/openai")) {
+      return `${normalizedBaseUrl.slice(0, -"/openai".length)}/models`;
+    }
+    if (normalizedBaseUrl.endsWith("/v1beta")) {
+      return `${normalizedBaseUrl}/models`;
+    }
+  }
+  if (providerType === "anthropic" && normalizedBaseUrl.endsWith("/v1/messages")) {
+    return `${normalizedBaseUrl.slice(0, -"/messages".length)}/models`;
+  }
   if (normalizedBaseUrl.endsWith("/v1")) {
     return `${normalizedBaseUrl}/models`;
   }
+  if (normalizedBaseUrl.endsWith("/messages")) {
+    return `${normalizedBaseUrl.slice(0, -"/messages".length)}/models`;
+  }
 
   return normalizedBaseUrl;
+};
+
+const buildProbeHeaders = (
+  providerType: ProviderType,
+  apiKeyPlaintext: string
+): Record<string, string> => {
+  if (providerType === "anthropic") {
+    return {
+      "x-api-key": apiKeyPlaintext,
+      "anthropic-version": "2023-06-01"
+    };
+  }
+
+  if (providerType === "gemini") {
+    return {
+      "x-goog-api-key": apiKeyPlaintext
+    };
+  }
+
+  return {
+    Authorization: `Bearer ${apiKeyPlaintext}`
+  };
 };
 
 const isHealthyResponse = (statusCode: number): boolean =>
@@ -78,6 +115,7 @@ export class ProviderHealthProbeService {
     target: {
       readonly providerId: string;
       readonly providerName: string;
+      readonly providerType: ProviderType;
       readonly upstreamBaseUrl: string;
       readonly apiKeyPlaintext: string;
       readonly cooldownSeconds: number;
@@ -90,7 +128,7 @@ export class ProviderHealthProbeService {
     readonly probeUrl: string;
     readonly message: string;
   }> {
-    const probeUrl = buildProbeUrl(target.upstreamBaseUrl);
+    const probeUrl = buildProbeUrl(target.providerType, target.upstreamBaseUrl);
     const probeAccepted = this.proxyRuntimeService.beginRecoveryProbe(target.providerId);
 
     if (!probeAccepted) {
@@ -106,14 +144,15 @@ export class ProviderHealthProbeService {
     try {
       const response = await this.fetchImpl(probeUrl, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${target.apiKeyPlaintext}`
-        },
+        headers: buildProbeHeaders(target.providerType, target.apiKeyPlaintext),
         signal: AbortSignal.timeout(Math.min(target.cooldownSeconds * 1000, 10_000))
       });
 
       if (isHealthyResponse(response.status)) {
-        this.proxyRuntimeService.markProbeRecoverySuccess(target.providerId);
+        this.proxyRuntimeService.markProbeRecoverySuccess(
+          target.providerId,
+          target.cooldownSeconds
+        );
         this.proxyRuntimeService.appendProviderHealthEvent({
           providerId: target.providerId,
           trigger,

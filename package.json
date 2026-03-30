@@ -34,6 +34,7 @@
   },
   "scripts": {
     "acceptance:all": "npm run acceptance:core && npm run acceptance:delivery",
+    "acceptance:cli:matrix": "node tools/acceptance/run-cli-matrix.mjs",
     "acceptance:core": "npm run typecheck && npm run test && npm run test:browser",
     "acceptance:delivery": "npm run smoke && npm run release:bundle && npm run release:verify:latest",
     "build": "npm run build --workspace cc-switch-web-shared && npm run build --workspace cc-switch-web-daemon && npm run build --workspace cc-switch-web-ui && npm run build --workspace cc-switch-web-cli",

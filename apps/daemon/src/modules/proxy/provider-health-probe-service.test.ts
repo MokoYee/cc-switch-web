@@ -115,6 +115,83 @@ test("supports probing a single provider on demand", async () => {
   assert.deepEqual(calls, ["success:provider-3"]);
 });
 
+test("uses anthropic health endpoint and headers for probe requests", async () => {
+  let capturedUrl = "";
+  let capturedHeaders: Record<string, string> | null = null;
+  const runtime = {
+    getProbeTarget: (providerId: string) => ({
+      providerId,
+      providerName: "Anthropic Provider",
+      providerType: "anthropic" as const,
+      upstreamBaseUrl: "https://api.anthropic.com/v1/messages",
+      apiKeyPlaintext: "anthropic-secret",
+      cooldownSeconds: 30
+    }),
+    markProbeRecoverySuccess: () => undefined,
+    markProbeRecoveryFailure: () => undefined,
+    beginRecoveryProbe: () => true,
+    listRecoveryProbeTargets: () => [],
+    appendProviderHealthEvent: () => undefined
+  };
+
+  const service = new ProviderHealthProbeService(
+    runtime as never,
+    (async (input, init) => {
+      capturedUrl = String(input);
+      capturedHeaders = Object.fromEntries(new Headers(init?.headers).entries());
+      return new Response("{}", {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    }) as typeof fetch,
+    60_000
+  );
+
+  await service.probeProvider("provider-anthropic");
+  assert.equal(capturedUrl, "https://api.anthropic.com/v1/models");
+  assert.equal(capturedHeaders?.["x-api-key"], "anthropic-secret");
+  assert.equal(capturedHeaders?.["anthropic-version"], "2023-06-01");
+  assert.equal(capturedHeaders?.["authorization"], undefined);
+});
+
+test("uses gemini health endpoint and headers for probe requests", async () => {
+  let capturedUrl = "";
+  let capturedHeaders: Record<string, string> | null = null;
+  const runtime = {
+    getProbeTarget: (providerId: string) => ({
+      providerId,
+      providerName: "Gemini Provider",
+      providerType: "gemini" as const,
+      upstreamBaseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      apiKeyPlaintext: "gemini-secret",
+      cooldownSeconds: 30
+    }),
+    markProbeRecoverySuccess: () => undefined,
+    markProbeRecoveryFailure: () => undefined,
+    beginRecoveryProbe: () => true,
+    listRecoveryProbeTargets: () => [],
+    appendProviderHealthEvent: () => undefined
+  };
+
+  const service = new ProviderHealthProbeService(
+    runtime as never,
+    (async (input, init) => {
+      capturedUrl = String(input);
+      capturedHeaders = Object.fromEntries(new Headers(init?.headers).entries());
+      return new Response("{}", {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    }) as typeof fetch,
+    60_000
+  );
+
+  await service.probeProvider("provider-gemini");
+  assert.equal(capturedUrl, "https://generativelanguage.googleapis.com/v1beta/models");
+  assert.equal(capturedHeaders?.["x-goog-api-key"], "gemini-secret");
+  assert.equal(capturedHeaders?.["authorization"], undefined);
+});
+
 test("skips duplicate probe when another recovery probe is already in flight", async () => {
   const runtime = {
     getProbeTarget: (providerId: string) => ({

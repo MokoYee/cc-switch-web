@@ -85,6 +85,7 @@ export type TranslationKey =
   | "dashboard.discovery.level.inspectOnly"
   | "dashboard.discovery.level.planned"
   | "dashboard.discovery.method.fileRewrite"
+  | "dashboard.discovery.method.environmentOverride"
   | "dashboard.discovery.method.configInspect"
   | "dashboard.discovery.method.externalControlPlane"
   | "dashboard.discovery.reason.stableProviderConfig"
