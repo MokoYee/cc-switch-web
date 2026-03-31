@@ -106,6 +106,7 @@ ccsw daemon service doctor
 ccsw daemon service logs --lines 200
 ccsw daemon service follow --lines 100
 ccsw daemon service logs --since "today" --grep "error|warn"
+ccsw daemon service logs --boot -1 --priority warning..alert
 ```
 
 推荐顺序：
@@ -119,6 +120,8 @@ ccsw daemon service logs --since "today" --grep "error|warn"
 
 - `--since` / `--until` 直接透传给 `journalctl`，适合按时间窗口缩小范围
 - `--grep` 适合快速聚焦 `error`、`warn`、`EADDRINUSE`、`SQLITE_BUSY` 等关键词
+- `--priority` 支持单值或区间，如 `err`、`warning..alert`
+- `--boot` 适合只看当前或上一轮开机/用户会话内的日志
 - `follow` 同样支持 `--grep`，适合边重启边观察关键错误
 
 ## 4. Prometheus 抓取示例

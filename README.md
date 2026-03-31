@@ -153,6 +153,7 @@ ccsw daemon service status
 ccsw daemon service logs --lines 200
 ccsw daemon service follow --lines 100
 ccsw daemon service logs --since "today" --grep "error|warn"
+ccsw daemon service logs --boot -1 --priority warning..alert
 ```
 
 当前稳定命名：

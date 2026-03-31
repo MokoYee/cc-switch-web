@@ -64,8 +64,8 @@ Commands:
   ${DEFAULT_COMMAND_NAME} daemon service install
   ${DEFAULT_COMMAND_NAME} daemon service uninstall
   ${DEFAULT_COMMAND_NAME} daemon service start|stop|restart|status|doctor
-  ${DEFAULT_COMMAND_NAME} daemon service logs [--lines <n>] [--since <expr>] [--until <expr>] [--grep <pattern>]
-  ${DEFAULT_COMMAND_NAME} daemon service follow [--lines <n>] [--since <expr>] [--until <expr>] [--grep <pattern>]
+  ${DEFAULT_COMMAND_NAME} daemon service logs [--lines <n>] [--since <expr>] [--until <expr>] [--grep <pattern>] [--priority <level>] [--boot <offset>]
+  ${DEFAULT_COMMAND_NAME} daemon service follow [--lines <n>] [--since <expr>] [--until <expr>] [--grep <pattern>] [--priority <level>] [--boot <offset>]
   ${DEFAULT_COMMAND_NAME} quickstart <appCode>
   ${DEFAULT_COMMAND_NAME} host scan
   ${DEFAULT_COMMAND_NAME} host matrix
@@ -176,6 +176,23 @@ const readNonEmptyOptionValue = (flagName: string): string | undefined => {
   }
 
   return trimmed;
+};
+
+const readJournalPriorityOption = (): string | undefined => {
+  const value = readNonEmptyOptionValue("--priority");
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const priorityPattern =
+    /^(?:[0-7]|emerg|alert|crit|err|warning|notice|info|debug)(?:\.\.(?:[0-7]|emerg|alert|crit|err|warning|notice|info|debug))?$/;
+  if (!priorityPattern.test(value)) {
+    throw new Error(
+      "--priority must be one of 0-7, emerg|alert|crit|err|warning|notice|info|debug, or a range such as warning..err"
+    );
+  }
+
+  return value;
 };
 
 const readHostTakeoverMode = (): "file-rewrite" | "environment-override" | undefined => {
@@ -470,6 +487,8 @@ const buildJournalctlUserArgs = (follow: boolean): string[] => {
   const since = readNonEmptyOptionValue("--since");
   const until = readNonEmptyOptionValue("--until");
   const grep = readNonEmptyOptionValue("--grep");
+  const priority = readJournalPriorityOption();
+  const boot = readNonEmptyOptionValue("--boot");
   const args = [
     "--user",
     "--unit",
@@ -491,6 +510,14 @@ const buildJournalctlUserArgs = (follow: boolean): string[] => {
 
   if (grep) {
     args.push("--grep", grep);
+  }
+
+  if (priority) {
+    args.push("--priority", priority);
+  }
+
+  if (boot) {
+    args.push("--boot", boot);
   }
 
   if (follow) {
