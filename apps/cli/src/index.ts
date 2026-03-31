@@ -64,8 +64,8 @@ Commands:
   ${DEFAULT_COMMAND_NAME} daemon service install
   ${DEFAULT_COMMAND_NAME} daemon service uninstall
   ${DEFAULT_COMMAND_NAME} daemon service start|stop|restart|status|doctor
-  ${DEFAULT_COMMAND_NAME} daemon service logs [--lines <n>]
-  ${DEFAULT_COMMAND_NAME} daemon service follow [--lines <n>]
+  ${DEFAULT_COMMAND_NAME} daemon service logs [--lines <n>] [--since <expr>] [--until <expr>] [--grep <pattern>]
+  ${DEFAULT_COMMAND_NAME} daemon service follow [--lines <n>] [--since <expr>] [--until <expr>] [--grep <pattern>]
   ${DEFAULT_COMMAND_NAME} quickstart <appCode>
   ${DEFAULT_COMMAND_NAME} host scan
   ${DEFAULT_COMMAND_NAME} host matrix
@@ -162,6 +162,20 @@ const readPositiveIntegerOption = (flagName: string, defaultValue?: number): num
   }
 
   return parsed;
+};
+
+const readNonEmptyOptionValue = (flagName: string): string | undefined => {
+  const value = readOptionValue(flagName);
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    throw new Error(`${flagName} must not be empty`);
+  }
+
+  return trimmed;
 };
 
 const readHostTakeoverMode = (): "file-rewrite" | "environment-override" | undefined => {
@@ -451,10 +465,11 @@ const runSystemctlUser = async (...args: string[]): Promise<void> => {
   });
 };
 
-const runJournalctlUser = async (follow: boolean): Promise<void> => {
-  await ensureSystemdUserAvailable();
-
+const buildJournalctlUserArgs = (follow: boolean): string[] => {
   const lines = readPositiveIntegerOption("--lines", follow ? 100 : 200) ?? (follow ? 100 : 200);
+  const since = readNonEmptyOptionValue("--since");
+  const until = readNonEmptyOptionValue("--until");
+  const grep = readNonEmptyOptionValue("--grep");
   const args = [
     "--user",
     "--unit",
@@ -466,9 +481,29 @@ const runJournalctlUser = async (follow: boolean): Promise<void> => {
     String(lines)
   ];
 
+  if (since) {
+    args.push("--since", since);
+  }
+
+  if (until) {
+    args.push("--until", until);
+  }
+
+  if (grep) {
+    args.push("--grep", grep);
+  }
+
   if (follow) {
     args.push("--follow");
   }
+
+  return args;
+};
+
+const runJournalctlUser = async (follow: boolean): Promise<void> => {
+  const args = buildJournalctlUserArgs(follow);
+
+  await ensureSystemdUserAvailable();
 
   await new Promise<void>((resolvePromise, rejectPromise) => {
     const child = spawn("journalctl", args, {

@@ -105,6 +105,7 @@ ccsw host rollback codex
 ccsw daemon service doctor
 ccsw daemon service logs --lines 200
 ccsw daemon service follow --lines 100
+ccsw daemon service logs --since "today" --grep "error|warn"
 ```
 
 推荐顺序：
@@ -113,6 +114,12 @@ ccsw daemon service follow --lines 100
 2. 如果服务未启动或刚重启失败，执行 `ccsw daemon service logs --lines 200`
 3. 如果要边操作边观察，执行 `ccsw daemon service follow --lines 100`
 4. 日志确认问题后，再回到 `sync-env`、`restart`、`rollback` 等动作
+
+补充说明：
+
+- `--since` / `--until` 直接透传给 `journalctl`，适合按时间窗口缩小范围
+- `--grep` 适合快速聚焦 `error`、`warn`、`EADDRINUSE`、`SQLITE_BUSY` 等关键词
+- `follow` 同样支持 `--grep`，适合边重启边观察关键错误
 
 ## 4. Prometheus 抓取示例
 

@@ -152,6 +152,7 @@ ccsw daemon service install
 ccsw daemon service status
 ccsw daemon service logs --lines 200
 ccsw daemon service follow --lines 100
+ccsw daemon service logs --since "today" --grep "error|warn"
 ```
 
 当前稳定命名：
