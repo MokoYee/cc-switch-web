@@ -57,6 +57,22 @@ const sanitizeForwardHeaders = (request: FastifyRequest): Headers => {
   return headers;
 };
 
+const RESPONSE_HEADER_BLACKLIST = new Set([
+  "content-length",
+  "content-encoding",
+  "transfer-encoding"
+]);
+
+const forwardResponseHeaders = (reply: FastifyReply, headers: Headers): void => {
+  headers.forEach((value, key) => {
+    if (RESPONSE_HEADER_BLACKLIST.has(key.toLowerCase())) {
+      return;
+    }
+
+    reply.header(key, value);
+  });
+};
+
 const buildTargetUrl = (baseUrl: string, suffixPath: string, queryString: string): string => {
   const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
   let normalizedSuffix = suffixPath.startsWith("/") ? suffixPath : `/${suffixPath}`;
@@ -578,13 +594,7 @@ export const registerProxyRoutes = async (
           });
 
           reply.code(upstreamResponse.status);
-          upstreamResponse.headers.forEach((value, key) => {
-            if (key.toLowerCase() === "content-length") {
-              return;
-            }
-
-            reply.header(key, value);
-          });
+          forwardResponseHeaders(reply, upstreamResponse.headers);
 
           if (upstreamResponse.body === null) {
             reply.send();
@@ -635,13 +645,7 @@ export const registerProxyRoutes = async (
         });
 
         reply.code(upstreamResponse.status);
-        upstreamResponse.headers.forEach((value, key) => {
-          if (key.toLowerCase() === "content-length") {
-            return;
-          }
-
-          reply.header(key, value);
-        });
+        forwardResponseHeaders(reply, upstreamResponse.headers);
 
         if (upstreamResponse.body === null) {
           reply.send();

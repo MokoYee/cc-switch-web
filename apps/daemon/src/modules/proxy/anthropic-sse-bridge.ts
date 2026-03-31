@@ -59,6 +59,7 @@ export const convertOpenAiChunkToAnthropicEvents = (
     contentType: "text" | "tool_use" | null;
     currentIndex: number;
     stopped: boolean;
+    pendingStopReason: string | null;
     model: string | null;
     inputTokens: number;
     outputTokens: number;
@@ -76,6 +77,7 @@ export const convertOpenAiChunkToAnthropicEvents = (
     if (state.contentOpened) {
       events.push(
         toSseEvent("content_block_stop", {
+          type: "content_block_stop",
           index: state.currentIndex
         })
       );
@@ -85,16 +87,21 @@ export const convertOpenAiChunkToAnthropicEvents = (
     if (!state.stopped) {
       events.push(
         toSseEvent("message_delta", {
+          type: "message_delta",
           delta: {
-            stop_reason: "end_turn",
+            stop_reason: state.pendingStopReason ?? "end_turn",
             stop_sequence: null
           },
           usage: {
-            output_tokens: 0
+            output_tokens: state.outputTokens
           }
         })
       );
-      events.push(toSseEvent("message_stop", {}));
+      events.push(
+        toSseEvent("message_stop", {
+          type: "message_stop"
+        })
+      );
       state.stopped = true;
     }
     return events;
@@ -145,10 +152,11 @@ export const convertOpenAiChunkToAnthropicEvents = (
       }
       state.currentIndex = 0;
       events.push(
-        toSseEvent("content_block_start", {
-          index: state.currentIndex,
-          content_block: {
-            type: "text",
+      toSseEvent("content_block_start", {
+        type: "content_block_start",
+        index: state.currentIndex,
+        content_block: {
+          type: "text",
             text: ""
           }
         })
@@ -159,6 +167,7 @@ export const convertOpenAiChunkToAnthropicEvents = (
 
     events.push(
       toSseEvent("content_block_delta", {
+        type: "content_block_delta",
         index: state.currentIndex,
         delta: {
           type: "text_delta",
@@ -187,6 +196,7 @@ export const convertOpenAiChunkToAnthropicEvents = (
       if (state.contentOpened) {
         events.push(
           toSseEvent("content_block_stop", {
+            type: "content_block_stop",
             index: state.currentIndex
           })
         );
@@ -194,6 +204,7 @@ export const convertOpenAiChunkToAnthropicEvents = (
       state.currentIndex = toolIndex;
       events.push(
         toSseEvent("content_block_start", {
+          type: "content_block_start",
           index: toolIndex,
           content_block: {
             type: "tool_use",
@@ -211,6 +222,7 @@ export const convertOpenAiChunkToAnthropicEvents = (
     if (partialArguments.length > 0) {
       events.push(
         toSseEvent("content_block_delta", {
+          type: "content_block_delta",
           index: toolIndex,
           delta: {
             type: "input_json_delta",
@@ -225,26 +237,14 @@ export const convertOpenAiChunkToAnthropicEvents = (
     if (state.contentOpened) {
       events.push(
         toSseEvent("content_block_stop", {
+          type: "content_block_stop",
           index: state.currentIndex
         })
       );
       state.contentOpened = false;
       state.contentType = null;
     }
-
-    events.push(
-      toSseEvent("message_delta", {
-        delta: {
-          stop_reason: mapStopReason(choice.finish_reason),
-          stop_sequence: null
-        },
-        usage: {
-          output_tokens: state.outputTokens
-        }
-      })
-    );
-    events.push(toSseEvent("message_stop", {}));
-    state.stopped = true;
+    state.pendingStopReason = mapStopReason(choice.finish_reason);
   }
 
   return events;
@@ -258,6 +258,7 @@ export class AnthropicSseBridgeTransform extends Transform {
     contentType: null as "text" | "tool_use" | null,
     currentIndex: 0,
     stopped: false,
+    pendingStopReason: null as string | null,
     model: null as string | null,
     inputTokens: 0,
     outputTokens: 0,

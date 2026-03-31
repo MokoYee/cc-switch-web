@@ -10,11 +10,18 @@ import { ProviderRepository } from "../providers/provider-repository.js";
 import { ProxyRuntimeService } from "./proxy-runtime-service.js";
 import { registerProxyRoutes, shouldAttemptProxyFailover } from "./proxy-http-handler.js";
 
-const createProxyTestContext = async (): Promise<{
+const textEncoder = new TextEncoder();
+
+const createProxyTestContext = async (options?: {
+  readonly appCode?: "codex" | "claude-code";
+  readonly enableFailover?: boolean;
+}): Promise<{
   readonly app: ReturnType<typeof Fastify>;
   readonly database: ReturnType<typeof openDatabase>;
   readonly proxyRuntimeService: ProxyRuntimeService;
 }> => {
+  const appCode = options?.appCode ?? "codex";
+  const enableFailover = options?.enableFailover ?? appCode === "codex";
   const database = openDatabase(":memory:");
   const providerRepository = new ProviderRepository(database);
   const bindingRepository = new BindingRepository(database);
@@ -39,19 +46,21 @@ const createProxyTestContext = async (): Promise<{
     timeoutMs: 30_000
   });
   bindingRepository.upsert({
-    id: "binding-codex",
-    appCode: "codex",
+    id: `binding-${appCode}`,
+    appCode,
     providerId: "provider-primary",
     mode: "managed"
   });
-  failoverChainRepository.upsert({
-    id: "failover-codex",
-    appCode: "codex",
-    enabled: true,
-    providerIds: ["provider-failover"],
-    cooldownSeconds: 30,
-    maxAttempts: 2
-  });
+  if (enableFailover) {
+    failoverChainRepository.upsert({
+      id: `failover-${appCode}`,
+      appCode,
+      enabled: true,
+      providerIds: ["provider-failover"],
+      cooldownSeconds: 30,
+      maxAttempts: 2
+    });
+  }
 
   const proxyRuntimeService = new ProxyRuntimeService(
     database,
@@ -229,6 +238,313 @@ test("terminates on upstream 401 without failover and records terminal error", a
     assert.equal(logs.items[0]?.providerId, "provider-primary");
     assert.equal(logs.items[0]?.outcome, "error");
     assert.equal(logs.items[0]?.statusCode, 401);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await context.app.close();
+    context.database.close();
+  }
+});
+
+test("strips stale encoding headers after bridging claude responses", async () => {
+  const context = await createProxyTestContext({
+    appCode: "claude-code",
+    enableFailover: false
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        id: "chatcmpl-test",
+        model: "gpt-4o-mini",
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              role: "assistant",
+              content: "OK"
+            }
+          }
+        ],
+        usage: {
+          prompt_tokens: 22,
+          completion_tokens: 11,
+          total_tokens: 33
+        }
+      }),
+      {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "content-encoding": "gzip",
+          "transfer-encoding": "chunked",
+          "x-request-id": "bridge-header-test"
+        }
+      }
+    );
+
+  try {
+    const response = await context.app.inject({
+      method: "POST",
+      url: "/proxy/claude-code/v1/messages?beta=true",
+      payload: {
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Reply with exactly OK."
+              }
+            ]
+          }
+        ]
+      }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["content-encoding"], undefined);
+    assert.equal(response.headers["transfer-encoding"], undefined);
+    assert.equal(response.headers["x-request-id"], "bridge-header-test");
+
+    const parsed = JSON.parse(response.body) as {
+      content: Array<{ type: string; text: string }>;
+    };
+    assert.deepEqual(parsed.content, [{ type: "text", text: "OK" }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await context.app.close();
+    context.database.close();
+  }
+});
+
+test("bridges claude streaming responses with late usage into anthropic SSE events", async () => {
+  const context = await createProxyTestContext({
+    appCode: "claude-code",
+    enableFailover: false
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            textEncoder.encode(
+              'data: {"id":"chatcmpl-stream","model":"gpt-5.4","choices":[{"delta":{"content":"OK"},"finish_reason":"stop"}]}\n\n'
+            )
+          );
+          controller.enqueue(
+            textEncoder.encode(
+              'data: {"choices":[],"usage":{"prompt_tokens":22,"completion_tokens":11,"total_tokens":33}}\n\n'
+            )
+          );
+          controller.enqueue(textEncoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        }
+      }),
+      {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream"
+        }
+      }
+    );
+
+  try {
+    const response = await context.app.inject({
+      method: "POST",
+      url: "/proxy/claude-code/v1/messages?beta=true",
+      payload: {
+        model: "gpt-5.4",
+        stream: true,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Reply with exactly OK."
+              }
+            ]
+          }
+        ]
+      }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["content-type"], "text/event-stream; charset=utf-8");
+    assert.match(response.body, /event: message_start/);
+    assert.match(response.body, /"type":"content_block_start"/);
+    assert.match(response.body, /"type":"content_block_delta"/);
+    assert.match(response.body, /"text":"OK"/);
+    assert.match(response.body, /"type":"message_delta"/);
+    assert.match(response.body, /"output_tokens":11/);
+    assert.match(response.body, /"type":"message_stop"/);
+
+    const usage = context.proxyRuntimeService.listUsageRecords({
+      limit: 10,
+      offset: 0
+    });
+    assert.equal(usage.items.length, 1);
+    assert.equal(usage.items[0]?.providerId, "provider-primary");
+    assert.equal(usage.items[0]?.model, "gpt-5.4");
+    assert.equal(usage.items[0]?.inputTokens, 22);
+    assert.equal(usage.items[0]?.outputTokens, 11);
+    assert.equal(usage.items[0]?.totalTokens, 33);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await context.app.close();
+    context.database.close();
+  }
+});
+
+test("bridges claude tool-use streaming responses with late usage into anthropic SSE events", async () => {
+  const context = await createProxyTestContext({
+    appCode: "claude-code",
+    enableFailover: false
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            textEncoder.encode(
+              'data: {"id":"chatcmpl-tool","model":"gpt-5.4","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_123","type":"function","function":{"name":"get_weather","arguments":"{\\"city\\":\\"Sh"}}]},"finish_reason":null}]}\n\n'
+            )
+          );
+          controller.enqueue(
+            textEncoder.encode(
+              'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"anghai\\"}"}}]},"finish_reason":"tool_calls"}]}\n\n'
+            )
+          );
+          controller.enqueue(
+            textEncoder.encode(
+              'data: {"choices":[],"usage":{"prompt_tokens":30,"completion_tokens":12,"total_tokens":42}}\n\n'
+            )
+          );
+          controller.enqueue(textEncoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        }
+      }),
+      {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream"
+        }
+      }
+    );
+
+  try {
+    const response = await context.app.inject({
+      method: "POST",
+      url: "/proxy/claude-code/v1/messages?beta=true",
+      payload: {
+        model: "gpt-5.4",
+        stream: true,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Use a tool."
+              }
+            ]
+          }
+        ]
+      }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["content-type"], "text/event-stream; charset=utf-8");
+    assert.match(response.body, /event: content_block_start/);
+    assert.match(response.body, /"type":"tool_use"/);
+    assert.match(response.body, /"name":"get_weather"/);
+    assert.match(response.body, /"type":"content_block_delta"/);
+    assert.match(response.body, /"partial_json":"\{\\\"city\\\":\\\"Sh"/);
+    assert.match(response.body, /"partial_json":"anghai\\\"\}"/);
+    assert.match(response.body, /"stop_reason":"tool_use"/);
+    assert.match(response.body, /"output_tokens":12/);
+    assert.match(response.body, /"type":"message_stop"/);
+
+    const usage = context.proxyRuntimeService.listUsageRecords({
+      limit: 10,
+      offset: 0
+    });
+    assert.equal(usage.items.length, 1);
+    assert.equal(usage.items[0]?.providerId, "provider-primary");
+    assert.equal(usage.items[0]?.model, "gpt-5.4");
+    assert.equal(usage.items[0]?.inputTokens, 30);
+    assert.equal(usage.items[0]?.outputTokens, 12);
+    assert.equal(usage.items[0]?.totalTokens, 42);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await context.app.close();
+    context.database.close();
+  }
+});
+
+test("bridges claude streaming responses without usage chunks and still closes anthropic SSE cleanly", async () => {
+  const context = await createProxyTestContext({
+    appCode: "claude-code",
+    enableFailover: false
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            textEncoder.encode(
+              'data: {"id":"chatcmpl-no-usage","model":"gpt-5.4","choices":[{"delta":{"content":"OK"},"finish_reason":"stop"}]}\n\n'
+            )
+          );
+          controller.enqueue(textEncoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        }
+      }),
+      {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream"
+        }
+      }
+    );
+
+  try {
+    const response = await context.app.inject({
+      method: "POST",
+      url: "/proxy/claude-code/v1/messages?beta=true",
+      payload: {
+        model: "gpt-5.4",
+        stream: true,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Reply with exactly OK."
+              }
+            ]
+          }
+        ]
+      }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["content-type"], "text/event-stream; charset=utf-8");
+    assert.match(response.body, /"type":"content_block_delta"/);
+    assert.match(response.body, /"type":"message_delta"/);
+    assert.match(response.body, /"output_tokens":0/);
+    assert.match(response.body, /"type":"message_stop"/);
+
+    const usage = context.proxyRuntimeService.listUsageRecords({
+      limit: 10,
+      offset: 0
+    });
+    assert.equal(usage.items.length, 0);
   } finally {
     globalThis.fetch = originalFetch;
     await context.app.close();
