@@ -264,6 +264,9 @@ const initializeSchema = (database: SqliteDatabase): void => {
   `);
 
   ensureColumn(database, "providers", "api_key_plaintext", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "providers", "default_model", "TEXT");
+  ensureColumn(database, "providers", "model_mapping_json", "TEXT NOT NULL DEFAULT '{}'");
+  ensureColumn(database, "providers", "responses_api_mode", "TEXT NOT NULL DEFAULT 'auto'");
   ensureColumn(database, "app_bindings", "prompt_template_id", "TEXT");
   ensureColumn(database, "app_bindings", "skill_id", "TEXT");
   ensureColumn(database, "proxy_request_logs", "workspace_id", "TEXT");

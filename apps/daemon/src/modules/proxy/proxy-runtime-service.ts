@@ -122,6 +122,9 @@ export interface ProxyBindingRuntime {
   readonly upstreamBaseUrl: string;
   readonly hasCredential: boolean;
   readonly timeoutMs: number;
+  readonly defaultModel: string | null;
+  readonly modelMapping: Readonly<Record<string, string>>;
+  readonly responsesApiMode: "auto" | "passthrough" | "bridge";
   readonly proxyBasePath: string;
   readonly failoverEnabled: boolean;
   readonly failoverTargets: string[];
@@ -441,6 +444,9 @@ export class ProxyRuntimeService {
           upstreamBaseUrl: provider.baseUrl,
           hasCredential: provider.apiKeyPlaintext.trim().length > 0,
           timeoutMs: provider.timeoutMs,
+          defaultModel: provider.defaultModel,
+          modelMapping: provider.modelMapping,
+          responsesApiMode: provider.responsesApiMode,
           proxyBasePath: `/proxy/${binding.appCode}`,
           failoverEnabled: chain?.enabled ?? false,
           failoverTargets: chain?.providerIds ?? [binding.providerId],
@@ -503,6 +509,9 @@ export class ProxyRuntimeService {
         upstreamBaseUrl: provider.baseUrl,
         hasCredential: provider.apiKeyPlaintext.trim().length > 0,
         timeoutMs: provider.timeoutMs,
+        defaultModel: provider.defaultModel,
+        modelMapping: provider.modelMapping,
+        responsesApiMode: provider.responsesApiMode,
         proxyBasePath: `/proxy/${appCode}`,
         failoverEnabled: options.failoverEnabled,
         failoverTargets: providerOrder,

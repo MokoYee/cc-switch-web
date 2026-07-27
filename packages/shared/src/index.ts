@@ -18,6 +18,13 @@ export const appCodeSchema = z.enum([
 
 export const localeCodeSchema = z.enum(["zh-CN", "en-US"]);
 
+export const providerModelMappingSchema = z.record(
+  z.string().min(1),
+  z.string().min(1)
+);
+
+export const providerResponsesApiModeSchema = z.enum(["auto", "passthrough", "bridge"]);
+
 export const providerSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -26,6 +33,9 @@ export const providerSchema = z.object({
   apiKeyMasked: z.string(),
   enabled: z.boolean(),
   timeoutMs: z.number().int().positive(),
+  defaultModel: z.string().min(1).nullable().default(null),
+  modelMapping: providerModelMappingSchema.default({}),
+  responsesApiMode: providerResponsesApiModeSchema.default("auto"),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
 });
@@ -39,7 +49,10 @@ export const providerUpsertSchema = providerSchema.pick({
   timeoutMs: true
 }).extend({
   apiKey: z.string().trim().optional().default(""),
-  apiKeyMasked: z.string().trim().optional()
+  apiKeyMasked: z.string().trim().optional(),
+  defaultModel: z.string().trim().nullable().optional(),
+  modelMapping: providerModelMappingSchema.optional(),
+  responsesApiMode: providerResponsesApiModeSchema.optional()
 });
 
 export const exportProviderSchema = providerSchema.extend({
@@ -1572,6 +1585,7 @@ export const proxyRequestDecisionReasonSchema = z.enum([
   "upstream-unavailable",
   "timeout",
   "network",
+  "local-bridge-response",
   "unknown"
 ]);
 
