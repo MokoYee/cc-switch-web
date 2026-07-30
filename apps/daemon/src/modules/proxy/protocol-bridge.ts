@@ -93,6 +93,7 @@ interface OpenAiChatResponse {
     message?: {
       role?: string;
       content?: string | null;
+      reasoning_content?: string;
       tool_calls?: Array<{
         id?: string;
         type?: string;
@@ -244,20 +245,30 @@ const toOpenAiMessages = (body: AnthropicRequestBody): OpenAiChatRequestBody["me
         }))
       };
       messages.push(assistantRecord);
-    } else if (multimodalContent.length > 0) {
-      messages.push({
-        role: message.role,
-        content: multimodalContent.length === 1 && multimodalContent[0]?.type === "text"
-          ? multimodalContent[0].text
-          : multimodalContent
-      });
     }
 
+    // Tool results must come BEFORE user text to comply with OpenAI format.
+    // In OpenAI, `role: "tool"` messages must immediately follow the
+    // assistant message that produced the tool_calls, before any subsequent
+    // user message.
     for (const block of toolResultBlocks) {
       messages.push({
         role: "tool",
         tool_call_id: block.tool_use_id,
         content: extractToolResultText(block)
+      });
+    }
+
+    // User text/image content — only for non-tool_use messages
+    // (tool_use messages are handled above).
+    // This must come AFTER tool results so `role: "tool"` messages
+    // directly follow the preceding assistant.
+    if (toolUseBlocks.length === 0 && multimodalContent.length > 0) {
+      messages.push({
+        role: message.role,
+        content: multimodalContent.length === 1 && multimodalContent[0]?.type === "text"
+          ? multimodalContent[0].text
+          : multimodalContent
       });
     }
   }
@@ -420,7 +431,19 @@ const toAnthropicResponse = (
 ): Record<string, unknown> => {
   const message = upstream.choices?.[0]?.message;
   const textContent = typeof message?.content === "string" ? message.content : "";
+  const reasoningContent = typeof message?.reasoning_content === "string"
+    ? message.reasoning_content
+    : "";
   const contentBlocks: Array<Record<string, unknown>> = [];
+
+  // reasoning_content from DeepSeek/thinking models → thinking block
+  if (reasoningContent.length > 0) {
+    contentBlocks.push({
+      type: "thinking",
+      thinking: reasoningContent,
+      signature: `sig_${randomUUID().replace(/-/g, "")}`
+    });
+  }
 
   if (textContent.length > 0) {
     contentBlocks.push({

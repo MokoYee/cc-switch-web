@@ -394,3 +394,104 @@ test("does not bridge anthropic requests for native anthropic providers", () => 
   assert.equal(result.upstreamPath, "/v1/messages");
   assert.equal(result.responseProtocol, "openai");
 });
+
+test("emits tool_result messages BEFORE user text when user message has both", () => {
+  const request = {
+    body: {
+      model: "claude-3-7-sonnet",
+      messages: [
+        {
+          role: "user",
+          content: [{ type: "text", text: "Weather?" }]
+        },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_123",
+              name: "get_weather",
+              input: { city: "Shanghai" }
+            }
+          ]
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Now I'll process this result" },
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_123",
+              content: "sunny"
+            }
+          ]
+        }
+      ]
+    }
+  } as Parameters<typeof buildBridgedRequest>[0];
+
+  const result = buildBridgedRequest(request, createTarget(), "/v1/messages");
+  const parsed = JSON.parse(result.upstreamBody ?? "{}") as {
+    messages: Array<Record<string, unknown>>;
+  };
+
+  // Assistant with tool_calls comes first
+  assert.deepEqual(parsed.messages[1], {
+    role: "assistant",
+    content: null,
+    tool_calls: [
+      {
+        id: "toolu_123",
+        type: "function",
+        function: {
+          name: "get_weather",
+          arguments: '{"city":"Shanghai"}'
+        }
+      }
+    ]
+  });
+  // Tool result must come BEFORE user text
+  assert.equal((parsed.messages[2] as Record<string, unknown>).role, "tool");
+  assert.equal((parsed.messages[2] as Record<string, unknown>).tool_call_id, "toolu_123");
+  assert.equal((parsed.messages[2] as Record<string, unknown>).content, "sunny");
+  // User text must come AFTER tool result
+  assert.equal((parsed.messages[3] as Record<string, unknown>).role, "user");
+  assert.equal((parsed.messages[3] as Record<string, unknown>).content, "Now I'll process this result");
+});
+
+test("preserves reasoning_content as thinking block in anthropic response", () => {
+  const upstreamBody = JSON.stringify({
+    id: "chatcmpl-test",
+    model: "deepseek-v4-flash",
+    choices: [
+      {
+        finish_reason: "stop",
+        message: {
+          role: "assistant",
+          content: "The answer is 42.",
+          reasoning_content: "Let me think about this step by step."
+        }
+      }
+    ],
+    usage: {
+      prompt_tokens: 10,
+      completion_tokens: 8
+    }
+  });
+
+  const result = buildBridgedResponseBody("anthropic", upstreamBody, {
+    model: "deepseek-v4-flash",
+    messages: [{ role: "user", content: "What is the answer?" }]
+  });
+  const parsed = JSON.parse(result) as {
+    content: Array<{ type: string; thinking?: string; text?: string }>;
+  };
+
+  // First block must be the thinking block with valid signature
+  assert.equal(parsed.content[0]?.type, "thinking");
+  assert.equal(parsed.content[0]?.thinking, "Let me think about this step by step.");
+  assert.match(parsed.content[0]?.signature ?? "", /^sig_/);
+  // Second block must be the text
+  assert.equal(parsed.content[1]?.type, "text");
+  assert.equal(parsed.content[1]?.text, "The answer is 42.");
+});

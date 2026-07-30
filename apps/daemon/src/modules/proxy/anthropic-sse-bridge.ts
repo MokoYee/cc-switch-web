@@ -12,6 +12,8 @@ interface OpenAiStreamChunk {
     index?: number;
     delta?: {
       content?: string;
+      reasoning_content?: string;
+      role?: string;
       tool_calls?: Array<{
         index?: number;
         id?: string;
@@ -56,8 +58,10 @@ export const convertOpenAiChunkToAnthropicEvents = (
   state: {
     started: boolean;
     contentOpened: boolean;
-    contentType: "text" | "tool_use" | null;
+    contentType: "text" | "tool_use" | "thinking" | null;
     currentIndex: number;
+    thinkingBlockOpened: boolean;
+    thinkingIndex: number;
     stopped: boolean;
     pendingStopReason: string | null;
     model: string | null;
@@ -75,6 +79,19 @@ export const convertOpenAiChunkToAnthropicEvents = (
   if (payload === "[DONE]") {
     const events: string[] = [];
     if (state.contentOpened) {
+      // Emit signature_delta before closing if this is a thinking block
+      if (state.contentType === "thinking") {
+        events.push(
+          toSseEvent("content_block_delta", {
+            type: "content_block_delta",
+            index: state.currentIndex,
+            delta: {
+              type: "signature_delta",
+              signature: ""
+            }
+          })
+        );
+      }
       events.push(
         toSseEvent("content_block_stop", {
           type: "content_block_stop",
@@ -141,7 +158,76 @@ export const convertOpenAiChunkToAnthropicEvents = (
   }
 
   const deltaText = choice?.delta?.content ?? "";
+  const deltaReasoning = choice?.delta?.reasoning_content ?? "";
+
+  // reasoning_content from DeepSeek/thinking models → thinking block
+  if (deltaReasoning.length > 0) {
+    // If a different content type (text/tool_use) was open, close it first
+    if (state.contentOpened && state.contentType !== "thinking") {
+      events.push(
+        toSseEvent("content_block_stop", {
+          type: "content_block_stop",
+          index: state.currentIndex
+        })
+      );
+      state.contentOpened = false;
+      state.contentType = null;
+    }
+
+    if (!state.contentOpened || state.contentType !== "thinking") {
+      state.thinkingIndex++;
+      events.push(
+        toSseEvent("content_block_start", {
+          type: "content_block_start",
+          index: state.thinkingIndex,
+          content_block: {
+            type: "thinking",
+            thinking: ""
+          }
+        })
+      );
+      state.currentIndex = state.thinkingIndex;
+      state.contentOpened = true;
+      state.contentType = "thinking";
+      state.thinkingBlockOpened = true;
+    }
+
+    events.push(
+      toSseEvent("content_block_delta", {
+        type: "content_block_delta",
+        index: state.currentIndex,
+        delta: {
+          type: "thinking_delta",
+          thinking: deltaReasoning
+        }
+      })
+    );
+  }
+
   if (deltaText.length > 0) {
+    // If a thinking block is open, close it before emitting text
+    if (state.contentOpened && state.contentType === "thinking") {
+      // Emit signature_delta before closing (Anthropic SSE protocol requires it)
+      events.push(
+        toSseEvent("content_block_delta", {
+          type: "content_block_delta",
+          index: state.currentIndex,
+          delta: {
+            type: "signature_delta",
+            signature: ""
+          }
+        })
+      );
+      events.push(
+        toSseEvent("content_block_stop", {
+          type: "content_block_stop",
+          index: state.currentIndex
+        })
+      );
+      state.contentOpened = false;
+      state.contentType = null;
+      state.thinkingBlockOpened = false;
+    }
     if (!state.contentOpened || state.contentType !== "text") {
       if (state.contentOpened) {
         events.push(
@@ -150,7 +236,8 @@ export const convertOpenAiChunkToAnthropicEvents = (
           })
         );
       }
-      state.currentIndex = 0;
+      // Use next available index when following a thinking block
+      state.currentIndex = state.thinkingIndex >= 0 ? state.thinkingIndex + 1 : 0;
       events.push(
       toSseEvent("content_block_start", {
         type: "content_block_start",
@@ -255,8 +342,10 @@ export class AnthropicSseBridgeTransform extends Transform {
   private readonly state = {
     started: false,
     contentOpened: false,
-    contentType: null as "text" | "tool_use" | null,
+    contentType: null as "text" | "tool_use" | "thinking" | null,
     currentIndex: 0,
+    thinkingBlockOpened: false,
+    thinkingIndex: -1,
     stopped: false,
     pendingStopReason: null as string | null,
     model: null as string | null,

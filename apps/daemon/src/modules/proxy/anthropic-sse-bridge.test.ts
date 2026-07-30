@@ -5,19 +5,24 @@ import { AnthropicSseBridgeTransform, convertOpenAiChunkToAnthropicEvents } from
 
 const toDataLine = (payload: unknown): string => `data: ${JSON.stringify(payload)}`;
 
+const newState = (overrides: Record<string, unknown> = {}) => ({
+  started: false,
+  contentOpened: false,
+  contentType: null,
+  currentIndex: 0,
+  thinkingBlockOpened: false,
+  thinkingIndex: -1,
+  stopped: false,
+  pendingStopReason: null,
+  model: null,
+  inputTokens: 0,
+  outputTokens: 0,
+  toolStates: new Map(),
+  ...overrides
+});
+
 test("converts openai text deltas into anthropic SSE events", () => {
-  const state = {
-    started: false,
-    contentOpened: false,
-    contentType: null,
-    currentIndex: 0,
-    stopped: false,
-    pendingStopReason: null,
-    model: null,
-    inputTokens: 0,
-    outputTokens: 0,
-    toolStates: new Map()
-  };
+  const state = newState();
   const context = {
     fallbackModel: "claude-3-7-sonnet",
     fallbackMessageId: "msg_test"
@@ -54,18 +59,7 @@ test("converts openai text deltas into anthropic SSE events", () => {
 });
 
 test("converts openai tool call deltas into anthropic tool_use SSE events", () => {
-  const state = {
-    started: false,
-    contentOpened: false,
-    contentType: null,
-    currentIndex: 0,
-    stopped: false,
-    pendingStopReason: null,
-    model: null,
-    inputTokens: 0,
-    outputTokens: 0,
-    toolStates: new Map()
-  };
+  const state = newState();
   const context = {
     fallbackModel: "claude-3-7-sonnet",
     fallbackMessageId: "msg_test"
@@ -156,18 +150,7 @@ test("captures usage from upstream SSE chunks", async () => {
 });
 
 test("converts multiple openai tool call indices into distinct anthropic tool_use blocks", () => {
-  const state = {
-    started: false,
-    contentOpened: false,
-    contentType: null,
-    currentIndex: 0,
-    stopped: false,
-    pendingStopReason: null,
-    model: null,
-    inputTokens: 0,
-    outputTokens: 0,
-    toolStates: new Map()
-  };
+  const state = newState();
   const context = {
     fallbackModel: "claude-3-7-sonnet",
     fallbackMessageId: "msg_test"
@@ -268,4 +251,82 @@ test("emits final anthropic stop events even when upstream stream has no usage c
   assert.match(combined, /"output_tokens":0/);
   assert.match(combined, /"type":"message_stop"/);
   assert.equal(transform.getUsageSnapshot(), null);
+});
+
+test("converts reasoning_content deltas into thinking block SSE events", () => {
+  const state = newState();
+  const context = {
+    fallbackModel: "deepseek-v4-flash",
+    fallbackMessageId: "msg_test"
+  };
+
+  // First chunk: reasoning_content starts
+  const first = convertOpenAiChunkToAnthropicEvents(
+    toDataLine({
+      id: "chatcmpl-reason",
+      choices: [
+        {
+          delta: {
+            role: "assistant",
+            reasoning_content: "Let me think about"
+          }
+        }
+      ]
+    }),
+    context,
+    state
+  );
+
+  // Second chunk: more reasoning
+  const second = convertOpenAiChunkToAnthropicEvents(
+    toDataLine({
+      choices: [
+        {
+          delta: {
+            reasoning_content: " this step by step."
+          }
+        }
+      ]
+    }),
+    context,
+    state
+  );
+
+  // Third chunk: now actual text (thinking block should close)
+  const third = convertOpenAiChunkToAnthropicEvents(
+    toDataLine({
+      choices: [
+        {
+          delta: {
+            content: "Here is the result."
+          },
+          finish_reason: "stop"
+        }
+      ]
+    }),
+    context,
+    state
+  );
+
+  const done = convertOpenAiChunkToAnthropicEvents("data: [DONE]", context, state);
+  const combined = [...first, ...second, ...third, ...done].join("");
+
+  // Should have message_start
+  assert.match(combined, /event: message_start/);
+  // Should have thinking content_block_start
+  assert.match(combined, /"type":"thinking"/);
+  // Should have thinking_delta events
+  assert.match(combined, /"type":"thinking_delta"/);
+  assert.match(combined, /Let me think about/);
+  assert.match(combined, /this step by step\./);
+  // Should have signature_delta before content_block_stop
+  assert.match(combined, /"type":"signature_delta"/);
+  assert.match(combined, /"signature":""/);
+  // Thinking block should close before text
+  assert.match(combined, /"type":"content_block_stop"/);
+  // After thinking closes, text should appear
+  assert.match(combined, /Here is the result\./);
+  // Final stop events
+  assert.match(combined, /"stop_reason":"end_turn"/);
+  assert.match(combined, /"type":"message_stop"/);
 });
