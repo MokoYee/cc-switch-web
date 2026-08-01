@@ -97,6 +97,11 @@ ccsw host rollback codex
 - 如果当前 shell 已经残留旧变量，先执行 apply 返回的清理命令，再重新激活
 - `gemini-cli` 当前不在 takeover 可交付范围内，原因是代理主链路尚未提供 Gemini API / Gateway 适配
 
+接第三方 Provider（非官方 OpenAI / Anthropic）时的两条要点：
+
+- 在控制台 Provider 表单为该 Provider 配置“默认上游模型”或模型映射（如 `claude-sonnet-4-5 = deepseek-chat`），否则 CLI 发送的官方模型名会被第三方上游拒绝，请求日志里会出现 `invalid-request`。
+- `codex` 走 `/v1/responses`；`responsesApiMode` 保持 `auto` 即可（官方 OpenAI 直通、其余上游自动桥接到 `chat/completions`），如上游确认原生支持 Responses API，可切换为 `passthrough`。
+
 ## 3.5 服务日志与诊断闭环
 
 常用命令：

@@ -14,6 +14,9 @@ const createTarget = (providerType: RuntimeTarget["providerType"] = "openai-comp
   upstreamBaseUrl: "http://127.0.0.1:18093/v1",
   hasCredential: true,
   timeoutMs: 30000,
+  defaultModel: null,
+  modelMapping: {},
+  responsesApiMode: "auto",
   proxyBasePath: "/proxy/claude-code",
   failoverEnabled: false,
   failoverTargets: ["provider-1"],
@@ -395,35 +398,118 @@ test("does not bridge anthropic requests for native anthropic providers", () => 
   assert.equal(result.responseProtocol, "openai");
 });
 
-test("emits tool_result messages BEFORE user text when user message has both", () => {
+test("applies provider model mapping when bridging anthropic requests", () => {
   const request = {
     body: {
-      model: "claude-3-7-sonnet",
+      model: "claude-sonnet-4-5",
+      messages: [{ role: "user", content: "map me" }]
+    }
+  } as Parameters<typeof buildBridgedRequest>[0];
+
+  const target = {
+    ...createTarget(),
+    modelMapping: { "claude-sonnet-4-5": "deepseek-chat" }
+  };
+  const result = buildBridgedRequest(request, target, "/v1/messages");
+  const parsed = JSON.parse(result.upstreamBody ?? "{}") as { model: string };
+  assert.equal(parsed.model, "deepseek-chat");
+});
+
+test("falls back to provider default model for unmapped models", () => {
+  const request = {
+    body: {
+      model: "claude-haiku-4-5",
+      messages: [{ role: "user", content: "fallback" }]
+    }
+  } as Parameters<typeof buildBridgedRequest>[0];
+
+  const target = {
+    ...createTarget(),
+    defaultModel: "kimi-k2",
+    modelMapping: { "claude-sonnet-4-5": "deepseek-chat" }
+  };
+  const result = buildBridgedRequest(request, target, "/v1/messages");
+  const parsed = JSON.parse(result.upstreamBody ?? "{}") as { model: string };
+  assert.equal(parsed.model, "kimi-k2");
+});
+
+test("rewrites model on openai chat completions passthrough", () => {
+  const request = {
+    body: {
+      model: "gpt-5",
+      messages: [{ role: "user", content: "hello" }]
+    }
+  } as Parameters<typeof buildBridgedRequest>[0];
+
+  const target = {
+    ...createTarget(),
+    modelMapping: { "gpt-5": "qwen3-coder" }
+  };
+  const result = buildBridgedRequest(request, target, "/v1/chat/completions");
+  assert.equal(result.upstreamPath, "/v1/chat/completions");
+  const parsed = JSON.parse(result.upstreamBody ?? "{}") as { model: string };
+  assert.equal(parsed.model, "qwen3-coder");
+});
+
+test("keeps requested model when no mapping or default model exists", () => {
+  const request = {
+    body: {
+      model: "claude-sonnet-4-5",
+      messages: [{ role: "user", content: "unchanged" }]
+    }
+  } as Parameters<typeof buildBridgedRequest>[0];
+
+  const result = buildBridgedRequest(request, createTarget(), "/v1/messages");
+  const parsed = JSON.parse(result.upstreamBody ?? "{}") as { model: string };
+  assert.equal(parsed.model, "claude-sonnet-4-5");
+});
+
+test("answers count_tokens locally for openai-compatible targets", () => {
+  const request = {
+    body: {
+      model: "claude-sonnet-4-5",
+      system: "You are helpful.",
+      messages: [{ role: "user", content: "estimate tokens for me" }]
+    }
+  } as Parameters<typeof buildBridgedRequest>[0];
+
+  const result = buildBridgedRequest(request, createTarget(), "/v1/messages/count_tokens");
+  assert.notEqual(result.localResponse, undefined);
+  assert.equal(result.localResponse?.statusCode, 200);
+  const parsed = JSON.parse(result.localResponse?.body ?? "{}") as { input_tokens: number };
+  assert.equal(typeof parsed.input_tokens, "number");
+  assert.ok(parsed.input_tokens >= 1);
+});
+
+test("forwards count_tokens to native anthropic providers", () => {
+  const request = {
+    body: {
+      model: "claude-sonnet-4-5",
+      messages: [{ role: "user", content: "count" }]
+    }
+  } as Parameters<typeof buildBridgedRequest>[0];
+
+  const result = buildBridgedRequest(request, createTarget("anthropic"), "/v1/messages/count_tokens");
+  assert.equal(result.localResponse, undefined);
+  assert.equal(result.upstreamPath, "/v1/messages/count_tokens");
+});
+
+test("emits tool results before trailing user text from the same anthropic turn", () => {
+  const request = {
+    body: {
+      model: "claude-sonnet-4-5",
       messages: [
-        {
-          role: "user",
-          content: [{ type: "text", text: "Weather?" }]
-        },
         {
           role: "assistant",
           content: [
-            {
-              type: "tool_use",
-              id: "toolu_123",
-              name: "get_weather",
-              input: { city: "Shanghai" }
-            }
+            { type: "tool_use", id: "toolu_1", name: "read_file", input: { path: "a.txt" } }
           ]
         },
         {
           role: "user",
           content: [
-            { type: "text", text: "Now I'll process this result" },
-            {
-              type: "tool_result",
-              tool_use_id: "toolu_123",
-              content: "sunny"
-            }
+            { type: "text", text: "additional user reminder" },
+            { type: "tool_result", tool_use_id: "toolu_1", content: "file body" }
           ]
         }
       ]
@@ -432,66 +518,109 @@ test("emits tool_result messages BEFORE user text when user message has both", (
 
   const result = buildBridgedRequest(request, createTarget(), "/v1/messages");
   const parsed = JSON.parse(result.upstreamBody ?? "{}") as {
+    messages: Array<{ role: string; tool_call_id?: string; content: unknown }>;
+  };
+
+  const roles = parsed.messages.map((item) => item.role);
+  assert.deepEqual(roles, ["assistant", "tool", "user"]);
+  assert.equal(parsed.messages[1]?.tool_call_id, "toolu_1");
+  assert.equal(parsed.messages[2]?.content, "additional user reminder");
+});
+
+test("round trips DeepSeek reasoning_content for assistant tool calls", () => {
+  const bridgedResponse = JSON.parse(
+    buildBridgedResponseBody(
+      "anthropic",
+      JSON.stringify({
+        id: "chatcmpl-deepseek",
+        model: "deepseek-reasoner",
+        choices: [{
+          finish_reason: "tool_calls",
+          message: {
+            role: "assistant",
+            content: null,
+            reasoning_content: "I need the current weather before answering.",
+            tool_calls: [{
+              id: "call_weather",
+              type: "function",
+              function: {
+                name: "get_weather",
+                arguments: '{"city":"Shanghai"}'
+              }
+            }]
+          }
+        }]
+      }),
+      {
+        model: "claude-sonnet-4-5",
+        messages: [{ role: "user", content: "How is the weather?" }]
+      }
+    )
+  ) as { content: Array<Record<string, unknown>> };
+
+  assert.deepEqual(bridgedResponse.content[0], {
+    type: "thinking",
+    thinking: "I need the current weather before answering."
+  });
+
+  const followUpRequest = {
+    body: {
+      model: "claude-sonnet-4-5",
+      messages: [
+        { role: "assistant", content: bridgedResponse.content },
+        {
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: "call_weather", content: "Sunny" }]
+        }
+      ]
+    }
+  } as Parameters<typeof buildBridgedRequest>[0];
+  const target = {
+    ...createTarget(),
+    modelMapping: { "claude-sonnet-4-5": "deepseek-reasoner" }
+  };
+  const replayed = buildBridgedRequest(followUpRequest, target, "/v1/messages");
+  const upstreamRequest = JSON.parse(replayed.upstreamBody ?? "{}") as {
     messages: Array<Record<string, unknown>>;
   };
 
-  // Assistant with tool_calls comes first
-  assert.deepEqual(parsed.messages[1], {
-    role: "assistant",
-    content: null,
-    tool_calls: [
-      {
-        id: "toolu_123",
-        type: "function",
-        function: {
-          name: "get_weather",
-          arguments: '{"city":"Shanghai"}'
-        }
-      }
-    ]
-  });
-  // Tool result must come BEFORE user text
-  assert.equal((parsed.messages[2] as Record<string, unknown>).role, "tool");
-  assert.equal((parsed.messages[2] as Record<string, unknown>).tool_call_id, "toolu_123");
-  assert.equal((parsed.messages[2] as Record<string, unknown>).content, "sunny");
-  // User text must come AFTER tool result
-  assert.equal((parsed.messages[3] as Record<string, unknown>).role, "user");
-  assert.equal((parsed.messages[3] as Record<string, unknown>).content, "Now I'll process this result");
+  assert.equal(
+    upstreamRequest.messages[0]?.reasoning_content,
+    "I need the current weather before answering."
+  );
+  assert.deepEqual(
+    upstreamRequest.messages.map((message) => message.role),
+    ["assistant", "tool"]
+  );
 });
 
-test("preserves reasoning_content as thinking block in anthropic response", () => {
-  const upstreamBody = JSON.stringify({
-    id: "chatcmpl-test",
-    model: "deepseek-v4-flash",
-    choices: [
-      {
-        finish_reason: "stop",
-        message: {
-          role: "assistant",
-          content: "The answer is 42.",
-          reasoning_content: "Let me think about this step by step."
-        }
-      }
-    ],
-    usage: {
-      prompt_tokens: 10,
-      completion_tokens: 8
+test("adds a reasoning placeholder only for reasoning vendors with missing tool history", () => {
+  const request = {
+    body: {
+      model: "claude-sonnet-4-5",
+      messages: [{
+        role: "assistant",
+        content: [{ type: "tool_use", id: "call_1", name: "read_file", input: {} }]
+      }]
     }
-  });
+  } as Parameters<typeof buildBridgedRequest>[0];
 
-  const result = buildBridgedResponseBody("anthropic", upstreamBody, {
-    model: "deepseek-v4-flash",
-    messages: [{ role: "user", content: "What is the answer?" }]
-  });
-  const parsed = JSON.parse(result) as {
-    content: Array<{ type: string; thinking?: string; text?: string }>;
-  };
+  const deepSeekResult = buildBridgedRequest(
+    request,
+    {
+      ...createTarget(),
+      upstreamBaseUrl: "https://api.deepseek.com/v1"
+    },
+    "/v1/messages"
+  );
+  const genericResult = buildBridgedRequest(request, createTarget(), "/v1/messages");
+  const deepSeekMessages = (JSON.parse(deepSeekResult.upstreamBody ?? "{}") as {
+    messages: Array<Record<string, unknown>>;
+  }).messages;
+  const genericMessages = (JSON.parse(genericResult.upstreamBody ?? "{}") as {
+    messages: Array<Record<string, unknown>>;
+  }).messages;
 
-  // First block must be the thinking block with valid signature
-  assert.equal(parsed.content[0]?.type, "thinking");
-  assert.equal(parsed.content[0]?.thinking, "Let me think about this step by step.");
-  assert.match(parsed.content[0]?.signature ?? "", /^sig_/);
-  // Second block must be the text
-  assert.equal(parsed.content[1]?.type, "text");
-  assert.equal(parsed.content[1]?.text, "The answer is 42.");
+  assert.equal(deepSeekMessages[0]?.reasoning_content, "tool call");
+  assert.equal("reasoning_content" in (genericMessages[0] ?? {}), false);
 });

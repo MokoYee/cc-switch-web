@@ -13,7 +13,7 @@ interface OpenAiStreamChunk {
     delta?: {
       content?: string;
       reasoning_content?: string;
-      role?: string;
+      reasoning?: string;
       tool_calls?: Array<{
         index?: number;
         id?: string;
@@ -60,14 +60,13 @@ export const convertOpenAiChunkToAnthropicEvents = (
     contentOpened: boolean;
     contentType: "text" | "tool_use" | "thinking" | null;
     currentIndex: number;
-    thinkingBlockOpened: boolean;
-    thinkingIndex: number;
+    nextContentIndex: number;
     stopped: boolean;
     pendingStopReason: string | null;
     model: string | null;
     inputTokens: number;
     outputTokens: number;
-    toolStates: Map<number, { id: string; name: string }>;
+    toolStates: Map<number, { id: string; name: string; anthropicIndex: number }>;
   }
 ): string[] => {
   const trimmed = rawLine.trim();
@@ -79,19 +78,6 @@ export const convertOpenAiChunkToAnthropicEvents = (
   if (payload === "[DONE]") {
     const events: string[] = [];
     if (state.contentOpened) {
-      // Emit signature_delta before closing if this is a thinking block
-      if (state.contentType === "thinking") {
-        events.push(
-          toSseEvent("content_block_delta", {
-            type: "content_block_delta",
-            index: state.currentIndex,
-            delta: {
-              type: "signature_delta",
-              signature: ""
-            }
-          })
-        );
-      }
       events.push(
         toSseEvent("content_block_stop", {
           type: "content_block_stop",
@@ -158,11 +144,9 @@ export const convertOpenAiChunkToAnthropicEvents = (
   }
 
   const deltaText = choice?.delta?.content ?? "";
-  const deltaReasoning = choice?.delta?.reasoning_content ?? "";
+  const deltaReasoning = choice?.delta?.reasoning_content ?? choice?.delta?.reasoning ?? "";
 
-  // reasoning_content from DeepSeek/thinking models → thinking block
   if (deltaReasoning.length > 0) {
-    // If a different content type (text/tool_use) was open, close it first
     if (state.contentOpened && state.contentType !== "thinking") {
       events.push(
         toSseEvent("content_block_stop", {
@@ -175,21 +159,21 @@ export const convertOpenAiChunkToAnthropicEvents = (
     }
 
     if (!state.contentOpened || state.contentType !== "thinking") {
-      state.thinkingIndex++;
+      const thinkingIndex = state.nextContentIndex;
+      state.nextContentIndex++;
       events.push(
         toSseEvent("content_block_start", {
           type: "content_block_start",
-          index: state.thinkingIndex,
+          index: thinkingIndex,
           content_block: {
             type: "thinking",
             thinking: ""
           }
         })
       );
-      state.currentIndex = state.thinkingIndex;
+      state.currentIndex = thinkingIndex;
       state.contentOpened = true;
       state.contentType = "thinking";
-      state.thinkingBlockOpened = true;
     }
 
     events.push(
@@ -205,19 +189,7 @@ export const convertOpenAiChunkToAnthropicEvents = (
   }
 
   if (deltaText.length > 0) {
-    // If a thinking block is open, close it before emitting text
     if (state.contentOpened && state.contentType === "thinking") {
-      // Emit signature_delta before closing (Anthropic SSE protocol requires it)
-      events.push(
-        toSseEvent("content_block_delta", {
-          type: "content_block_delta",
-          index: state.currentIndex,
-          delta: {
-            type: "signature_delta",
-            signature: ""
-          }
-        })
-      );
       events.push(
         toSseEvent("content_block_stop", {
           type: "content_block_stop",
@@ -226,7 +198,6 @@ export const convertOpenAiChunkToAnthropicEvents = (
       );
       state.contentOpened = false;
       state.contentType = null;
-      state.thinkingBlockOpened = false;
     }
     if (!state.contentOpened || state.contentType !== "text") {
       if (state.contentOpened) {
@@ -236,14 +207,14 @@ export const convertOpenAiChunkToAnthropicEvents = (
           })
         );
       }
-      // Use next available index when following a thinking block
-      state.currentIndex = state.thinkingIndex >= 0 ? state.thinkingIndex + 1 : 0;
+      state.currentIndex = state.nextContentIndex;
+      state.nextContentIndex++;
       events.push(
-      toSseEvent("content_block_start", {
-        type: "content_block_start",
-        index: state.currentIndex,
-        content_block: {
-          type: "text",
+        toSseEvent("content_block_start", {
+          type: "content_block_start",
+          index: state.currentIndex,
+          content_block: {
+            type: "text",
             text: ""
           }
         })
@@ -269,7 +240,8 @@ export const convertOpenAiChunkToAnthropicEvents = (
     const toolState =
       state.toolStates.get(toolIndex) ?? {
         id: toolCall.id ?? "",
-        name: toolCall.function?.name ?? "tool"
+        name: toolCall.function?.name ?? "tool",
+        anthropicIndex: state.nextContentIndex++
       };
     if (toolCall.id) {
       toolState.id = toolCall.id;
@@ -279,7 +251,11 @@ export const convertOpenAiChunkToAnthropicEvents = (
     }
     state.toolStates.set(toolIndex, toolState);
 
-    if (!state.contentOpened || state.contentType !== "tool_use" || state.currentIndex !== toolIndex) {
+    if (
+      !state.contentOpened ||
+      state.contentType !== "tool_use" ||
+      state.currentIndex !== toolState.anthropicIndex
+    ) {
       if (state.contentOpened) {
         events.push(
           toSseEvent("content_block_stop", {
@@ -288,11 +264,11 @@ export const convertOpenAiChunkToAnthropicEvents = (
           })
         );
       }
-      state.currentIndex = toolIndex;
+      state.currentIndex = toolState.anthropicIndex;
       events.push(
         toSseEvent("content_block_start", {
           type: "content_block_start",
-          index: toolIndex,
+          index: toolState.anthropicIndex,
           content_block: {
             type: "tool_use",
             id: toolState.id || `toolu_${toolIndex}`,
@@ -310,7 +286,7 @@ export const convertOpenAiChunkToAnthropicEvents = (
       events.push(
         toSseEvent("content_block_delta", {
           type: "content_block_delta",
-          index: toolIndex,
+          index: toolState.anthropicIndex,
           delta: {
             type: "input_json_delta",
             partial_json: partialArguments
@@ -344,14 +320,13 @@ export class AnthropicSseBridgeTransform extends Transform {
     contentOpened: false,
     contentType: null as "text" | "tool_use" | "thinking" | null,
     currentIndex: 0,
-    thinkingBlockOpened: false,
-    thinkingIndex: -1,
+    nextContentIndex: 0,
     stopped: false,
     pendingStopReason: null as string | null,
     model: null as string | null,
     inputTokens: 0,
     outputTokens: 0,
-    toolStates: new Map<number, { id: string; name: string }>()
+    toolStates: new Map<number, { id: string; name: string; anthropicIndex: number }>()
   };
 
   constructor(

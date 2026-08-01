@@ -684,3 +684,105 @@ test("fails over on network error and succeeds on secondary provider", async () 
     context.database.close();
   }
 });
+
+test("answers claude count_tokens locally without touching the upstream", async () => {
+  const context = await createProxyTestContext({
+    appCode: "claude-code",
+    enableFailover: false
+  });
+  const originalFetch = globalThis.fetch;
+  let fetchCallCount = 0;
+  globalThis.fetch = async () => {
+    fetchCallCount += 1;
+    return new Response("{}", { status: 500 });
+  };
+
+  try {
+    const response = await context.app.inject({
+      method: "POST",
+      url: "/proxy/claude-code/v1/messages/count_tokens",
+      payload: {
+        model: "claude-sonnet-4-5",
+        messages: [{ role: "user", content: "estimate this" }]
+      }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(fetchCallCount, 0);
+    const parsed = JSON.parse(response.body) as { input_tokens: number };
+    assert.ok(parsed.input_tokens >= 1);
+
+    const logs = context.proxyRuntimeService.listRequestLogs({ limit: 10, offset: 0 });
+    assert.equal(logs.items[0]?.outcome, "success");
+    assert.equal(logs.items[0]?.decisionReason, "local-bridge-response");
+  } finally {
+    globalThis.fetch = originalFetch;
+    await context.app.close();
+    context.database.close();
+  }
+});
+
+test("bridges codex responses requests to chat completions upstreams end to end", async () => {
+  const context = await createProxyTestContext({
+    appCode: "codex",
+    enableFailover: false
+  });
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  let upstreamPayload: Record<string, unknown> = {};
+  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestedUrl = String(input);
+    upstreamPayload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({
+        id: "chatcmpl-bridge",
+        model: "deepseek-chat",
+        choices: [
+          {
+            finish_reason: "stop",
+            message: { role: "assistant", content: "bridged reply" }
+          }
+        ],
+        usage: { prompt_tokens: 7, completion_tokens: 4, total_tokens: 11 }
+      }),
+      { status: 200, headers: { "content-type": "application/json" } }
+    );
+  };
+
+  try {
+    const response = await context.app.inject({
+      method: "POST",
+      url: "/proxy/codex/v1/responses",
+      payload: {
+        model: "gpt-5",
+        instructions: "You are Codex.",
+        input: "say hi",
+        stream: false
+      }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(requestedUrl, "https://primary.example.com/v1/chat/completions");
+    assert.equal(upstreamPayload.model, "gpt-5");
+    assert.deepEqual(upstreamPayload.messages, [
+      { role: "system", content: "You are Codex." },
+      { role: "user", content: "say hi" }
+    ]);
+
+    const parsed = JSON.parse(response.body) as {
+      object: string;
+      status: string;
+      output: Array<{ type: string; content: Array<{ text: string }> }>;
+      usage: { input_tokens: number; output_tokens: number };
+    };
+    assert.equal(parsed.object, "response");
+    assert.equal(parsed.status, "completed");
+    assert.equal(parsed.output[0]?.content[0]?.text, "bridged reply");
+    assert.equal(parsed.usage.input_tokens, 7);
+    assert.equal(parsed.usage.output_tokens, 4);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await context.app.close();
+    context.database.close();
+  }
+});

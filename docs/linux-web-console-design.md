@@ -84,6 +84,20 @@
 - Anthropic 非流式桥接
 - Anthropic SSE 流式桥接
 - Anthropic 工具调用结构桥接
+- OpenAI Responses → Chat Completions 桥接（Codex 主链路）
+  - 非流式请求 / 响应结构转换
+  - SSE 事件流转换（文本增量、工具调用增量、usage）
+  - Provider 级 `responsesApiMode`：`auto`（官方 OpenAI 直通、其余桥接）/ `passthrough` / `bridge`
+- Provider 级模型映射与默认模型
+  - `modelMapping` 精确改写请求模型名
+  - `defaultModel` 兜底改写未命中映射的模型名
+  - 覆盖 Anthropic 桥接、`chat/completions`、`responses` 与 `messages` 直通
+- Claude Code `count_tokens` 兼容
+  - OpenAI 兼容上游不转发，由代理本地估算并返回 `input_tokens`
+- Anthropic 上游凭据规范化
+  - 转发时剥离入站 `x-api-key` 占位凭据
+  - 对 anthropic Provider 自动补 `x-api-key` 与 `anthropic-version`
+- Anthropic 错误结构桥接：上游失败时返回标准 `{"type":"error"}` 结构
 - 基于绑定与策略的转发
 - Active Context 驱动的 Provider 优先路由
 - Active Context 驱动的 Prompt / Skill 请求注入
@@ -178,7 +192,12 @@
 
 - `/ui` 登录页与控制台壳
 - Dashboard 基础页面
-- QuickStart 项目接入工作台
+- Provider 表单增强
+  - 常用 Provider 预设（OpenAI / Anthropic / DeepSeek / Moonshot / 智谱 / Qwen / SiliconFlow / OpenRouter）
+  - 默认上游模型与模型映射编辑（`source = target` 行格式）
+  - 按 ProviderType 的 Base URL / 凭据格式提示
+  - Responses API 模式选择（Codex 链路）
+- QuickStart 项目接入工作台（Provider 草稿支持默认上游模型）
 - Runtime Governance / Service Doctor / Startup Recovery 跟进卡
 - MCP 校验历史与治理跟进行动入口
 - 中英双语基础设施

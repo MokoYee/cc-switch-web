@@ -10,8 +10,7 @@ const newState = (overrides: Record<string, unknown> = {}) => ({
   contentOpened: false,
   contentType: null,
   currentIndex: 0,
-  thinkingBlockOpened: false,
-  thinkingIndex: -1,
+  nextContentIndex: 0,
   stopped: false,
   pendingStopReason: null,
   model: null,
@@ -260,7 +259,6 @@ test("converts reasoning_content deltas into thinking block SSE events", () => {
     fallbackMessageId: "msg_test"
   };
 
-  // First chunk: reasoning_content starts
   const first = convertOpenAiChunkToAnthropicEvents(
     toDataLine({
       id: "chatcmpl-reason",
@@ -277,7 +275,6 @@ test("converts reasoning_content deltas into thinking block SSE events", () => {
     state
   );
 
-  // Second chunk: more reasoning
   const second = convertOpenAiChunkToAnthropicEvents(
     toDataLine({
       choices: [
@@ -292,7 +289,6 @@ test("converts reasoning_content deltas into thinking block SSE events", () => {
     state
   );
 
-  // Third chunk: now actual text (thinking block should close)
   const third = convertOpenAiChunkToAnthropicEvents(
     toDataLine({
       choices: [
@@ -311,22 +307,65 @@ test("converts reasoning_content deltas into thinking block SSE events", () => {
   const done = convertOpenAiChunkToAnthropicEvents("data: [DONE]", context, state);
   const combined = [...first, ...second, ...third, ...done].join("");
 
-  // Should have message_start
   assert.match(combined, /event: message_start/);
-  // Should have thinking content_block_start
-  assert.match(combined, /"type":"thinking"/);
-  // Should have thinking_delta events
+  assert.match(
+    combined,
+    /"type":"content_block_start","index":0,"content_block":{"type":"thinking"/
+  );
   assert.match(combined, /"type":"thinking_delta"/);
   assert.match(combined, /Let me think about/);
   assert.match(combined, /this step by step\./);
-  // Should have signature_delta before content_block_stop
-  assert.match(combined, /"type":"signature_delta"/);
-  assert.match(combined, /"signature":""/);
-  // Thinking block should close before text
+  assert.doesNotMatch(combined, /signature_delta/);
   assert.match(combined, /"type":"content_block_stop"/);
-  // After thinking closes, text should appear
+  assert.match(
+    combined,
+    /"type":"content_block_start","index":1,"content_block":{"type":"text"/
+  );
   assert.match(combined, /Here is the result\./);
-  // Final stop events
   assert.match(combined, /"stop_reason":"end_turn"/);
   assert.match(combined, /"type":"message_stop"/);
+});
+
+test("assigns distinct block indices to reasoning and tool calls", () => {
+  const state = newState();
+  const context = {
+    fallbackModel: "deepseek-reasoner",
+    fallbackMessageId: "msg_test"
+  };
+
+  const reasoning = convertOpenAiChunkToAnthropicEvents(
+    toDataLine({
+      choices: [{ delta: { reasoning_content: "Need two tools." } }]
+    }),
+    context,
+    state
+  );
+  const tools = convertOpenAiChunkToAnthropicEvents(
+    toDataLine({
+      choices: [{
+        delta: {
+          tool_calls: [
+            {
+              index: 0,
+              id: "call_weather",
+              function: { name: "get_weather", arguments: "{}" }
+            },
+            {
+              index: 1,
+              id: "call_time",
+              function: { name: "get_time", arguments: "{}" }
+            }
+          ]
+        },
+        finish_reason: "tool_calls"
+      }]
+    }),
+    context,
+    state
+  );
+  const combined = [...reasoning, ...tools].join("");
+
+  assert.match(combined, /"index":0,"content_block":{"type":"thinking"/);
+  assert.match(combined, /"index":1,"content_block":{"type":"tool_use"/);
+  assert.match(combined, /"index":2,"content_block":{"type":"tool_use"/);
 });

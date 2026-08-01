@@ -121,6 +121,9 @@ const createProvider = (id: string): Provider => ({
   apiKeyMasked: "sk-***",
   enabled: true,
   timeoutMs: 30000,
+  defaultModel: null,
+  modelMapping: {},
+  responsesApiMode: "auto",
   createdAt: ISO_TIME,
   updatedAt: ISO_TIME
 });
@@ -1687,7 +1690,10 @@ test("rebuilds saved asset editor state so forms and tag text echo the persisted
     apiKey: "",
     apiKeyMasked: "sk-***",
     enabled: true,
-    timeoutMs: 30000
+    timeoutMs: 30000,
+    defaultModel: null,
+    modelMapping: {},
+    responsesApiMode: "auto"
   });
 
   assert.deepEqual(

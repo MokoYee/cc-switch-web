@@ -41,7 +41,10 @@ export const createDefaultProviderForm = (): ProviderUpsert => ({
   baseUrl: "https://api.example.com/v1",
   apiKey: "",
   enabled: true,
-  timeoutMs: 30000
+  timeoutMs: 30000,
+  defaultModel: null,
+  modelMapping: {},
+  responsesApiMode: "auto"
 });
 
 export const createDefaultBindingForm = (): AppBindingUpsert => ({
@@ -244,7 +247,10 @@ export const buildProviderEditorState = (item: Provider): ProviderUpsert => ({
   apiKey: "",
   apiKeyMasked: item.apiKeyMasked,
   enabled: item.enabled,
-  timeoutMs: item.timeoutMs
+  timeoutMs: item.timeoutMs,
+  defaultModel: item.defaultModel ?? null,
+  modelMapping: { ...(item.modelMapping ?? {}) },
+  responsesApiMode: item.responsesApiMode ?? "auto"
 });
 
 export const buildBindingEditorState = (item: AppBinding): AppBindingUpsert => ({

@@ -10,8 +10,8 @@
 
 | App | 当前状态 | 可验收接管模式 | 备注 |
 | --- | --- | --- | --- |
-| `codex` | Ready | `file-rewrite` / `environment-override` | env 模式依赖 Codex 内置 OpenAI provider；如果本地手工固定了 `model_provider`，先清理再验收。 |
-| `claude-code` | Ready | `file-rewrite` / `environment-override` | file 模式还要同时验证 Claude onboarding bypass。 |
+| `codex` | Ready | `file-rewrite` / `environment-override` | env 模式依赖 Codex 内置 OpenAI provider；如果本地手工固定了 `model_provider`，先清理再验收。第三方 OpenAI 兼容 Provider 由 Responses → Chat 桥接承接（`responsesApiMode=auto` 默认只对官方 OpenAI 直通）。 |
+| `claude-code` | Ready | `file-rewrite` / `environment-override` | file 模式还要同时验证 Claude onboarding bypass。`count_tokens` 在 OpenAI 兼容上游下由代理本地估算返回。第三方上游建议配置 Provider `defaultModel` / `modelMapping`，避免 `claude-*` 模型名被上游拒绝。 |
 | `gemini-cli` | Blocked | 无 | 当前代理主链路尚未提供 Gemini API / Gateway 协议适配，因此本轮不执行 takeover apply。 |
 
 ## 3. 验收维度

@@ -81,7 +81,7 @@ const extractUsageFromAnthropicChunk = (parsed: Record<string, unknown>): Stream
 };
 
 export const extractUsageFromResponse = (
-  responseProtocol: "openai" | "anthropic",
+  responseProtocol: "openai" | "anthropic" | "responses",
   responseBodyText: string,
   requestBody: unknown
 ): UsageExtractionResult | null => {
@@ -113,14 +113,16 @@ export const extractUsageFromResponse = (
     return null;
   }
 
+  // The Anthropic Messages API and the OpenAI Responses API both report usage
+  // via input_tokens/output_tokens; only chat completions uses prompt/completion.
   const inputTokens =
-    responseProtocol === "anthropic"
-      ? readInteger(usage.input_tokens)
-      : readInteger(usage.prompt_tokens);
+    responseProtocol === "openai"
+      ? readInteger(usage.prompt_tokens)
+      : readInteger(usage.input_tokens);
   const outputTokens =
-    responseProtocol === "anthropic"
-      ? readInteger(usage.output_tokens)
-      : readInteger(usage.completion_tokens);
+    responseProtocol === "openai"
+      ? readInteger(usage.completion_tokens)
+      : readInteger(usage.output_tokens);
 
   if (inputTokens === 0 && outputTokens === 0) {
     return null;
