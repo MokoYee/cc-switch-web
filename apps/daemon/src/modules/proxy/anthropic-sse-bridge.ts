@@ -12,6 +12,8 @@ interface OpenAiStreamChunk {
     index?: number;
     delta?: {
       content?: string;
+      reasoning_content?: string;
+      reasoning?: string;
       tool_calls?: Array<{
         index?: number;
         id?: string;
@@ -56,14 +58,15 @@ export const convertOpenAiChunkToAnthropicEvents = (
   state: {
     started: boolean;
     contentOpened: boolean;
-    contentType: "text" | "tool_use" | null;
+    contentType: "text" | "tool_use" | "thinking" | null;
     currentIndex: number;
+    nextContentIndex: number;
     stopped: boolean;
     pendingStopReason: string | null;
     model: string | null;
     inputTokens: number;
     outputTokens: number;
-    toolStates: Map<number, { id: string; name: string }>;
+    toolStates: Map<number, { id: string; name: string; anthropicIndex: number }>;
   }
 ): string[] => {
   const trimmed = rawLine.trim();
@@ -141,7 +144,61 @@ export const convertOpenAiChunkToAnthropicEvents = (
   }
 
   const deltaText = choice?.delta?.content ?? "";
+  const deltaReasoning = choice?.delta?.reasoning_content ?? choice?.delta?.reasoning ?? "";
+
+  if (deltaReasoning.length > 0) {
+    if (state.contentOpened && state.contentType !== "thinking") {
+      events.push(
+        toSseEvent("content_block_stop", {
+          type: "content_block_stop",
+          index: state.currentIndex
+        })
+      );
+      state.contentOpened = false;
+      state.contentType = null;
+    }
+
+    if (!state.contentOpened || state.contentType !== "thinking") {
+      const thinkingIndex = state.nextContentIndex;
+      state.nextContentIndex++;
+      events.push(
+        toSseEvent("content_block_start", {
+          type: "content_block_start",
+          index: thinkingIndex,
+          content_block: {
+            type: "thinking",
+            thinking: ""
+          }
+        })
+      );
+      state.currentIndex = thinkingIndex;
+      state.contentOpened = true;
+      state.contentType = "thinking";
+    }
+
+    events.push(
+      toSseEvent("content_block_delta", {
+        type: "content_block_delta",
+        index: state.currentIndex,
+        delta: {
+          type: "thinking_delta",
+          thinking: deltaReasoning
+        }
+      })
+    );
+  }
+
   if (deltaText.length > 0) {
+    if (state.contentOpened && state.contentType === "thinking") {
+      events.push(
+        toSseEvent("content_block_stop", {
+          type: "content_block_stop",
+          index: state.currentIndex
+        })
+      );
+      state.contentOpened = false;
+      state.contentType = null;
+    }
     if (!state.contentOpened || state.contentType !== "text") {
       if (state.contentOpened) {
         events.push(
@@ -150,13 +207,14 @@ export const convertOpenAiChunkToAnthropicEvents = (
           })
         );
       }
-      state.currentIndex = 0;
+      state.currentIndex = state.nextContentIndex;
+      state.nextContentIndex++;
       events.push(
-      toSseEvent("content_block_start", {
-        type: "content_block_start",
-        index: state.currentIndex,
-        content_block: {
-          type: "text",
+        toSseEvent("content_block_start", {
+          type: "content_block_start",
+          index: state.currentIndex,
+          content_block: {
+            type: "text",
             text: ""
           }
         })
@@ -182,7 +240,8 @@ export const convertOpenAiChunkToAnthropicEvents = (
     const toolState =
       state.toolStates.get(toolIndex) ?? {
         id: toolCall.id ?? "",
-        name: toolCall.function?.name ?? "tool"
+        name: toolCall.function?.name ?? "tool",
+        anthropicIndex: state.nextContentIndex++
       };
     if (toolCall.id) {
       toolState.id = toolCall.id;
@@ -192,7 +251,11 @@ export const convertOpenAiChunkToAnthropicEvents = (
     }
     state.toolStates.set(toolIndex, toolState);
 
-    if (!state.contentOpened || state.contentType !== "tool_use" || state.currentIndex !== toolIndex) {
+    if (
+      !state.contentOpened ||
+      state.contentType !== "tool_use" ||
+      state.currentIndex !== toolState.anthropicIndex
+    ) {
       if (state.contentOpened) {
         events.push(
           toSseEvent("content_block_stop", {
@@ -201,11 +264,11 @@ export const convertOpenAiChunkToAnthropicEvents = (
           })
         );
       }
-      state.currentIndex = toolIndex;
+      state.currentIndex = toolState.anthropicIndex;
       events.push(
         toSseEvent("content_block_start", {
           type: "content_block_start",
-          index: toolIndex,
+          index: toolState.anthropicIndex,
           content_block: {
             type: "tool_use",
             id: toolState.id || `toolu_${toolIndex}`,
@@ -223,7 +286,7 @@ export const convertOpenAiChunkToAnthropicEvents = (
       events.push(
         toSseEvent("content_block_delta", {
           type: "content_block_delta",
-          index: toolIndex,
+          index: toolState.anthropicIndex,
           delta: {
             type: "input_json_delta",
             partial_json: partialArguments
@@ -255,14 +318,15 @@ export class AnthropicSseBridgeTransform extends Transform {
   private readonly state = {
     started: false,
     contentOpened: false,
-    contentType: null as "text" | "tool_use" | null,
+    contentType: null as "text" | "tool_use" | "thinking" | null,
     currentIndex: 0,
+    nextContentIndex: 0,
     stopped: false,
     pendingStopReason: null as string | null,
     model: null as string | null,
     inputTokens: 0,
     outputTokens: 0,
-    toolStates: new Map<number, { id: string; name: string }>()
+    toolStates: new Map<number, { id: string; name: string; anthropicIndex: number }>()
   };
 
   constructor(

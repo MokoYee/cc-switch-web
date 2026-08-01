@@ -5,19 +5,23 @@ import { AnthropicSseBridgeTransform, convertOpenAiChunkToAnthropicEvents } from
 
 const toDataLine = (payload: unknown): string => `data: ${JSON.stringify(payload)}`;
 
+const newState = (overrides: Record<string, unknown> = {}) => ({
+  started: false,
+  contentOpened: false,
+  contentType: null,
+  currentIndex: 0,
+  nextContentIndex: 0,
+  stopped: false,
+  pendingStopReason: null,
+  model: null,
+  inputTokens: 0,
+  outputTokens: 0,
+  toolStates: new Map(),
+  ...overrides
+});
+
 test("converts openai text deltas into anthropic SSE events", () => {
-  const state = {
-    started: false,
-    contentOpened: false,
-    contentType: null,
-    currentIndex: 0,
-    stopped: false,
-    pendingStopReason: null,
-    model: null,
-    inputTokens: 0,
-    outputTokens: 0,
-    toolStates: new Map()
-  };
+  const state = newState();
   const context = {
     fallbackModel: "claude-3-7-sonnet",
     fallbackMessageId: "msg_test"
@@ -54,18 +58,7 @@ test("converts openai text deltas into anthropic SSE events", () => {
 });
 
 test("converts openai tool call deltas into anthropic tool_use SSE events", () => {
-  const state = {
-    started: false,
-    contentOpened: false,
-    contentType: null,
-    currentIndex: 0,
-    stopped: false,
-    pendingStopReason: null,
-    model: null,
-    inputTokens: 0,
-    outputTokens: 0,
-    toolStates: new Map()
-  };
+  const state = newState();
   const context = {
     fallbackModel: "claude-3-7-sonnet",
     fallbackMessageId: "msg_test"
@@ -156,18 +149,7 @@ test("captures usage from upstream SSE chunks", async () => {
 });
 
 test("converts multiple openai tool call indices into distinct anthropic tool_use blocks", () => {
-  const state = {
-    started: false,
-    contentOpened: false,
-    contentType: null,
-    currentIndex: 0,
-    stopped: false,
-    pendingStopReason: null,
-    model: null,
-    inputTokens: 0,
-    outputTokens: 0,
-    toolStates: new Map()
-  };
+  const state = newState();
   const context = {
     fallbackModel: "claude-3-7-sonnet",
     fallbackMessageId: "msg_test"
@@ -268,4 +250,122 @@ test("emits final anthropic stop events even when upstream stream has no usage c
   assert.match(combined, /"output_tokens":0/);
   assert.match(combined, /"type":"message_stop"/);
   assert.equal(transform.getUsageSnapshot(), null);
+});
+
+test("converts reasoning_content deltas into thinking block SSE events", () => {
+  const state = newState();
+  const context = {
+    fallbackModel: "deepseek-v4-flash",
+    fallbackMessageId: "msg_test"
+  };
+
+  const first = convertOpenAiChunkToAnthropicEvents(
+    toDataLine({
+      id: "chatcmpl-reason",
+      choices: [
+        {
+          delta: {
+            role: "assistant",
+            reasoning_content: "Let me think about"
+          }
+        }
+      ]
+    }),
+    context,
+    state
+  );
+
+  const second = convertOpenAiChunkToAnthropicEvents(
+    toDataLine({
+      choices: [
+        {
+          delta: {
+            reasoning_content: " this step by step."
+          }
+        }
+      ]
+    }),
+    context,
+    state
+  );
+
+  const third = convertOpenAiChunkToAnthropicEvents(
+    toDataLine({
+      choices: [
+        {
+          delta: {
+            content: "Here is the result."
+          },
+          finish_reason: "stop"
+        }
+      ]
+    }),
+    context,
+    state
+  );
+
+  const done = convertOpenAiChunkToAnthropicEvents("data: [DONE]", context, state);
+  const combined = [...first, ...second, ...third, ...done].join("");
+
+  assert.match(combined, /event: message_start/);
+  assert.match(
+    combined,
+    /"type":"content_block_start","index":0,"content_block":{"type":"thinking"/
+  );
+  assert.match(combined, /"type":"thinking_delta"/);
+  assert.match(combined, /Let me think about/);
+  assert.match(combined, /this step by step\./);
+  assert.doesNotMatch(combined, /signature_delta/);
+  assert.match(combined, /"type":"content_block_stop"/);
+  assert.match(
+    combined,
+    /"type":"content_block_start","index":1,"content_block":{"type":"text"/
+  );
+  assert.match(combined, /Here is the result\./);
+  assert.match(combined, /"stop_reason":"end_turn"/);
+  assert.match(combined, /"type":"message_stop"/);
+});
+
+test("assigns distinct block indices to reasoning and tool calls", () => {
+  const state = newState();
+  const context = {
+    fallbackModel: "deepseek-reasoner",
+    fallbackMessageId: "msg_test"
+  };
+
+  const reasoning = convertOpenAiChunkToAnthropicEvents(
+    toDataLine({
+      choices: [{ delta: { reasoning_content: "Need two tools." } }]
+    }),
+    context,
+    state
+  );
+  const tools = convertOpenAiChunkToAnthropicEvents(
+    toDataLine({
+      choices: [{
+        delta: {
+          tool_calls: [
+            {
+              index: 0,
+              id: "call_weather",
+              function: { name: "get_weather", arguments: "{}" }
+            },
+            {
+              index: 1,
+              id: "call_time",
+              function: { name: "get_time", arguments: "{}" }
+            }
+          ]
+        },
+        finish_reason: "tool_calls"
+      }]
+    }),
+    context,
+    state
+  );
+  const combined = [...reasoning, ...tools].join("");
+
+  assert.match(combined, /"index":0,"content_block":{"type":"thinking"/);
+  assert.match(combined, /"index":1,"content_block":{"type":"tool_use"/);
+  assert.match(combined, /"index":2,"content_block":{"type":"tool_use"/);
 });

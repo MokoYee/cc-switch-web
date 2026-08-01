@@ -526,3 +526,101 @@ test("emits tool results before trailing user text from the same anthropic turn"
   assert.equal(parsed.messages[1]?.tool_call_id, "toolu_1");
   assert.equal(parsed.messages[2]?.content, "additional user reminder");
 });
+
+test("round trips DeepSeek reasoning_content for assistant tool calls", () => {
+  const bridgedResponse = JSON.parse(
+    buildBridgedResponseBody(
+      "anthropic",
+      JSON.stringify({
+        id: "chatcmpl-deepseek",
+        model: "deepseek-reasoner",
+        choices: [{
+          finish_reason: "tool_calls",
+          message: {
+            role: "assistant",
+            content: null,
+            reasoning_content: "I need the current weather before answering.",
+            tool_calls: [{
+              id: "call_weather",
+              type: "function",
+              function: {
+                name: "get_weather",
+                arguments: '{"city":"Shanghai"}'
+              }
+            }]
+          }
+        }]
+      }),
+      {
+        model: "claude-sonnet-4-5",
+        messages: [{ role: "user", content: "How is the weather?" }]
+      }
+    )
+  ) as { content: Array<Record<string, unknown>> };
+
+  assert.deepEqual(bridgedResponse.content[0], {
+    type: "thinking",
+    thinking: "I need the current weather before answering."
+  });
+
+  const followUpRequest = {
+    body: {
+      model: "claude-sonnet-4-5",
+      messages: [
+        { role: "assistant", content: bridgedResponse.content },
+        {
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: "call_weather", content: "Sunny" }]
+        }
+      ]
+    }
+  } as Parameters<typeof buildBridgedRequest>[0];
+  const target = {
+    ...createTarget(),
+    modelMapping: { "claude-sonnet-4-5": "deepseek-reasoner" }
+  };
+  const replayed = buildBridgedRequest(followUpRequest, target, "/v1/messages");
+  const upstreamRequest = JSON.parse(replayed.upstreamBody ?? "{}") as {
+    messages: Array<Record<string, unknown>>;
+  };
+
+  assert.equal(
+    upstreamRequest.messages[0]?.reasoning_content,
+    "I need the current weather before answering."
+  );
+  assert.deepEqual(
+    upstreamRequest.messages.map((message) => message.role),
+    ["assistant", "tool"]
+  );
+});
+
+test("adds a reasoning placeholder only for reasoning vendors with missing tool history", () => {
+  const request = {
+    body: {
+      model: "claude-sonnet-4-5",
+      messages: [{
+        role: "assistant",
+        content: [{ type: "tool_use", id: "call_1", name: "read_file", input: {} }]
+      }]
+    }
+  } as Parameters<typeof buildBridgedRequest>[0];
+
+  const deepSeekResult = buildBridgedRequest(
+    request,
+    {
+      ...createTarget(),
+      upstreamBaseUrl: "https://api.deepseek.com/v1"
+    },
+    "/v1/messages"
+  );
+  const genericResult = buildBridgedRequest(request, createTarget(), "/v1/messages");
+  const deepSeekMessages = (JSON.parse(deepSeekResult.upstreamBody ?? "{}") as {
+    messages: Array<Record<string, unknown>>;
+  }).messages;
+  const genericMessages = (JSON.parse(genericResult.upstreamBody ?? "{}") as {
+    messages: Array<Record<string, unknown>>;
+  }).messages;
+
+  assert.equal(deepSeekMessages[0]?.reasoning_content, "tool call");
+  assert.equal("reasoning_content" in (genericMessages[0] ?? {}), false);
+});

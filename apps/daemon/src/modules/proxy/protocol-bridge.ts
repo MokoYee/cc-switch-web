@@ -13,6 +13,10 @@ import {
 
 export class UnsupportedBridgeFeatureError extends Error {}
 
+const REASONING_VENDOR_HINTS = ["moonshot", "kimi", "deepseek", "mimo", "xiaomimimo"] as const;
+const TOOL_CALL_REASONING_PLACEHOLDER = "tool call";
+const REDACTED_REASONING_PLACEHOLDER = "[redacted thinking]";
+
 interface AnthropicTextBlock {
   readonly type: "text";
   readonly text: string;
@@ -98,6 +102,8 @@ interface OpenAiChatResponse {
     message?: {
       role?: string;
       content?: string | null;
+      reasoning_content?: string;
+      reasoning?: string;
       tool_calls?: Array<{
         id?: string;
         type?: string;
@@ -148,6 +154,18 @@ export const resolveUpstreamModel = (
 
   return requested;
 };
+
+const containsReasoningVendorHint = (value: string): boolean => {
+  const normalized = value.toLowerCase();
+  return REASONING_VENDOR_HINTS.some((hint) => normalized.includes(hint));
+};
+
+const shouldPreserveReasoningContent = (
+  target: Pick<RuntimeTarget, "upstreamBaseUrl">,
+  upstreamModel: string
+): boolean =>
+  [upstreamModel, target.upstreamBaseUrl]
+    .some(containsReasoningVendorHint);
 
 const applyModelRewrite = (
   body: Record<string, unknown>,
@@ -213,7 +231,10 @@ const extractAnthropicTextContent = (content: AnthropicMessageInput["content"]):
   return chunks.join("\n").trim();
 };
 
-const toOpenAiMessages = (body: AnthropicRequestBody): OpenAiChatRequestBody["messages"] => {
+const toOpenAiMessages = (
+  body: AnthropicRequestBody,
+  preserveReasoningContent: boolean
+): OpenAiChatRequestBody["messages"] => {
   const messages: OpenAiChatRequestBody["messages"] = [];
 
   if (typeof body.system === "string" && body.system.trim().length > 0) {
@@ -306,6 +327,23 @@ const toOpenAiMessages = (body: AnthropicRequestBody): OpenAiChatRequestBody["me
           }
         }))
       };
+
+      if (preserveReasoningContent && message.role === "assistant") {
+        const reasoningParts: string[] = [];
+        for (const block of message.content) {
+          if (block.type === "thinking" && isNonEmptyString(block.thinking)) {
+            reasoningParts.push(block.thinking);
+          } else if (block.type === "redacted_thinking") {
+            reasoningParts.push(REDACTED_REASONING_PLACEHOLDER);
+          }
+        }
+
+        // DeepSeek 类上游要求带 tool_calls 的 assistant 历史必须包含非空 reasoning_content。
+        assistantRecord.reasoning_content = reasoningParts.length > 0
+          ? reasoningParts.join("\n")
+          : TOOL_CALL_REASONING_PLACEHOLDER;
+      }
+
       messages.push(assistantRecord);
     } else if (multimodalContent.length > 0) {
       messages.push({
@@ -475,7 +513,19 @@ const toAnthropicResponse = (
 ): Record<string, unknown> => {
   const message = upstream.choices?.[0]?.message;
   const textContent = typeof message?.content === "string" ? message.content : "";
+  const reasoningContent = typeof message?.reasoning_content === "string"
+    ? message.reasoning_content
+    : typeof message?.reasoning === "string"
+      ? message.reasoning
+      : "";
   const contentBlocks: Array<Record<string, unknown>> = [];
+
+  if (reasoningContent.length > 0) {
+    contentBlocks.push({
+      type: "thinking",
+      thinking: reasoningContent
+    });
+  }
 
   if (textContent.length > 0) {
     contentBlocks.push({
@@ -665,9 +715,11 @@ export const buildBridgedRequest = (
 
   const tools = toOpenAiTools(anthropicBody);
   const toolChoice = toOpenAiToolChoice(anthropicBody);
+  const upstreamModel = resolveUpstreamModel(anthropicBody.model, target) ?? anthropicBody.model;
+  const preserveReasoningContent = shouldPreserveReasoningContent(target, upstreamModel);
   const upstreamBodyBase = {
-    model: resolveUpstreamModel(anthropicBody.model, target) ?? anthropicBody.model,
-    messages: toOpenAiMessages(anthropicBody),
+    model: upstreamModel,
+    messages: toOpenAiMessages(anthropicBody, preserveReasoningContent),
     stream: anthropicBody.stream === true
   };
   const upstreamBody = {
