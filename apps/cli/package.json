@@ -1,6 +1,6 @@
 {
   "name": "cc-switch-web-cli",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "type": "module",
   "repository": {
@@ -17,7 +17,7 @@
     "cc-switch-web": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -b tsconfig.json --force",
     "dev": "tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
