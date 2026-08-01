@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 
 import type {
   AppBinding,
@@ -20,6 +20,14 @@ import { GovernanceNoticeCard } from "./GovernanceNoticeCard.js";
 import { buildRoutingGovernanceNotice } from "../lib/buildGovernanceNotice.js";
 import { buildRoutingExecutionSummary } from "../lib/buildRoutingExecutionSummary.js";
 import { joinDashboardWarnings } from "../lib/formatDashboardWarning.js";
+import {
+  applyProviderPreset,
+  findProviderPreset,
+  formatModelMappingText,
+  parseModelMappingText,
+  PROVIDER_PRESETS,
+  serializeModelMapping
+} from "../lib/providerFormPresets.js";
 import { ConfigImpactSummary } from "./ConfigImpactSummary.js";
 
 const joinPreviewValues = (items: string[], fallback: string): string =>
@@ -460,6 +468,84 @@ export const RoutingPolicyFormsPanel = ({
   const [providerDangerConfirmed, setProviderDangerConfirmed] = useState(false);
   const [bindingDangerConfirmed, setBindingDangerConfirmed] = useState(false);
   const [failoverDangerConfirmed, setFailoverDangerConfirmed] = useState(false);
+  const [selectedPresetKey, setSelectedPresetKey] = useState("");
+  const [modelMappingText, setModelMappingText] = useState(() =>
+    formatModelMappingText(providerForm.modelMapping)
+  );
+  const [modelMappingInvalidLines, setModelMappingInvalidLines] = useState<readonly string[]>([]);
+  const [syncedMappingSignature, setSyncedMappingSignature] = useState(() =>
+    serializeModelMapping(providerForm.modelMapping)
+  );
+
+  const formMappingSignature = serializeModelMapping(providerForm.modelMapping);
+  useEffect(() => {
+    // Re-sync the mapping editor when the form is rebuilt from a saved
+    // provider (edit backfill / save echo) instead of a local textarea edit.
+    if (formMappingSignature !== syncedMappingSignature) {
+      setModelMappingText(formatModelMappingText(providerForm.modelMapping));
+      setModelMappingInvalidLines([]);
+      setSyncedMappingSignature(formMappingSignature);
+    }
+  }, [formMappingSignature, syncedMappingSignature, providerForm.modelMapping]);
+
+  const handleModelMappingTextChange = (nextText: string): void => {
+    setModelMappingText(nextText);
+    const parsed = parseModelMappingText(nextText);
+    setModelMappingInvalidLines(parsed.invalidLines);
+    setSyncedMappingSignature(serializeModelMapping(parsed.mapping));
+    setProviderForm((current) => ({ ...current, modelMapping: parsed.mapping }));
+  };
+
+  const handlePresetChange = (presetKey: string): void => {
+    setSelectedPresetKey(presetKey);
+    const preset = findProviderPreset(presetKey);
+    if (preset === null) {
+      return;
+    }
+    setSyncedMappingSignature(serializeModelMapping(providerForm.modelMapping));
+    setProviderForm((current) => applyProviderPreset(current, preset));
+  };
+
+  const selectedPreset = findProviderPreset(selectedPresetKey);
+  const isOpenAiFamilyProvider =
+    providerForm.providerType === "openai-compatible" || providerForm.providerType === "custom";
+
+  const providerTypeHint = ((): string | null => {
+    switch (providerForm.providerType) {
+      case "openai-compatible":
+        return localize(
+          locale,
+          "Base URL 一般以 /v1 结尾（例如 https://api.deepseek.com/v1），凭据填该平台的 API Key。",
+          "Base URL usually ends with /v1 (e.g. https://api.deepseek.com/v1); the credential is that platform's API key."
+        );
+      case "anthropic":
+        return localize(
+          locale,
+          "Anthropic 协议地址（例如 https://api.anthropic.com），凭据即 x-api-key，代理会自动补 anthropic-version。",
+          "Anthropic protocol endpoint (e.g. https://api.anthropic.com); the credential is the x-api-key and the proxy adds anthropic-version automatically."
+        );
+      case "gemini":
+        return localize(
+          locale,
+          "代理主链路暂未适配 Gemini 协议，绑定该 Provider 的请求会被拒绝（501）。",
+          "The proxy pipeline does not speak the Gemini protocol yet; requests bound to this provider will be rejected (501)."
+        );
+      case "opencode":
+        return localize(
+          locale,
+          "OpenCode Provider 目前仅用于记录，代理主链路暂不转发该类型。",
+          "OpenCode providers are inventory-only for now; the proxy pipeline does not forward this type yet."
+        );
+      case "custom":
+        return localize(
+          locale,
+          "custom 类型按 OpenAI 兼容协议转发，请确认上游确实兼容。",
+          "The custom type is forwarded using the OpenAI-compatible protocol; make sure the upstream actually is compatible."
+        );
+      default:
+        return null;
+    }
+  })();
   const firstProviderId = providers[0]?.id ?? "";
   const bindingSuggestedProviderId =
     bindingPreview?.executionPlan.candidates[0]?.providerId ?? firstProviderId;
@@ -504,6 +590,20 @@ export const RoutingPolicyFormsPanel = ({
         }}
       >
         <h3>{t("dashboard.forms.providerTitle")}</h3>
+        <select
+          data-testid="provider-preset-select"
+          value={selectedPresetKey}
+          onChange={(event) => handlePresetChange(event.target.value)}
+        >
+          <option value="">
+            {localize(locale, "选择常用 Provider 预设（可选）", "Pick a common provider preset (optional)")}
+          </option>
+          {PROVIDER_PRESETS.map((preset) => (
+            <option key={preset.key} value={preset.key}>
+              {preset.label}
+            </option>
+          ))}
+        </select>
         <input
           data-testid="provider-id-input"
           value={providerForm.id}
@@ -538,6 +638,7 @@ export const RoutingPolicyFormsPanel = ({
           onChange={(event) => setProviderForm({ ...providerForm, baseUrl: event.target.value })}
           placeholder={t("dashboard.forms.baseUrl")}
         />
+        {providerTypeHint !== null ? <p className="form-hint">{providerTypeHint}</p> : null}
         <input
           type="password"
           data-testid="provider-api-key-input"
@@ -545,6 +646,11 @@ export const RoutingPolicyFormsPanel = ({
           onChange={(event) => setProviderForm({ ...providerForm, apiKey: event.target.value })}
           placeholder={t("dashboard.forms.apiKey")}
         />
+        {selectedPreset !== null ? (
+          <p className="form-hint">
+            {locale === "zh-CN" ? selectedPreset.credentialHintZh : selectedPreset.credentialHintEn}
+          </p>
+        ) : null}
         <input
           data-testid="provider-timeout-input"
           value={providerForm.timeoutMs}
@@ -556,6 +662,74 @@ export const RoutingPolicyFormsPanel = ({
           }
           placeholder={t("dashboard.forms.timeoutMs")}
         />
+        <input
+          data-testid="provider-default-model-input"
+          value={providerForm.defaultModel ?? ""}
+          onChange={(event) =>
+            setProviderForm({
+              ...providerForm,
+              defaultModel: event.target.value.trim().length === 0 ? null : event.target.value
+            })
+          }
+          placeholder={localize(locale, "默认上游模型（可选）", "Default upstream model (optional)")}
+        />
+        <p className="form-hint">
+          {localize(
+            locale,
+            "设置后，未命中映射的请求模型会统一改写为该模型；留空则透传原模型名。",
+            "When set, request models without a mapping entry are rewritten to this model; leave empty to pass the original model through."
+          )}
+        </p>
+        <textarea
+          data-testid="provider-model-mapping-input"
+          value={modelMappingText}
+          onChange={(event) => handleModelMappingTextChange(event.target.value)}
+          rows={3}
+          placeholder={localize(
+            locale,
+            "模型映射，每行一条：claude-sonnet-4-5 = deepseek-chat",
+            "Model mapping, one per line: claude-sonnet-4-5 = deepseek-chat"
+          )}
+        />
+        {modelMappingInvalidLines.length > 0 ? (
+          <p className="form-hint">
+            {localize(locale, "以下行无法解析，已忽略：", "The following lines could not be parsed and are ignored: ")}
+            {modelMappingInvalidLines.join(" / ")}
+          </p>
+        ) : null}
+        {isOpenAiFamilyProvider ? (
+          <>
+            <select
+              data-testid="provider-responses-mode-select"
+              value={providerForm.responsesApiMode ?? "auto"}
+              onChange={(event) =>
+                setProviderForm({
+                  ...providerForm,
+                  responsesApiMode: event.target.value as NonNullable<
+                    ProviderUpsert["responsesApiMode"]
+                  >
+                })
+              }
+            >
+              <option value="auto">
+                {localize(locale, "Responses API：自动（推荐）", "Responses API: auto (recommended)")}
+              </option>
+              <option value="bridge">
+                {localize(locale, "Responses API：桥接到 chat/completions", "Responses API: bridge to chat/completions")}
+              </option>
+              <option value="passthrough">
+                {localize(locale, "Responses API：原样直通", "Responses API: passthrough")}
+              </option>
+            </select>
+            <p className="form-hint">
+              {localize(
+                locale,
+                "Codex 走 /v1/responses。自动模式只对官方 OpenAI 直通，其余上游转换为 chat/completions。",
+                "Codex speaks /v1/responses. Auto passes through only for official OpenAI and bridges every other upstream to chat/completions."
+              )}
+            </p>
+          </>
+        ) : null}
         <label className="checkbox-row">
           <input
             data-testid="provider-enabled-checkbox"

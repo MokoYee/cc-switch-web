@@ -26,7 +26,8 @@ const toProviderDraft = (index: number): QuickOnboardingProviderInput => ({
   baseUrl: "https://api.example.com/v1",
   apiKey: "",
   enabled: true,
-  timeoutMs: 30_000
+  timeoutMs: 30_000,
+  defaultModel: null
 });
 
 const normalizePriority = (
@@ -59,14 +60,17 @@ const deriveInitialProviders = (snapshot: DashboardSnapshot): QuickOnboardingPro
     return [toProviderDraft(0)];
   }
 
-  return snapshot.providers.slice(0, 2).map((provider, index) => ({
+  return snapshot.providers.slice(0, 2).map((provider) => ({
     id: provider.id,
     name: provider.name,
     providerType: provider.providerType,
     baseUrl: provider.baseUrl,
     apiKey: "",
     enabled: provider.enabled,
-    timeoutMs: provider.timeoutMs || 30_000
+    timeoutMs: provider.timeoutMs || 30_000,
+    defaultModel: provider.defaultModel ?? null,
+    modelMapping: { ...(provider.modelMapping ?? {}) },
+    responsesApiMode: provider.responsesApiMode ?? "auto"
   })) ?? [toProviderDraft(0)];
 };
 
@@ -463,6 +467,24 @@ export const QuickOnboardingWorkbench = ({
                           locale,
                           "留空则沿用同 ID 已存在的凭据",
                           "Leave blank to keep the stored credential for the same provider ID"
+                        )}
+                        disabled={disabled || isApplying}
+                      />
+                    </label>
+                    <label className="form-field quick-onboarding-span-2">
+                      <span>{localize(locale, "默认上游模型（可选）", "Default Upstream Model (optional)")}</span>
+                      <input
+                        value={provider.defaultModel ?? ""}
+                        onChange={(event) =>
+                          updateProvider(index, {
+                            defaultModel:
+                              event.target.value.trim().length === 0 ? null : event.target.value
+                          })
+                        }
+                        placeholder={localize(
+                          locale,
+                          "如 deepseek-chat；CLI 请求的模型名将改写为该模型",
+                          "e.g. deepseek-chat; CLI-requested model names are rewritten to this model"
                         )}
                         disabled={disabled || isApplying}
                       />

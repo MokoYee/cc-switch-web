@@ -27,6 +27,9 @@ const createProvider = (overrides: Partial<Provider> = {}): Provider => ({
   apiKeyMasked: "sk-****",
   enabled: true,
   timeoutMs: 30_000,
+  defaultModel: null,
+  modelMapping: {},
+  responsesApiMode: "auto",
   createdAt: "2026-03-28T00:00:00.000Z",
   updatedAt: "2026-03-28T00:00:00.000Z",
   ...overrides

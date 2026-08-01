@@ -8,9 +8,11 @@ import type { AppCode, EffectiveAppContext } from "cc-switch-web-shared";
 import type { DaemonRuntime } from "../../bootstrap/runtime.js";
 import { AnthropicSseBridgeTransform } from "./anthropic-sse-bridge.js";
 import {
+  buildBridgedErrorBody,
   buildBridgedRequest,
   buildBridgedResponseBody
 } from "./protocol-bridge.js";
+import { ResponsesSseBridgeTransform } from "./responses-bridge.js";
 import { extractUsageFromResponse, UsageTrackingStreamTransform } from "./usage-tracking.js";
 
 const SUPPORTED_PROVIDER_TYPES = new Set(["openai-compatible", "custom", "anthropic"]);
@@ -41,6 +43,7 @@ const sanitizeForwardHeaders = (request: FastifyRequest): Headers => {
       lowerKey === "content-length" ||
       lowerKey === "authorization" ||
       lowerKey === "cookie" ||
+      lowerKey === "x-api-key" ||
       lowerKey.startsWith("x-cc-switch-web-")
     ) {
       continue;
@@ -521,9 +524,38 @@ export const registerProxyRoutes = async (
 
       try {
         const bridgedRequest = buildBridgedRequest(request, target, pathSuffix, effectiveContext);
+
+        if (bridgedRequest.localResponse !== undefined) {
+          runtime.proxyRuntimeService.appendRequestLog({
+            appCode: target.appCode,
+            providerId: target.providerId,
+            ...requestLogContextFields,
+            targetUrl: null,
+            method: request.method,
+            path: `${pathSuffix}${queryString}`,
+            statusCode: bridgedRequest.localResponse.statusCode,
+            latencyMs: Date.now() - startedAt,
+            outcome: "success",
+            decisionReason: "local-bridge-response",
+            errorMessage: null
+          });
+          reply.code(bridgedRequest.localResponse.statusCode);
+          reply.header("content-type", bridgedRequest.localResponse.contentType);
+          reply.send(Buffer.from(bridgedRequest.localResponse.body));
+          return;
+        }
+
         const targetUrl = buildTargetUrl(target.upstreamBaseUrl, bridgedRequest.upstreamPath, queryString);
         const headers = sanitizeForwardHeaders(request);
         headers.set("Authorization", `Bearer ${target.apiKeyPlaintext}`);
+        if (target.providerType === "anthropic") {
+          // The official Anthropic API authenticates via x-api-key and requires
+          // an anthropic-version header; Bearer auth is kept for gateways.
+          headers.set("x-api-key", target.apiKeyPlaintext);
+          if (!headers.has("anthropic-version")) {
+            headers.set("anthropic-version", "2023-06-01");
+          }
+        }
         headers.set("x-cc-switch-web-app", target.appCode);
         headers.set("x-cc-switch-web-provider", target.providerId);
         applyContextHeaders(headers, effectiveContext);
@@ -579,7 +611,7 @@ export const registerProxyRoutes = async (
             continue;
           }
 
-          const requestLog = runtime.proxyRuntimeService.appendRequestLog({
+          runtime.proxyRuntimeService.appendRequestLog({
             appCode: target.appCode,
             providerId: target.providerId,
             ...requestLogContextFields,
@@ -601,28 +633,13 @@ export const registerProxyRoutes = async (
             return;
           }
 
-          const responseBodyText = buildBridgedResponseBody(
+          const responseBodyText = buildBridgedErrorBody(
             bridgedRequest.responseProtocol,
-            upstreamBodyText,
-            request.body
+            upstreamResponse.status,
+            upstreamBodyText
           );
-          const usage = extractUsageFromResponse(
-            bridgedRequest.responseProtocol,
-            responseBodyText,
-            request.body
-          );
-          if (usage !== null) {
-            runtime.proxyRuntimeService.appendUsageRecord({
-              requestLogId: requestLog.id,
-              appCode: target.appCode,
-              providerId: target.providerId,
-              model: usage.model,
-              inputTokens: usage.inputTokens,
-              outputTokens: usage.outputTokens
-            });
-          }
           const bodyBuffer = Buffer.from(responseBodyText);
-          if (bridgedRequest.responseProtocol === "anthropic") {
+          if (bridgedRequest.responseProtocol !== "openai") {
             reply.header("content-type", "application/json; charset=utf-8");
           }
           reply.send(bodyBuffer);
@@ -654,6 +671,45 @@ export const registerProxyRoutes = async (
 
         const contentType = upstreamResponse.headers.get("content-type") ?? "";
         if (contentType.includes("text/event-stream")) {
+          if (bridgedRequest.streamMode === "responses-sse") {
+            const bridge = new ResponsesSseBridgeTransform({
+              fallbackModel:
+                typeof request.body === "object" &&
+                request.body !== null &&
+                "model" in request.body &&
+                typeof (request.body as { model?: unknown }).model === "string"
+                  ? (request.body as { model: string }).model
+                  : "openai-compat"
+            });
+            sendRawStream(
+              reply,
+              Readable.fromWeb(upstreamResponse.body as never).pipe(bridge),
+              "text/event-stream; charset=utf-8",
+              () => {
+                const usage = bridge.getUsageSnapshot();
+                if (usage === null) {
+                  return;
+                }
+
+                runtime.proxyRuntimeService.appendUsageRecord({
+                  requestLogId: requestLog.id,
+                  appCode: target.appCode,
+                  providerId: target.providerId,
+                  model:
+                    usage.model ??
+                    (typeof request.body === "object" &&
+                    request.body !== null &&
+                    "model" in request.body &&
+                    typeof (request.body as { model?: unknown }).model === "string"
+                      ? (request.body as { model: string }).model
+                      : "unknown"),
+                  inputTokens: usage.inputTokens,
+                  outputTokens: usage.outputTokens
+                });
+              }
+            );
+            return;
+          }
           if (bridgedRequest.streamMode === "anthropic-sse") {
             const bridge = new AnthropicSseBridgeTransform({
               fallbackModel:
@@ -740,7 +796,7 @@ export const registerProxyRoutes = async (
           });
         }
         const bodyBuffer = Buffer.from(responseBodyText);
-        if (bridgedRequest.responseProtocol === "anthropic") {
+        if (bridgedRequest.responseProtocol !== "openai") {
           reply.header("content-type", "application/json; charset=utf-8");
         }
         reply.send(bodyBuffer);

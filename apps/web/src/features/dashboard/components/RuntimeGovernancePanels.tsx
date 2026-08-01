@@ -75,6 +75,8 @@ const renderRequestDecisionReason = (
       return localize(locale, "请求超时", "Request timeout");
     case "network":
       return localize(locale, "网络异常", "Network error");
+    case "local-bridge-response":
+      return localize(locale, "本地桥接响应", "Local bridge response");
     case "unknown":
       return localize(locale, "未知原因", "Unknown reason");
     case null:

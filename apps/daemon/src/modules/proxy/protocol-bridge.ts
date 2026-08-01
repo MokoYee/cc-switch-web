@@ -5,6 +5,11 @@ import type { FastifyRequest } from "fastify";
 import type { EffectiveAppContext } from "cc-switch-web-shared";
 
 import type { RuntimeTarget } from "./proxy-runtime-service.js";
+import {
+  buildResponsesBridgeChatBody,
+  buildResponsesBridgeResponseBody,
+  shouldBridgeResponsesRequest
+} from "./responses-bridge.js";
 
 export class UnsupportedBridgeFeatureError extends Error {}
 
@@ -112,9 +117,56 @@ interface OpenAiChatResponse {
 export interface BridgedRequest {
   readonly upstreamPath: string;
   readonly upstreamBody: string | null;
-  readonly responseProtocol: "openai" | "anthropic";
-  readonly streamMode: "none" | "anthropic-sse";
+  readonly responseProtocol: "openai" | "anthropic" | "responses";
+  readonly streamMode: "none" | "anthropic-sse" | "responses-sse";
+  readonly localResponse?: {
+    readonly statusCode: number;
+    readonly contentType: string;
+    readonly body: string;
+  };
 }
+
+export const resolveUpstreamModel = (
+  requestedModel: unknown,
+  target: Pick<RuntimeTarget, "modelMapping" | "defaultModel">
+): string | null => {
+  const requested =
+    typeof requestedModel === "string" && requestedModel.trim().length > 0
+      ? requestedModel.trim()
+      : null;
+
+  if (requested !== null) {
+    const mapped = target.modelMapping[requested];
+    if (typeof mapped === "string" && mapped.trim().length > 0) {
+      return mapped.trim();
+    }
+  }
+
+  if (typeof target.defaultModel === "string" && target.defaultModel.trim().length > 0) {
+    return target.defaultModel.trim();
+  }
+
+  return requested;
+};
+
+const applyModelRewrite = (
+  body: Record<string, unknown>,
+  target: Pick<RuntimeTarget, "modelMapping" | "defaultModel">
+): Record<string, unknown> => {
+  if (!("model" in body)) {
+    return body;
+  }
+
+  const nextModel = resolveUpstreamModel(body.model, target);
+  if (nextModel === null || nextModel === body.model) {
+    return body;
+  }
+
+  return {
+    ...body,
+    model: nextModel
+  };
+};
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
@@ -230,6 +282,17 @@ const toOpenAiMessages = (body: AnthropicRequestBody): OpenAiChatRequestBody["me
       }
     }
 
+    // OpenAI requires tool-result messages to directly follow the assistant
+    // message that issued the tool calls, so they must precede any additional
+    // user content carried in the same Anthropic turn.
+    for (const block of toolResultBlocks) {
+      messages.push({
+        role: "tool",
+        tool_call_id: block.tool_use_id,
+        content: extractToolResultText(block)
+      });
+    }
+
     if (toolUseBlocks.length > 0) {
       const assistantRecord: Record<string, unknown> = {
         role: "assistant",
@@ -250,14 +313,6 @@ const toOpenAiMessages = (body: AnthropicRequestBody): OpenAiChatRequestBody["me
         content: multimodalContent.length === 1 && multimodalContent[0]?.type === "text"
           ? multimodalContent[0].text
           : multimodalContent
-      });
-    }
-
-    for (const block of toolResultBlocks) {
-      messages.push({
-        role: "tool",
-        tool_call_id: block.tool_use_id,
-        content: extractToolResultText(block)
       });
     }
   }
@@ -469,6 +524,53 @@ const toAnthropicResponse = (
   };
 };
 
+const countTextChars = (value: unknown): number =>
+  typeof value === "string" ? value.length : 0;
+
+const estimateAnthropicInputTokens = (body: AnthropicRequestBody): number => {
+  let chars = 0;
+
+  if (typeof body.system === "string") {
+    chars += body.system.length;
+  } else if (Array.isArray(body.system)) {
+    for (const item of body.system) {
+      chars += countTextChars(item.text);
+    }
+  }
+
+  for (const message of body.messages ?? []) {
+    if (typeof message.content === "string") {
+      chars += message.content.length;
+      continue;
+    }
+
+    for (const block of message.content ?? []) {
+      if (block.type === "text") {
+        chars += block.text.length;
+      } else if (block.type === "tool_result") {
+        chars += extractToolResultText(block).length;
+      } else if (block.type === "tool_use") {
+        chars += JSON.stringify(block.input ?? {}).length + block.name.length;
+      } else if (block.type === "image") {
+        // Anthropic bills roughly (width*height)/750 tokens per image; without
+        // decoding dimensions we fall back to a coarse fixed estimate.
+        chars += 1_500 * 4;
+      }
+    }
+  }
+
+  for (const tool of body.tools ?? []) {
+    chars += tool.name.length;
+    chars += countTextChars(tool.description);
+    chars += JSON.stringify(tool.input_schema ?? {}).length;
+  }
+
+  return Math.max(1, Math.ceil(chars / 4));
+};
+
+const isCountTokensPath = (pathSuffix: string): boolean =>
+  pathSuffix === "/v1/messages/count_tokens" || pathSuffix === "/messages/count_tokens";
+
 export const buildBridgedRequest = (
   request: FastifyRequest,
   target: RuntimeTarget,
@@ -485,8 +587,48 @@ export const buildBridgedRequest = (
     };
   }
 
+  const isOpenAiFamilyTarget =
+    target.providerType === "openai-compatible" || target.providerType === "custom";
+
+  if (isCountTokensPath(pathSuffix) && isOpenAiFamilyTarget) {
+    // OpenAI-compatible upstreams do not expose an Anthropic token counting
+    // endpoint, so answer locally with an estimate instead of failing with 404.
+    return {
+      upstreamPath: pathSuffix,
+      upstreamBody: null,
+      responseProtocol: "anthropic",
+      streamMode: "none",
+      localResponse: {
+        statusCode: 200,
+        contentType: "application/json; charset=utf-8",
+        body: JSON.stringify({
+          input_tokens: estimateAnthropicInputTokens(body as unknown as AnthropicRequestBody)
+        })
+      }
+    };
+  }
+
+  if (shouldBridgeResponsesRequest(target, pathSuffix)) {
+    const responsesBody = body as {
+      readonly model?: unknown;
+      readonly stream?: unknown;
+    };
+    const upstreamModel =
+      resolveUpstreamModel(responsesBody.model, target) ??
+      (typeof responsesBody.model === "string" ? responsesBody.model : "unknown");
+
+    return {
+      upstreamPath: "/v1/chat/completions",
+      upstreamBody: JSON.stringify(
+        buildResponsesBridgeChatBody(body, upstreamModel, context)
+      ),
+      responseProtocol: "responses",
+      streamMode: responsesBody.stream === true ? "responses-sse" : "none"
+    };
+  }
+
   const shouldBridgeAnthropicToOpenAi =
-    (target.providerType === "openai-compatible" || target.providerType === "custom") &&
+    isOpenAiFamilyTarget &&
     (pathSuffix === "/v1/messages" || pathSuffix === "/messages");
 
   if (!shouldBridgeAnthropicToOpenAi) {
@@ -497,13 +639,19 @@ export const buildBridgedRequest = (
       nextBody = injectResponsesInstruction(body, context);
     } else if (
       target.providerType === "anthropic" &&
-      (pathSuffix === "/v1/messages" || pathSuffix === "/messages")
+      (pathSuffix === "/v1/messages" ||
+        pathSuffix === "/messages" ||
+        isCountTokensPath(pathSuffix))
     ) {
-      nextBody = injectAnthropicInstruction(
-        body as unknown as AnthropicRequestBody,
-        context
-      ) as unknown as Record<string, unknown>;
+      nextBody = isCountTokensPath(pathSuffix)
+        ? body
+        : (injectAnthropicInstruction(
+            body as unknown as AnthropicRequestBody,
+            context
+          ) as unknown as Record<string, unknown>);
     }
+
+    nextBody = applyModelRewrite(nextBody, target);
 
     return {
       upstreamPath: pathSuffix,
@@ -518,7 +666,7 @@ export const buildBridgedRequest = (
   const tools = toOpenAiTools(anthropicBody);
   const toolChoice = toOpenAiToolChoice(anthropicBody);
   const upstreamBodyBase = {
-    model: anthropicBody.model,
+    model: resolveUpstreamModel(anthropicBody.model, target) ?? anthropicBody.model,
     messages: toOpenAiMessages(anthropicBody),
     stream: anthropicBody.stream === true
   };
@@ -550,7 +698,88 @@ export const buildBridgedResponseBody = (
     return upstreamBodyText;
   }
 
+  if (responseProtocol === "responses") {
+    return buildResponsesBridgeResponseBody(upstreamBodyText, originalRequestBody);
+  }
+
   const upstream = JSON.parse(upstreamBodyText) as OpenAiChatResponse;
   const requestBody = (isJsonRecord(originalRequestBody) ? (originalRequestBody as unknown) : {}) as AnthropicRequestBody;
   return JSON.stringify(toAnthropicResponse(upstream, requestBody));
+};
+
+const mapStatusToAnthropicErrorType = (statusCode: number): string => {
+  if (statusCode === 400) {
+    return "invalid_request_error";
+  }
+  if (statusCode === 401) {
+    return "authentication_error";
+  }
+  if (statusCode === 403) {
+    return "permission_error";
+  }
+  if (statusCode === 404) {
+    return "not_found_error";
+  }
+  if (statusCode === 413) {
+    return "request_too_large";
+  }
+  if (statusCode === 429) {
+    return "rate_limit_error";
+  }
+  if (statusCode === 529) {
+    return "overloaded_error";
+  }
+  return "api_error";
+};
+
+const extractErrorMessage = (upstreamBodyText: string, statusCode: number): string => {
+  const fallback = `Upstream returned ${statusCode}`;
+  if (upstreamBodyText.trim().length === 0) {
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(upstreamBodyText) as {
+      readonly message?: unknown;
+      readonly error?: { readonly message?: unknown } | string;
+    };
+    if (typeof parsed.message === "string" && parsed.message.trim().length > 0) {
+      return parsed.message.trim();
+    }
+    if (typeof parsed.error === "string" && parsed.error.trim().length > 0) {
+      return parsed.error.trim();
+    }
+    if (
+      typeof parsed.error === "object" &&
+      parsed.error !== null &&
+      typeof parsed.error.message === "string" &&
+      parsed.error.message.trim().length > 0
+    ) {
+      return parsed.error.message.trim();
+    }
+  } catch {
+    return upstreamBodyText.trim();
+  }
+
+  return fallback;
+};
+
+export const buildBridgedErrorBody = (
+  responseProtocol: BridgedRequest["responseProtocol"],
+  statusCode: number,
+  upstreamBodyText: string
+): string => {
+  if (responseProtocol !== "anthropic") {
+    // OpenAI chat and Responses clients share the same error envelope, so the
+    // upstream error can pass through untouched.
+    return upstreamBodyText;
+  }
+
+  return JSON.stringify({
+    type: "error",
+    error: {
+      type: mapStatusToAnthropicErrorType(statusCode),
+      message: extractErrorMessage(upstreamBodyText, statusCode)
+    }
+  });
 };

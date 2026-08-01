@@ -28,9 +28,13 @@
 
 - 提供单端口 daemon 与内置 Web 控制台
 - 管理 Provider、应用绑定、代理策略和故障转移
+- 支持 Provider 级模型映射与默认模型：把 `Claude Code` / `Codex` 请求的模型名改写成第三方上游真实可用的模型
+- 为 `Codex` 提供 OpenAI Responses → Chat Completions 桥接：`wire_api = "responses"` 也能接只支持 `chat/completions` 的第三方 Provider
+- 为 `Claude Code` 提供 Anthropic → OpenAI 兼容桥接（文本 / SSE 流式 / 工具调用 / 图片 / `count_tokens` 本地估算）
 - 接管并回滚 `codex`、`claude-code` 等本机 CLI 配置
 - 为 `codex`、`claude-code` 提供 `file-rewrite` / `environment-override` 双接管模式
 - 对 Provider 健康检查、自动切换和恢复验证提供更稳定的状态解释
+- 控制台内置常用 Provider 预设（DeepSeek、Moonshot、智谱、Qwen、SiliconFlow、OpenRouter、官方 OpenAI / Anthropic）
 - 管理 MCP 与 Prompt 的导入、预览、发布和回滚
 - 提供 usage 统计、审计事件、运行治理与 `/metrics`
 - 提供配置快照、导入导出和最近版本恢复
