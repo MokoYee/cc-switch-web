@@ -2,7 +2,6 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import {
   systemMetadata,
@@ -13,6 +12,7 @@ import {
 
 import type { DaemonEnv } from "../../config/env.js";
 import type { DaemonStoragePaths } from "../../db/paths.js";
+import { resolveWorkspaceRoot } from "../../runtime-layout.js";
 import type { SettingsRepository } from "../settings/settings-repository.js";
 import { SnapshotService } from "../snapshots/snapshot-service.js";
 import { SystemServiceEventRepository } from "./system-service-event-repository.js";
@@ -36,11 +36,8 @@ interface SpawnResult {
   readonly error: Error | null;
 }
 
-const currentModuleFilePath =
-  typeof __filename === "string" ? __filename : fileURLToPath(import.meta.url);
-
 export class SystemService {
-  private readonly workspaceRoot = resolve(dirname(currentModuleFilePath), "../../../../..");
+  private readonly workspaceRoot = resolveWorkspaceRoot();
   private readonly cliEntry = resolve(this.workspaceRoot, "apps/cli/dist/index.js");
   private readonly systemdUnitPath = resolve(homedir(), ".config/systemd/user/cc-switch-web.service");
   private readonly systemdEnvPath = resolve(homedir(), ".config/cc-switch-web/daemon.env");

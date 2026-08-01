@@ -1,7 +1,7 @@
 # CC Switch Web
 
-`CC Switch Web` 是一个面向 Linux 宿主机的 AI CLI 控制台。  
-它用来统一管理 `Codex`、`Claude Code`、`Gemini CLI` 等工具在本机上的接入、切换、观测与恢复。
+`CC Switch Web` 是一个面向 Linux 宿主机的 AI CLI 配置与代理控制台。
+它统一管理 `Codex`、`Claude Code` 的接入、切换、观测与恢复，并支持发现和同步 `Gemini CLI`、`OpenCode` 的 MCP 配置。
 
 如果你的机器上同时跑多个 AI CLI，配置分散、切换麻烦、故障难排、回滚靠手工，这个项目就是为这类场景准备的。
 
@@ -30,7 +30,7 @@
 - 管理 Provider、应用绑定、代理策略和故障转移
 - 支持 Provider 级模型映射与默认模型：把 `Claude Code` / `Codex` 请求的模型名改写成第三方上游真实可用的模型
 - 为 `Codex` 提供 OpenAI Responses → Chat Completions 桥接：`wire_api = "responses"` 也能接只支持 `chat/completions` 的第三方 Provider
-- 为 `Claude Code` 提供 Anthropic → OpenAI 兼容桥接（文本 / SSE 流式 / 工具调用 / 图片 / `count_tokens` 本地估算）
+- 为 `Claude Code` 提供 Anthropic → OpenAI 兼容桥接（文本 / SSE 流式 / 工具调用 / 图片 / thinking / `count_tokens` 本地估算）
 - 接管并回滚 `codex`、`claude-code` 等本机 CLI 配置
 - 为 `codex`、`claude-code` 提供 `file-rewrite` / `environment-override` 双接管模式
 - 对 Provider 健康检查、自动切换和恢复验证提供更稳定的状态解释
@@ -38,6 +38,8 @@
 - 管理 MCP 与 Prompt 的导入、预览、发布和回滚
 - 提供 usage 统计、审计事件、运行治理与 `/metrics`
 - 提供配置快照、导入导出和最近版本恢复
+
+当前不提供 Gemini API / Gateway 代理，因此 `Gemini CLI` 仅支持配置发现和 MCP 同步，不支持代理接管。
 
 ## 适合谁
 
@@ -76,8 +78,6 @@ npx cc-switch-web daemon start
 ```bash
 ccsw
 ```
-
-源码方式安装依赖并启动：
 
 安装依赖并启动：
 
@@ -166,9 +166,14 @@ ccsw daemon service logs --boot -1 --priority warning..alert
 - 环境变量前缀：`CCSW_*`
 - `systemd` unit：`cc-switch-web.service`
 
+## 运行要求
+
+- Linux 宿主机
+- Node.js `20.19.0` 或更高版本
+- 长期运行建议使用支持用户会话的 `systemd --user`
+- 默认仅监听 `127.0.0.1`；跨主机开放前应配置反向代理、访问控制和 TLS
+
 ## 公开文档
 
-- [Linux 单端口控制台设计](./docs/linux-web-console-design.md)
+- [架构与功能说明](./docs/linux-web-console-design.md)
 - [Linux 运行与回滚手册](./docs/linux-operations-runbook.md)
-- [真实 CLI 兼容性验收矩阵](./docs/cli-compatibility-matrix.md)
-- [v0.2 需求分析与功能计划](./docs/v0.2-requirements-plan.md)

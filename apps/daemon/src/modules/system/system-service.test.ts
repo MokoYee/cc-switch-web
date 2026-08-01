@@ -5,9 +5,17 @@ import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { resolveWorkspaceRoot } from "../../runtime-layout.js";
 import { SystemService } from "./system-service.js";
 
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../..");
+
+test("workspace root resolution supports the bundled daemon entry layout", () => {
+  assert.equal(
+    resolveWorkspaceRoot(resolve(workspaceRoot, "apps/daemon/dist/index.cjs")),
+    workspaceRoot
+  );
+});
 
 const createService = (runMode: "foreground" | "systemd-user" = "foreground") =>
   new SystemService(

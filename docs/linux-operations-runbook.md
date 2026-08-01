@@ -3,10 +3,10 @@
 ## 1. 适用范围
 
 本手册面向已经采用 `ccsw daemon` 作为主运行形态的 Linux 宿主机。
-目标不是解释产品功能，而是给出一份可以直接交付给运维或自托管用户的最小 runbook：
+本文给运维和自托管用户提供可直接执行的运行说明：
 
 - 怎么部署
-- 怎么验证
+- 怎么检查运行状态
 - Prometheus 怎么抓
 - 首批告警怎么配
 - 出问题时怎么回滚
@@ -29,7 +29,7 @@
 说明：
 
 - 前台模式更适合临时接管、协议排障、宿主机预检
-- 持久模式更适合长期代理、Prometheus 抓取和稳定交付
+- 持久模式更适合长期代理和 Prometheus 抓取
 - 当前 `foreground-session` 宿主机接管在 daemon 正常退出时会自动回滚；如果上次异常退出，daemon 下次启动会自动恢复残留的临时接管
 - 当前已提供 `ccsw daemon service logs` / `follow`，排障时优先使用统一 CLI 入口而不是手工拼 `journalctl`
 
@@ -51,7 +51,7 @@ ccsw auth print-token
 ccsw daemon start
 ```
 
-### 3.2 最小验收
+### 3.2 部署后检查
 
 部署后至少确认这四项：
 
@@ -60,12 +60,11 @@ ccsw daemon start
 3. `http://127.0.0.1:8787/metrics` 能返回 Prometheus 文本格式
 4. 运行治理面中的 `Service Doctor` 没有出现 `envInSync=false` 或明显 runtime drift
 
-如果当前机器要承载真实 AI CLI，再补两项：
+如果当前机器要承载 AI CLI，再检查一项：
 
-5. `npm run acceptance:cli:matrix -- --app codex` 或 `--app claude-code` 能生成当前验收步骤
-6. 任选一种接管模式完成一次 `preview -> apply -> rollback` 闭环
+5. 任选一种接管模式完成一次 `preview -> apply -> rollback` 闭环
 
-### 3.3 上线后首轮人工核查
+### 3.3 运行状态检查
 
 - 打开控制台 `Runtime Governance` 面板
 - 看 `Service Doctor` 是否显示 `systemd --user available`
@@ -95,7 +94,7 @@ ccsw host rollback codex
 - `environment-override` 会生成受管导出脚本，并返回激活 / 清理命令
 - 该模式不会自动改写 shell rc 文件
 - 如果当前 shell 已经残留旧变量，先执行 apply 返回的清理命令，再重新激活
-- `gemini-cli` 当前不在 takeover 可交付范围内，原因是代理主链路尚未提供 Gemini API / Gateway 适配
+- `gemini-cli` 当前不支持 takeover，原因是代理主链路尚未提供 Gemini API / Gateway 适配
 
 接第三方 Provider（非官方 OpenAI / Anthropic）时的两条要点：
 
@@ -278,22 +277,10 @@ POST /api/v1/host-discovery/rollback-foreground
 如果问题不是配置漂移，而是代码版本本身需要回退，建议按这个顺序：
 
 1. 停服务：`systemctl --user stop cc-switch-web.service`
-2. 切回上一版已知可用 commit/tag
-3. 重新构建：`npm install && npm run build`
+2. 全局 npm 安装切回已知可用版本：`npm install -g cc-switch-web@<version>`
+3. 源码部署则切换到对应 tag，再执行：`npm install && npm run build`
 4. 重装或刷新服务环境：`ccsw daemon service install`
 5. 启服务：`systemctl --user start cc-switch-web.service`
-6. 重新验收 `/health`、`/ui/`、`/metrics` 和 `Service Doctor`
+6. 重新检查 `/health`、`/ui/`、`/metrics` 和 `Service Doctor`
 
 如果当前不是 `systemd --user` 模式，而是手工前台运行，则把第 1/5 步替换成停止当前前台进程并重新执行 `ccsw daemon start`。
-
-## 7. 发布前最小检查清单
-
-- `ccsw daemon service status` 正常
-- `/health` 正常
-- `/metrics` 可抓取
-- 控制台可以登录
-- `Service Doctor` 没有明显 env/runtime drift
-- 真实 CLI 请求能打进代理日志
-- `acceptance:cli:matrix` 已按目标 CLI 至少执行一轮
-- 最近快照可见且 restore preview 正常
-- 如启用了宿主机接管，确认 apply/rollback 各走通一次

@@ -1,7 +1,7 @@
 {
   "name": "cc-switch-web",
-  "version": "0.1.5",
-  "description": "Daemon-first web console and local proxy control plane for Codex, Claude Code, Gemini CLI, and related AI CLI tools.",
+  "version": "0.1.6",
+  "description": "Daemon-first proxy control plane for Codex and Claude Code, with MCP sync for Gemini CLI and OpenCode.",
   "type": "module",
   "bin": {
     "ccsw": "apps/cli/dist/index.js",
@@ -30,13 +30,9 @@
     "packages/*"
   ],
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.19.0"
   },
   "scripts": {
-    "acceptance:all": "npm run acceptance:core && npm run acceptance:delivery",
-    "acceptance:cli:matrix": "node tools/acceptance/run-cli-matrix.mjs",
-    "acceptance:core": "npm run typecheck && npm run test && npm run test:browser",
-    "acceptance:delivery": "npm run smoke && npm run release:bundle && npm run release:verify:latest",
     "build": "npm run build --workspace cc-switch-web-shared && npm run build --workspace cc-switch-web-daemon && npm run build --workspace cc-switch-web-ui && npm run build --workspace cc-switch-web-cli",
     "ci": "npm run typecheck && npm run test && npm run build && npm run smoke:daemon",
     "dev:daemon": "npm run build --workspace cc-switch-web-shared && npm run dev --workspace cc-switch-web-daemon",
@@ -61,6 +57,6 @@
     "better-sqlite3": "^12.8.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.53.2"
+    "@playwright/test": "^1.62.1"
   }
 }

@@ -1,6 +1,6 @@
-# CC Switch Web Linux 单端口控制台设计
+# CC Switch Web 架构与功能说明
 
-## 1. 产品目标
+## 1. 项目定位
 
 `CC Switch Web` 面向 Linux 宿主机场景，提供 AI CLI 工具的代理中台、供应商配置中台和按需控制台能力。
 它参考 `cc-switch` 的能力模型，但不是桌面壳延伸，而是面向宿主机的 Web / daemon 形态。
@@ -12,7 +12,7 @@
 - 单端口承载代理面与控制面
 - 控制台默认内嵌在 daemon 的 `/ui`
 - 默认只监听 `127.0.0.1`
-- 所有新增用户可见能力默认按中英双语设计
+- 控制台提供中文和英文界面
 
 ## 2. 当前运行模型
 
@@ -66,7 +66,7 @@
 - 当显式指定的 `session/workspace` 与当前请求的 `appCode` 不匹配时，代理会直接返回 `409`，避免静默错用上下文。
 - 代理转发时会去掉用户传入的内部控制头，并重写为解析后的只读上下文头，供上游或调试链路观察。
 
-## 3. 已落地能力
+## 3. 功能说明
 
 ### 3.1 配置与持久化
 
@@ -80,7 +80,7 @@
 
 ### 3.2 代理与故障转移
 
-- OpenAI-compatible 最小直通
+- OpenAI-compatible 请求直通
 - Anthropic 非流式桥接
 - Anthropic SSE 流式桥接
 - Anthropic 工具调用结构桥接
@@ -114,8 +114,8 @@
 - Host discovery 扫描
 - Host capability registry
 - 支持矩阵 API / CLI
-- `codex` 真实 apply / rollback
-- `claude-code` 真实 apply / rollback
+- `codex` 文件配置接管与回滚
+- `claude-code` 文件配置接管与回滚
 - `codex` 环境变量接管预览 / apply / rollback
 - `claude-code` 环境变量接管预览 / apply / rollback
 - 前台临时接管生命周期
@@ -130,9 +130,9 @@
 - Prompt Host Sync 整批预览 / 整批 apply
 - Active Context 优先、单候选 Prompt 回退、歧义阻断
 - Prompt Host Sync 沿用备份 / 状态文件 / 回滚模型
-- Prompt / Skill 当前仍分层处理：Prompt 可投放宿主机，Skill 继续保持代理侧注入
-- `codex` / `claude-code` / `gemini-cli` 当前标记为 `proxy-only`
-- `opencode` / `openclaw` 当前标记为 `planned`
+- Prompt / Skill 分层处理：Prompt 可投放宿主机，Skill 保持代理侧注入
+- `codex` / `claude-code` 支持文件配置和环境变量两种接管方式
+- `gemini-cli` 支持配置发现和 MCP 同步，不支持代理接管
 
 当前环境变量接管原则：
 
@@ -141,11 +141,10 @@
 - 不自动修改 shell rc，不自动污染用户登录环境
 - `gemini-cli` 当前仍只做发现，不承诺 env takeover 可用，因为代理主链路尚未提供 Gemini API / Gateway 适配
 
-当前宿主机支持矩阵原则：
+宿主机支持状态含义：
 
 - `managed`：已具备受管接管能力
 - `inspect-only`：只识别本机状态，不猜测接管方式
-- `planned`：已进入产品模型，但未承诺立即接管
 
 ### 3.4 可观测性
 
@@ -162,11 +161,8 @@
   - 控制台运行治理面直接暴露校验清单与恢复步骤
 - CLI 查询入口
 - 基础运行时状态查询
-- 兼容矩阵脚本与验收文档
-  - `npm run acceptance:cli:matrix`
-  - `docs/cli-compatibility-matrix.md`
 
-### 3.5 MCP 基础模块
+### 3.5 MCP 管理
 
 - MCP Server 数据模型
 - App 与 MCP Server 绑定模型
@@ -188,7 +184,7 @@
 - MCP 审计时间线视图
 - MCP 审计事件已纳入统一事件流
 
-### 3.6 控制台基础设施
+### 3.6 Web 控制台
 
 - `/ui` 登录页与控制台壳
 - Dashboard 基础页面
@@ -201,7 +197,6 @@
 - Runtime Governance / Service Doctor / Startup Recovery 跟进卡
 - MCP 校验历史与治理跟进行动入口
 - 中英双语基础设施
-- 前端目录标准化：`app` / `features` / `shared`
 
 ### 3.7 工作区自动发现
 

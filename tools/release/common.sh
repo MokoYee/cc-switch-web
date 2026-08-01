@@ -119,7 +119,7 @@ const manifest = {
   artifactName: process.env.CCSW_RELEASE_ARTIFACT_NAME,
   installMode: "bundle",
   runtime: {
-    node: ">=20.0.0",
+    node: ">=20.19.0",
     installCommand: "npm ci --omit=dev",
     serviceInstallCommand: "bash tools/ops/install-host.sh"
   },
