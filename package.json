@@ -1,6 +1,6 @@
 {
   "name": "cc-switch-web",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Daemon-first proxy control plane for Codex and Claude Code, with MCP sync for Gemini CLI and OpenCode.",
   "type": "module",
   "bin": {

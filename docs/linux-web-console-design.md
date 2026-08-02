@@ -2,12 +2,12 @@
 
 ## 1. 项目定位
 
-`CC Switch Web` 面向 Linux 宿主机场景，提供 AI CLI 工具的代理中台、供应商配置中台和按需控制台能力。
-它参考 `cc-switch` 的能力模型，但不是桌面壳延伸，而是面向宿主机的 Web / daemon 形态。
+`CC Switch Web` 面向 Linux，提供 AI CLI 工具的代理中台、供应商配置中台和按需控制台能力。
+它参考 `cc-switch` 的能力模型，但不是桌面壳延伸，而是 Linux Web / daemon 形态。
 
 当前主形态不是桌面端，也不是容器优先，而是：
 
-- 宿主机原生运行
+- Linux 原生运行
 - `daemon-first`
 - 单端口承载代理面与控制面
 - 控制台默认内嵌在 daemon 的 `/ui`
@@ -37,9 +37,10 @@
 
 ### 2.3 默认安全边界
 
-- 默认地址：`127.0.0.1:8787`
+- 手动启动默认地址：`127.0.0.1:8787`
+- 一键安装的用户服务监听 `0.0.0.0:8787`，并通过私网 IPv4 提供管理入口
 - 控制台与受保护 API 需要控制 token 或已登录 UI 会话
-- `/metrics` 当前不走控制台登录态，默认依赖本机监听边界或反向代理 ACL 做额外保护
+- `/metrics` 当前不走控制台登录态；使用一键安装时必须通过防火墙限制 TCP `8787` 的内网访问范围
 - 允许跨域来源可通过环境变量配置
 - 监听地址和端口均可通过环境变量覆盖
 - 环境变量与 `systemd` 单元名统一采用：`CCSW_*`、`cc-switch-web.service`
@@ -109,7 +110,7 @@
 - 自动恢复与事件记录
 - 控制台 / CLI 可解释“恢复验证中”而不是把一次偶发成功误判为已恢复
 
-### 3.3 宿主机 CLI 接管
+### 3.3 本机 CLI 接管
 
 - Host discovery 扫描
 - Host capability registry
@@ -119,18 +120,18 @@
 - `codex` 环境变量接管预览 / apply / rollback
 - `claude-code` 环境变量接管预览 / apply / rollback
 - 前台临时接管生命周期
-  - daemon 正常退出时自动回滚 `foreground-session` 宿主机接管
+  - daemon 正常退出时自动回滚 `foreground-session` 本机接管
   - daemon 下次启动时自动恢复上次异常退出残留的临时接管
-  - Dashboard bootstrap 暴露启动自动恢复摘要，控制台可直接跟进宿主机审计
+  - Dashboard bootstrap 暴露启动自动恢复摘要，控制台可直接跟进本机审计
 - 事件持久化
 - Prompt Host Sync 能力矩阵
 - Skill Delivery 能力矩阵
-- `codex` 宿主机 Prompt 文件 apply / rollback
-- `claude-code` 宿主机 Prompt 文件 apply / rollback
+- `codex` 本机 Prompt 文件 apply / rollback
+- `claude-code` 本机 Prompt 文件 apply / rollback
 - Prompt Host Sync 整批预览 / 整批 apply
 - Active Context 优先、单候选 Prompt 回退、歧义阻断
 - Prompt Host Sync 沿用备份 / 状态文件 / 回滚模型
-- Prompt / Skill 分层处理：Prompt 可投放宿主机，Skill 保持代理侧注入
+- Prompt / Skill 分层处理：Prompt 可投放本机，Skill 保持代理侧注入
 - `codex` / `claude-code` 支持文件配置和环境变量两种接管方式
 - `gemini-cli` 支持配置发现和 MCP 同步，不支持代理接管
 
@@ -141,7 +142,7 @@
 - 不自动修改 shell rc，不自动污染用户登录环境
 - `gemini-cli` 当前仍只做发现，不承诺 env takeover 可用，因为代理主链路尚未提供 Gemini API / Gateway 适配
 
-宿主机支持状态含义：
+本机支持状态含义：
 
 - `managed`：已具备受管接管能力
 - `inspect-only`：只识别本机状态，不猜测接管方式
@@ -200,7 +201,7 @@
 
 ### 3.7 工作区自动发现
 
-- 支持扫描宿主机项目目录生成 workspace 候选
+- 支持扫描本机项目目录生成 workspace 候选
 - 支持识别 `.git`、`package.json`、`pyproject.toml`、`Cargo.toml`、`go.mod`、`pom.xml` 等常见工程标记
 - 支持识别 `.codex`、`.claude`、`.gemini`、`.opencode`、`AGENTS.md`、`CLAUDE.md` 等 AI CLI 线索并推断 `appCode`
 - 支持将已有 session `cwd` 与已有 workspace `rootPath` 一并纳入候选去重

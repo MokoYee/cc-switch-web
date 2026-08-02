@@ -1,6 +1,6 @@
 # CC Switch Web
 
-`CC Switch Web` 是一个面向 Linux 宿主机的 AI CLI 配置与代理控制台。
+`CC Switch Web` 是一个面向 Linux 的 AI CLI 配置与代理控制台。
 它统一管理 `Codex`、`Claude Code` 的接入、切换、观测与恢复，并支持发现和同步 `Gemini CLI`、`OpenCode` 的 MCP 配置。
 
 如果你的机器上同时跑多个 AI CLI，配置分散、切换麻烦、故障难排、回滚靠手工，这个项目就是为这类场景准备的。
@@ -59,9 +59,42 @@
 
 它优先解决的是“能装、能接管、能跑、能看、能恢复”，而不是只做一个演示页面。
 
-## 快速启动
+## 快速安装
 
-通过 npm 直接安装：
+一键安装或升级到最新版本：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MokoYee/cc-switch-web/main/install.sh | bash
+```
+
+安装脚本会显示每个安装阶段、安装路径和数据路径；如果缺少 Node.js `20.19.0+`，会通过官方 nvm 安装 Node.js 24。`cc-switch-web` 安装在当前用户的 `~/.local` 下，不需要 `sudo`。
+
+如果 Linux 支持 `systemd --user`，脚本会自动安装并启动服务，监听 `0.0.0.0:8787`，最后输出类似 `http://192.168.1.20:8787/` 的内网管理地址、登录令牌命令和服务状态命令。检测到当前用户未启用 `linger` 时，脚本会提示长期运行命令，但不会自行执行 `sudo`。如果 systemd 用户会话不可用，脚本只完成安装并给出手动启动命令，不会创建无人管理的后台进程。
+
+查看登录令牌：
+
+```bash
+~/.local/bin/ccsw auth print-token
+```
+
+<details>
+<summary>卸载 CC Switch Web</summary>
+
+默认卸载会停止用户服务并移除程序，但保留数据库、令牌、快照以及 Node.js：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MokoYee/cc-switch-web/main/uninstall.sh | bash
+```
+
+需要同时删除 `~/.cc-switch-web` 数据和项目配置时，显式执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MokoYee/cc-switch-web/main/uninstall.sh | bash -s -- --purge
+```
+
+</details>
+
+新开终端后可以直接使用 `ccsw`。如果希望手动安装，也可以通过 npm：
 
 ```bash
 npm install -g cc-switch-web
@@ -73,18 +106,18 @@ npm install -g cc-switch-web
 npx cc-switch-web daemon start
 ```
 
-安装完成后，CLI 命令仍然是：
+CLI 命令是：
 
 ```bash
 ccsw
 ```
 
-安装依赖并启动：
+从源码构建：
 
 ```bash
 npm install
 npm run build
-ccsw daemon start
+node apps/cli/dist/index.js daemon start
 ```
 
 如果当前还没有安装到 PATH，也可以直接用：
@@ -93,11 +126,13 @@ ccsw daemon start
 node apps/cli/dist/index.js daemon start
 ```
 
-启动后默认访问：
+手动启动后默认从本机访问：
 
-- 登录页：`http://127.0.0.1:8787/`
-- 控制台：`http://127.0.0.1:8787/ui/`
-- Metrics：`http://127.0.0.1:8787/metrics`
+- 登录页：`http://localhost:8787/`
+- 控制台：`http://localhost:8787/ui/`
+- Metrics：`http://localhost:8787/metrics`
+
+一键安装后请使用脚本输出的内网管理地址。
 
 查看控制令牌：
 
@@ -168,10 +203,10 @@ ccsw daemon service logs --boot -1 --priority warning..alert
 
 ## 运行要求
 
-- Linux 宿主机
+- Linux
 - Node.js `20.19.0` 或更高版本
 - 长期运行建议使用支持用户会话的 `systemd --user`
-- 默认仅监听 `127.0.0.1`；跨主机开放前应配置反向代理、访问控制和 TLS
+- 手动启动默认只监听本机；一键安装服务监听所有网卡，必须通过防火墙将 TCP `8787` 限制在可信内网
 
 ## 公开文档
 

@@ -2,7 +2,7 @@
 
 ## 1. 适用范围
 
-本手册面向已经采用 `ccsw daemon` 作为主运行形态的 Linux 宿主机。
+本手册面向已经采用 `ccsw daemon` 作为主运行形态的 Linux 系统。
 本文给运维和自托管用户提供可直接执行的运行说明：
 
 - 怎么部署
@@ -11,12 +11,13 @@
 - 首批告警怎么配
 - 出问题时怎么回滚
 
-当前默认前提：
+运行地址：
 
-- daemon 监听 `127.0.0.1:8787`
+- 手动启动默认监听 `127.0.0.1:8787`
+- 一键安装的用户服务监听 `0.0.0.0:8787`，安装完成后会输出私网访问地址
 - 控制台入口为 `/ui/`
 - Prometheus 指标入口为 `/metrics`
-- `/metrics` 当前不走控制台登录态，必须依赖本机监听边界或反向代理 ACL 额外保护
+- `/metrics` 当前不走控制台登录态；一键安装后必须通过防火墙将 TCP `8787` 限制在可信内网
 
 ## 2. 推荐运行模型
 
@@ -28,21 +29,31 @@
 
 说明：
 
-- 前台模式更适合临时接管、协议排障、宿主机预检
+- 前台模式更适合临时接管、协议排障和本机预检
 - 持久模式更适合长期代理和 Prometheus 抓取
-- 当前 `foreground-session` 宿主机接管在 daemon 正常退出时会自动回滚；如果上次异常退出，daemon 下次启动会自动恢复残留的临时接管
+- 当前 `foreground-session` 本机接管在 daemon 正常退出时会自动回滚；如果上次异常退出，daemon 下次启动会自动恢复残留的临时接管
 - 当前已提供 `ccsw daemon service logs` / `follow`，排障时优先使用统一 CLI 入口而不是手工拼 `journalctl`
 
 ## 3. 标准部署步骤
 
-### 3.1 首次部署
+### 3.1 首次安装
+
+推荐使用一键安装脚本，它会检查 Node.js、把 `ccsw` 安装到当前用户的 `~/.local/bin`，并在 systemd 用户会话可用时自动启动服务：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MokoYee/cc-switch-web/main/install.sh | bash
+~/.local/bin/ccsw daemon service status
+~/.local/bin/ccsw auth print-token
+```
+
+如果安装脚本提示当前用户未启用 `linger`，需要服务在退出登录或重启后继续运行时，再按提示执行 `sudo loginctl enable-linger <user>`。安装脚本不会自行提升权限。
+
+从源码运行时使用：
 
 ```bash
 npm install
 npm run build
-ccsw daemon service install
-ccsw daemon service status
-ccsw auth print-token
+node apps/cli/dist/index.js daemon start
 ```
 
 如果当前机器还不适合直接进入 `systemd --user` 模式，可以先用：
@@ -55,9 +66,9 @@ ccsw daemon start
 
 部署后至少确认这四项：
 
-1. `http://127.0.0.1:8787/health` 返回 `status: ok`
-2. `http://127.0.0.1:8787/ui/` 可登录并打开控制台
-3. `http://127.0.0.1:8787/metrics` 能返回 Prometheus 文本格式
+1. `curl http://localhost:8787/health` 返回 `status: ok`
+2. 安装脚本输出的 `http://<server-private-ip>:8787/` 可登录并打开控制台
+3. `curl http://localhost:8787/metrics` 能返回 Prometheus 文本格式
 4. 运行治理面中的 `Service Doctor` 没有出现 `envInSync=false` 或明显 runtime drift
 
 如果当前机器要承载 AI CLI，再检查一项：
@@ -69,11 +80,11 @@ ccsw daemon start
 - 打开控制台 `Runtime Governance` 面板
 - 看 `Service Doctor` 是否显示 `systemd --user available`
 - 看 `runtimeMatch` 是否已经对齐
-- 如果出现“启动自动恢复”卡片，先打开宿主机审计确认上次异常退出残留已经被清理
-- 如果宿主机 CLI 处于临时接管模式，发起一次真实 CLI 请求，确认当前请求已经命中代理链路
+- 如果出现“启动自动恢复”卡片，先打开本机审计确认上次异常退出残留已经被清理
+- 如果本机 CLI 处于临时接管模式，发起一次真实 CLI 请求，确认当前请求已经命中代理链路
 - 如果 Provider 状态显示 `recovering`，继续观察恢复验证计数，不要把单次成功当成完全恢复
 
-## 3.4 宿主机接管模式选择
+## 3.4 本机 CLI 接管模式选择
 
 推荐顺序：
 
@@ -256,9 +267,9 @@ POST /api/v1/snapshots/latest/restore
 - Provider / Binding / MCP / Quota / Proxy Policy 变更后需要快速恢复
 - 控制台看到 `latestSnapshotDiff` 明显偏离预期
 
-### 6.2 宿主机接管回滚
+### 6.2 本机配置接管回滚
 
-如果是单应用宿主机接管问题，优先走控制台 Host Discovery / MCP Host Sync 的回滚动作。
+如果是单应用本机接管问题，优先走控制台 Host Discovery / MCP Host Sync 的回滚动作。
 
 常用 API：
 
