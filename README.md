@@ -48,17 +48,6 @@
 - 需要把“切换、观察、恢复”做成本机稳定能力的人
 - 准备把 AI CLI 使用环境做成可交付运行面的场景
 
-## 典型使用路径
-
-最短路径通常只有四步：
-
-1. 启动 daemon
-2. 登录控制台或获取控制令牌
-3. 接管本机 AI CLI
-4. 验证请求、观察状态，必要时回滚
-
-它优先解决的是“能装、能接管、能跑、能看、能恢复”，而不是只做一个演示页面。
-
 ## 快速安装
 
 一键安装或升级到最新版本：
@@ -67,9 +56,7 @@
 curl -fsSL https://raw.githubusercontent.com/MokoYee/cc-switch-web/main/install.sh | bash
 ```
 
-安装脚本会显示每个安装阶段、安装路径和数据路径；如果缺少 Node.js `20.19.0+`，会通过官方 nvm 安装 Node.js 24。`cc-switch-web` 安装在当前用户的 `~/.local` 下，不需要 `sudo`。
-
-如果 Linux 支持 `systemd --user`，脚本会自动安装并启动服务，监听 `0.0.0.0:8787`，最后输出类似 `http://192.168.1.20:8787/` 的内网管理地址、登录令牌命令和服务状态命令。检测到当前用户未启用 `linger` 时，脚本会提示长期运行命令，但不会自行执行 `sudo`。如果 systemd 用户会话不可用，脚本只完成安装并给出手动启动命令，不会创建无人管理的后台进程。
+脚本使用当前用户安装到 `~/.local`，数据保存在 `~/.cc-switch-web`。安装完成后会自动启动并输出内网管理地址；如果系统不支持用户服务，则输出手动启动命令。
 
 查看登录令牌：
 
@@ -94,35 +81,24 @@ curl -fsSL https://raw.githubusercontent.com/MokoYee/cc-switch-web/main/uninstal
 
 </details>
 
-新开终端后可以直接使用 `ccsw`。如果希望手动安装，也可以通过 npm：
+### 手动安装
 
 ```bash
 npm install -g cc-switch-web
+ccsw daemon start
 ```
 
-或直接临时执行：
+无需全局安装也可以直接运行：
 
 ```bash
 npx cc-switch-web daemon start
 ```
 
-CLI 命令是：
-
-```bash
-ccsw
-```
-
-从源码构建：
+### 从源码运行
 
 ```bash
 npm install
 npm run build
-node apps/cli/dist/index.js daemon start
-```
-
-如果当前还没有安装到 PATH，也可以直接用：
-
-```bash
 node apps/cli/dist/index.js daemon start
 ```
 
